@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Layout: menu lateral fixo + área de trabalho; central inicial em blocos Operacional / Gerencial.
+   Neutros com leve viés azul-petróleo; acento petróleo ("vertente" = água descendo). */
+:root {
+  --bg: #f2f5f6;
+  --surface: #ffffff;
+  --raised: #e9eef0;
+  --line: #d6dee2;
+  --fg: #142027;
+  --muted: #5a6a72;
+  --accent: #1b6a8e;
+  --accent-soft: #dcebf2;
+  --accent-fg: #ffffff;
+  --warn: #a8640a;
+  --warn-soft: #fbeedb;
+  --ok: #217a47;
+  --ok-soft: #dcf1e4;
+  --font-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c1317;
+    --surface: #121b20;
+    --raised: #19242a;
+    --line: #253239;
+    --fg: #e4ecef;
+    --muted: #8c9ea6;
+    --accent: #5cb3d9;
+    --accent-soft: #15303d;
+    --accent-fg: #06141b;
+    --warn: #e7a64a;
+    --warn-soft: #33260f;
+    --ok: #5cc98a;
+    --ok-soft: #12301f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c1317;
+  --surface: #121b20;
+  --raised: #19242a;
+  --line: #253239;
+  --fg: #e4ecef;
+  --muted: #8c9ea6;
+  --accent: #5cb3d9;
+  --accent-soft: #15303d;
+  --accent-fg: #06141b;
+  --warn: #e7a64a;
+  --warn-soft: #33260f;
+  --ok: #5cc98a;
+  --ok-soft: #12301f;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
