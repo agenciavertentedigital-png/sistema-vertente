@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, Moon, Sun } from "lucide-react";
+import { Home, LogOut, Moon, Sun } from "lucide-react";
 import { BASE_CLIENTES, GRUPOS, MODULOS } from "../data/modulos";
 import { Marca } from "./Marca";
 
@@ -8,6 +8,8 @@ interface Props {
   ir: (r: string) => void;
   tema: "light" | "dark";
   alternarTema: () => void;
+  usuario: { nome: string; papel: string };
+  onSair?: () => void;
 }
 
 function Item({
@@ -41,7 +43,7 @@ function Item({
   );
 }
 
-export function Menu({ rota, ir, tema, alternarTema }: Props) {
+export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
   return (
     <nav className="flex h-full flex-col gap-5 overflow-y-auto px-3 pb-3 pt-4" aria-label="Menu principal">
       <div className="px-1.5">
@@ -75,10 +77,16 @@ export function Menu({ rota, ir, tema, alternarTema }: Props) {
       ))}
 
       <div className="mt-auto flex items-center justify-between border-t border-line px-1.5 pt-3">
-        <div className="text-[12px] leading-tight">
-          <div className="font-medium">Rener</div>
-          <div className="text-muted">Administrador</div>
+        <div className="min-w-0 text-[12px] leading-tight">
+          <div className="truncate font-medium">{usuario.nome}</div>
+          <div className="text-muted">{usuario.papel}</div>
         </div>
+        <div className="flex">
+        {onSair && (
+          <button onClick={onSair} className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg" aria-label="Sair">
+            <LogOut size={16} />
+          </button>
+        )}
         <button
           onClick={alternarTema}
           className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg"
@@ -86,6 +94,7 @@ export function Menu({ rota, ir, tema, alternarTema }: Props) {
         >
           {tema === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
+        </div>
       </div>
     </nav>
   );

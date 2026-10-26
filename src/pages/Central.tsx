@@ -1,9 +1,10 @@
 import { ArrowRight } from "lucide-react";
 import { FASES, FASE_ATUAL, GRUPOS, MODULOS } from "../data/modulos";
-import { CLIENTES } from "../data/clientes";
+import { useClientes } from "../lib/clientes";
 import { FaseChip } from "../components/FaseChip";
 
 export function Central({ ir }: { ir: (r: string) => void }) {
+  const { clientes: CLIENTES } = useClientes();
   const marcas = new Set(CLIENTES.map((c) => c.grupo ?? c.nome)).size;
 
   return (

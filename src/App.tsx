@@ -7,6 +7,10 @@ import { MODULOS } from "./data/modulos";
 import { Central } from "./pages/Central";
 import { PaginaModulo } from "./pages/PaginaModulo";
 import { BaseClientes } from "./pages/BaseClientes";
+import { Entrar } from "./pages/Entrar";
+import { sair, useSessao } from "./lib/sessao";
+
+const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
 type Tema = "light" | "dark";
 
@@ -17,6 +21,7 @@ function temaInicial(): Tema {
 }
 
 export default function App() {
+  const sessao = useSessao();
   const [rota, ir] = useRota();
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuAberto, setMenuAberto] = useState(false);
@@ -38,12 +43,30 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  if (sessao.tipo === "carregando") {
+    return <div className="grid h-full place-items-center text-muted">Carregando…</div>;
+  }
+  if (sessao.tipo === "deslogado") return <Entrar />;
+  if (sessao.tipo === "sem-acesso") return <Entrar semAcessoEmail={sessao.email} />;
+
+  const usuario =
+    sessao.tipo === "logado"
+      ? { nome: sessao.membro.nome, papel: PAPEIS[sessao.membro.papel] ?? sessao.membro.papel }
+      : { nome: "Modo demonstração", papel: "Sem login" };
+
   const modulo = MODULOS.find((m) => m.id === rota);
   let pagina = <Central ir={navegar} />;
   if (rota === "base") pagina = <BaseClientes />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
-  const menu = <Menu rota={rota} ir={navegar} tema={tema} alternarTema={alternarTema} />;
+  const menu = <Menu
+      rota={rota}
+      ir={navegar}
+      tema={tema}
+      alternarTema={alternarTema}
+      usuario={usuario}
+      onSair={sessao.tipo === "logado" ? sair : undefined}
+    />;
 
   return (
     <div className="flex h-full">

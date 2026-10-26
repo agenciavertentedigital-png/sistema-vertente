@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { CLIENTES, type Origem } from "../data/clientes";
+import type { Origem } from "../data/clientes";
+import { useClientes } from "../lib/clientes";
 
 type Filtro = "Todos" | Origem;
 const FILTROS: Filtro[] = ["Todos", "Vertente", "Parceria Marcone"];
@@ -8,13 +9,14 @@ const FILTROS: Filtro[] = ["Todos", "Vertente", "Parceria Marcone"];
 export function BaseClientes() {
   const [filtro, setFiltro] = useState<Filtro>("Todos");
   const [busca, setBusca] = useState("");
+  const { clientes: CLIENTES, carregando, erro } = useClientes();
 
   const lista = useMemo(
     () =>
       CLIENTES.filter((c) => (filtro === "Todos" ? true : c.origem === filtro)).filter((c) =>
         c.nome.toLowerCase().includes(busca.trim().toLowerCase()),
       ),
-    [filtro, busca],
+    [filtro, busca, CLIENTES],
   );
 
   const contar = (f: Filtro) => (f === "Todos" ? CLIENTES.length : CLIENTES.filter((c) => c.origem === f).length);
@@ -25,8 +27,7 @@ export function BaseClientes() {
         <div className="eyebrow">Fase 0 · Fundação</div>
         <h1 className="mt-1 text-[26px] font-semibold">Base de clientes</h1>
         <p className="mt-1.5 max-w-[68ch] text-muted">
-          A carteira atual. Todas as áreas do sistema se ligam a esta lista. Serviços contratados e responsáveis entram quando o banco de
-          dados for conectado.
+          A carteira atual. Todas as áreas do sistema se ligam a esta lista de clientes.
         </p>
       </header>
 
@@ -82,11 +83,25 @@ export function BaseClientes() {
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-muted">{c.grupo ?? "—"}</td>
-                <td className="px-4 py-2.5 text-muted">a cadastrar</td>
-                <td className="px-4 py-2.5 text-muted">a definir</td>
+                <td className="px-4 py-2.5 text-muted">{c.servicos.length ? c.servicos.join(", ") : "a cadastrar"}</td>
+                <td className="px-4 py-2.5 text-muted">{c.responsavel ?? "a definir"}</td>
               </tr>
             ))}
-            {lista.length === 0 && (
+            {carregando && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-muted">
+                  Carregando clientes…
+                </td>
+              </tr>
+            )}
+            {erro && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-warn">
+                  {erro}
+                </td>
+              </tr>
+            )}
+            {!carregando && !erro && lista.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-muted">
                   Nenhum cliente com esse nome.

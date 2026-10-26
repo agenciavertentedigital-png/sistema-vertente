@@ -39,3 +39,9 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - `src/pages/` — Central, página de módulo, base de clientes
 - `src/components/` — menu, marca, selo de fase
 - Cores e fontes: tokens em `src/index.css` (tema claro e escuro)
+
+## Banco de dados e login
+
+- Migrações em `supabase/migrations/` (Fase 0: `membros`, `clientes`, `servicos`, `cliente_servicos`, com RLS).
+- Só e-mails cadastrados na tabela `membros` (ativos) veem os dados. Para liberar alguém: inserir o e-mail em `membros`; a pessoa cria a senha em "Primeiro acesso".
+- Variáveis de ambiente (Vercel e `.env.local`): `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`. Sem elas o sistema abre em modo demonstração.
