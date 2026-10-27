@@ -1,6 +1,6 @@
 /**
- * Base inicial de clientes (Fase 0).
- * Na Fase 0 completa, esta lista passa a vir da tabela `clientes` no Supabase.
+ * Base de clientes ativos usada só no modo demonstração (sem Supabase).
+ * Com o banco conectado, a lista vem da tabela `clientes` (status = ativo).
  */
 export type Origem = "Vertente" | "Parceria Marcone";
 
@@ -11,24 +11,14 @@ export interface Cliente {
 }
 
 export const CLIENTES: Cliente[] = [
-  { nome: "Clínica Nobre Fio", origem: "Vertente" },
+  { nome: "Advocacia Djalmas", origem: "Vertente" },
   { nome: "Agência Vertente Digital", origem: "Vertente" },
-  { nome: "Óticas Carol SVA - Ipatinga", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Óticas Carol Santa Maria", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Óticas Carol RJ - Bangu Shopping", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Óticas Carol - West Shopping", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Óticas Carol - Carioca Shopping", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Óticas Carol - Bangu Centro", origem: "Vertente", grupo: "Óticas Carol" },
-  { nome: "Espaço Larissa Lemos", origem: "Vertente" },
-  { nome: "Lourdes Samora", origem: "Vertente" },
-  { nome: "Madalena Brandão", origem: "Vertente" },
-  { nome: "Cecy Lessa", origem: "Vertente" },
   { nome: "CDT Porto Seguro", origem: "Vertente" },
-  { nome: "Tríade Fibra", origem: "Parceria Marcone" },
-  { nome: "Apple Mania", origem: "Parceria Marcone" },
-  { nome: "Ital'in House", origem: "Parceria Marcone" },
-  { nome: "Gildomar Baterias", origem: "Parceria Marcone" },
-  { nome: "Dra Marcela Galli", origem: "Parceria Marcone" },
-  { nome: "Aloísio Gás", origem: "Parceria Marcone" },
-  { nome: "Plus Sain", origem: "Parceria Marcone" },
+  { nome: "Cecy Lessa", origem: "Vertente" },
+  { nome: "Clínica Nobre Fio", origem: "Vertente" },
+  { nome: "Espaço Larissa Lemos", origem: "Vertente" },
+  { nome: "Essenza Planejados", origem: "Vertente" },
+  { nome: "Madalena Brandão", origem: "Vertente" },
+  { nome: "Óticas Carol SVA", origem: "Vertente", grupo: "Óticas Carol" },
+  { nome: "Terapia de Oração", origem: "Vertente" },
 ];
