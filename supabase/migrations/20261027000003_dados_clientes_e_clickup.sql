@@ -1,0 +1,7 @@
+-- Dados aplicados direto no banco em 27/10/2026 (registro, não reexecutar):
+-- * 10 clientes Vertente ativos + 8 da parceria (Tríade Fibra, Apple Mania, Gildomar Baterias,
+--   Dra Marcela Galli, Aloísio Gás, Plus Sain, SuperLoc, Ital'in House); demais marcados como encerrados.
+-- * Administrador passou a ser renerdotrafego@gmail.com.
+-- * Migração do ClickUp: 110 tarefas abertas dos clientes ativos -> 61 rotinas de cliente
+--   (uma tarefa aberta cada, checklist do modelo) + 46 tarefas avulsas com link para a tarefa original.
+--   3 cópias repetidas de rotinas foram descartadas. Subtarefas do ClickUp não foram migradas.

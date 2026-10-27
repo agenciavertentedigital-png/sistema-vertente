@@ -66,7 +66,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
           {MODULOS.filter((m) => m.grupo === g.id).map((m) => (
             <Item
               key={m.id}
-              ativo={rota === m.id}
+              ativo={rota === m.id || (m.id === "clientes" && rota.startsWith("cliente"))}
               onClick={() => ir(m.id)}
               icone={m.icone}
               rotulo={m.nome}

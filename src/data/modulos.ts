@@ -38,8 +38,8 @@ export interface Modulo {
   entregas: string[];
 }
 
-/** Fase atual de construção. Fase 0 = fundação (layout + base de clientes). */
-export const FASE_ATUAL = 0;
+/** Fase em construção agora. Fases menores já estão prontas. */
+export const FASE_ATUAL = 1;
 
 export const FASES: { numero: number; nome: string }[] = [
   { numero: 0, nome: "Fundação" },

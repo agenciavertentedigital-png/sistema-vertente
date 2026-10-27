@@ -9,6 +9,9 @@ import { PaginaModulo } from "./pages/PaginaModulo";
 import { BaseClientes } from "./pages/BaseClientes";
 import { Entrar } from "./pages/Entrar";
 import { sair, useSessao } from "./lib/sessao";
+import { ProvedorDados, useDados } from "./lib/dados";
+import { GestaoClientes } from "./pages/clientes/GestaoClientes";
+import { TelaCliente } from "./pages/clientes/TelaCliente";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -57,6 +60,8 @@ export default function App() {
   const modulo = MODULOS.find((m) => m.id === rota);
   let pagina = <Central ir={navegar} />;
   if (rota === "base") pagina = <BaseClientes />;
+  else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
+  else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
   const menu = <Menu
@@ -69,6 +74,7 @@ export default function App() {
     />;
 
   return (
+    <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <div className="flex h-full">
       <aside className="hidden w-[248px] shrink-0 border-r border-line bg-surface lg:block">{menu}</aside>
 
@@ -105,6 +111,22 @@ export default function App() {
           {pagina}
         </main>
       </div>
+      <Aviso />
+    </div>
+    </ProvedorDados>
+  );
+}
+
+function Aviso() {
+  const { aviso } = useDados();
+  if (!aviso) return null;
+  return (
+    <div
+      role="status"
+      className="fixed left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-fg px-4 py-2 text-[13px] text-bg shadow-lg"
+      style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}
+    >
+      {aviso}
     </div>
   );
 }
