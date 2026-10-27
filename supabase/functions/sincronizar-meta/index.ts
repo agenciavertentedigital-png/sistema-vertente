@@ -78,7 +78,7 @@ function acao(acoes: unknown, ...tipos: string[]): number {
 function resultado(linha: Json): { valor: number; tipo: string | null } {
   const r = linha.results as { indicator?: string; values?: { value: string }[] }[] | undefined;
   if (Array.isArray(r) && r[0]?.indicator) {
-    return { valor: Number(r[0].values?.[0]?.value ?? 0) || 0, tipo: r[0].indicator.replace(/^actions:/, "") };
+    return { valor: Number(r[0].values?.[0]?.value ?? 0) || 0, tipo: r[0].indicator.replace(/^[a-z_]+:/, "") };
   }
   const a = linha.actions;
   switch (linha.objective) {

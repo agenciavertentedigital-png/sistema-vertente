@@ -28,7 +28,7 @@ export function NumerosDaConta({ clienteId, compacto }: { clienteId: string; com
         const d7 = resumir(c, dados.dias, somarDias(ontem, -7), somarDias(ontem, -1));
         const custoMedio = d7.custo;
         const v = d1.custo !== null && custoMedio ? (d1.custo - custoMedio) / custoMedio : null;
-        const semDados = !c.ultimo_sync;
+        const semDados = !dados.dias.some((x) => x.conta_id === c.id);
         return (
           <div key={c.id} className="rounded-xl border border-line bg-surface px-3 py-2.5 text-[12.5px]">
             <div className="mb-1 flex items-center justify-between gap-2">
@@ -38,7 +38,7 @@ export function NumerosDaConta({ clienteId, compacto }: { clienteId: string; com
               )}
             </div>
             {semDados ? (
-              <span className="text-muted">Números entram quando a Meta for conectada.</span>
+              <span className="text-muted">Sem números da Meta para esta conta ainda.</span>
             ) : (
               <div className="flex flex-wrap gap-x-4 gap-y-1">
                 <span><span className="text-muted">Ontem </span><span className="num font-medium">{moeda(d1.gasto)}</span></span>

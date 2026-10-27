@@ -76,6 +76,7 @@ export function resumir(conta: ContaAnuncio, dias: DiaConta[], ini: string, fim:
   const vc = custo !== null ? variacao(custo, custoAnt) : null;
   if (vc !== null && vc > 0.3 && principal.res >= 3) alertas.push({ nivel: "atencao", texto: `Custo por ${nomeResultado(tipo, false)} subiu ${Math.round(vc * 100)}%` });
   if (conta.erro_sync) alertas.push({ nivel: "atencao", texto: "Erro ao atualizar" });
+  if (daConta.length === 0 && conta.status === "ativa") alertas.push({ nivel: "atencao", texto: "Sem dados da Meta ainda" });
 
   return { conta, gasto, gastoAnt, tipo, resultados: principal.res, custo, custoAnt, ontem, mediaDia, serie, alertas };
 }
@@ -141,6 +142,7 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
   const comAlerta = resumos.filter((r) => r.alertas.length).length;
   const ultimo = trafego.contas.map((c) => c.ultimo_sync).filter(Boolean).sort().pop() ?? null;
   const nuncaSincronizou = trafego.contas.length > 0 && !ultimo;
+  const ultimoDia = trafego.dias.map((x) => x.data).sort().pop();
 
   async function atualizar() {
     setAtualizando(true);
@@ -164,8 +166,17 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
         <div className="flex flex-wrap items-start gap-3 rounded-2xl border border-warn bg-warn-soft px-4 py-3 text-[13px]">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warn" />
           <div className="min-w-0 flex-1 leading-snug">
-            <strong>Falta conectar a Meta.</strong> As {trafego.contas.length} contas já estão vinculadas aos clientes. Assim que o token da Meta for salvo no Supabase,
-            os números dos últimos 30 dias entram aqui e passam a atualizar sozinhos às 7h, 12h e 17h.
+            {ultimoDia ? (
+              <>
+                <strong>Números carregados até {new Date(`${ultimoDia}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" })}, sem atualização automática ainda.</strong> Saldo e status
+                das contas também esperam o token. Quando ele for salvo no Supabase, tudo passa a atualizar sozinho às 7h, 12h e 17h.
+              </>
+            ) : (
+              <>
+                <strong>Falta conectar a Meta.</strong> As {trafego.contas.length} contas já estão vinculadas aos clientes. Assim que o token da Meta for salvo no Supabase,
+                os números dos últimos 30 dias entram aqui e passam a atualizar sozinhos às 7h, 12h e 17h.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -179,7 +190,7 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
           ))}
         </div>
         <div className="flex items-center gap-2 text-[12px] text-muted">
-          Atualizado {quandoAtualizou(ultimo)}
+          {ultimo ? `Atualizado ${quandoAtualizou(ultimo)}` : "Atualização automática desligada"}
           <Botao onClick={atualizar} disabled={atualizando}>
             <RefreshCw size={14} className={atualizando ? "animate-spin" : ""} /> {atualizando ? "Buscando na Meta…" : "Atualizar agora"}
           </Botao>

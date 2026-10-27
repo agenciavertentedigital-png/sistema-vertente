@@ -26,13 +26,15 @@ export const STATUS_CONTA: Record<string, string> = {
 
 /** Nome amigável do tipo de resultado que a Meta informa. */
 export function nomeResultado(tipo: string | null | undefined, plural = true): string {
-  const t = (tipo ?? "").replace(/^actions:/, "");
+  const t = (tipo ?? "").replace(/^[a-z_]+:/, "");
   const mapa: Record<string, [string, string]> = {
     "onsite_conversion.messaging_conversation_started_7d": ["conversa", "conversas"],
     lead: ["lead", "leads"],
     "onsite_conversion.lead_grouped": ["lead", "leads"],
     "offsite_conversion.fb_pixel_lead": ["lead", "leads"],
     purchase: ["compra", "compras"],
+    "onsite_conversion.purchase": ["compra", "compras"],
+    contact_website: ["contato pelo site", "contatos pelo site"],
     "offsite_conversion.fb_pixel_purchase": ["compra", "compras"],
     link_click: ["clique", "cliques"],
     profile_visit_view: ["visita ao perfil", "visitas ao perfil"],
