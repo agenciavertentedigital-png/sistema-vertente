@@ -1,6 +1,6 @@
 // Sincroniza contas de anúncio da Meta: status, saldo e métricas diárias por campanha.
 // Chamada pelo agendamento (cabeçalho x-chave-cron) ou pelo botão "Atualizar agora" (usuário logado do time).
-// Segredo: META_ACCESS_TOKEN (token de Usuário do Sistema com ads_read). A chave do agendamento fica no Vault.
+// Token da Meta: segredo META_ACCESS_TOKEN ou 'meta_access_token' no Vault (lido por ler_token_meta). A chave do agendamento também fica no Vault.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const GRAPH = "https://graph.facebook.com/v23.0";
@@ -126,8 +126,9 @@ Deno.serve(async (req) => {
     if (!m) return responder({ erro: "Sem acesso." }, 403);
   }
 
-  const token = Deno.env.get("META_ACCESS_TOKEN");
-  if (!token) return responder({ erro: "Falta o token da Meta (segredo META_ACCESS_TOKEN no Supabase)." }, 412);
+  // Token: segredo da função ou, se não houver, o cofre (Vault) do banco
+  const token = Deno.env.get("META_ACCESS_TOKEN") || ((await admin.rpc("ler_token_meta")).data as string | null);
+  if (!token) return responder({ erro: "Falta o token da Meta (meta_access_token no Vault do Supabase)." }, 412);
 
   const corpo = (await req.json().catch(() => ({}))) as { conta_id?: string; dias?: number };
   let consulta = admin.from("contas_anuncio").select("*, cliente:clientes(nome)").eq("plataforma", "meta").eq("ativa", true);

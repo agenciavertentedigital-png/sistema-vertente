@@ -81,3 +81,12 @@ select conta_id, data, coalesce(tipo_resultado, '') as tipo_resultado,
   sum(resultados)::numeric(14,2) as resultados, sum(leads)::int as leads, sum(conversas)::int as conversas
 from public.metricas_diarias
 group by conta_id, data, coalesce(tipo_resultado, '');
+
+-- Token da Meta guardado no Vault (valor inserido direto no banco, fora do repositório):
+-- select vault.create_secret('<token>', 'meta_access_token', 'Token da Meta Ads');
+create or replace function public.ler_token_meta()
+returns text language sql security definer set search_path = '' as $$
+  select decrypted_secret from vault.decrypted_secrets where name = 'meta_access_token' order by created_at desc limit 1;
+$$;
+revoke all on function public.ler_token_meta() from public, anon, authenticated;
+grant execute on function public.ler_token_meta() to service_role;
