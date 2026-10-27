@@ -147,9 +147,13 @@ Deno.serve(async (req) => {
     const nomeCliente = (c.cliente as { nome: string } | null)?.nome ?? c.nome;
     try {
       // ---- Conta: status e saldo ----
+      // Saldo e forma de pagamento exigem acesso maior; com "Ver desempenho" busca só o básico
       const info = await graph(`act_${c.conta_id}`, {
         fields: "name,account_status,disable_reason,currency,is_prepay_account,balance,amount_spent,spend_cap,funding_source_details",
-      }, token);
+      }, token).catch((e) => {
+        if (![10, 200].includes((e as { codigo?: number }).codigo ?? 0)) throw e;
+        return graph(`act_${c.conta_id}`, { fields: "name,account_status,disable_reason,currency,amount_spent" }, token);
+      });
       const status = STATUS[Number(info.account_status)] ?? `codigo_${info.account_status}`;
       const fonte = info.funding_source_details as { display_string?: string } | undefined;
       const prePaga = Boolean(info.is_prepay_account);
