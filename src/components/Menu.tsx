@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { Home, LogOut, Moon, Sun } from "lucide-react";
+import { CalendarCheck, Home, LogOut, Moon, Sun } from "lucide-react";
+import { Sininho } from "./Sininho";
 import { BASE_CLIENTES, GRUPOS, MODULOS } from "../data/modulos";
 import { Marca } from "./Marca";
 
@@ -58,6 +59,8 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
           icone={BASE_CLIENTES.icone}
           rotulo={BASE_CLIENTES.nome}
         />
+        <Item ativo={rota.startsWith("reuniao")} onClick={() => ir("reuniao-daily")} icone={CalendarCheck} rotulo="Daily e Weekly" />
+        <Sininho ir={ir} />
       </div>
 
       {GRUPOS.map((g) => (
@@ -66,7 +69,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
           {MODULOS.filter((m) => m.grupo === g.id).map((m) => (
             <Item
               key={m.id}
-              ativo={rota === m.id || (m.id === "clientes" && rota.startsWith("cliente"))}
+              ativo={rota === m.id || rota.startsWith(m.id + "-") || (m.id === "clientes" && rota.startsWith("cliente"))}
               onClick={() => ir(m.id)}
               icone={m.icone}
               rotulo={m.nome}

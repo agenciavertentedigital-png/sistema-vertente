@@ -122,3 +122,14 @@ export function Iniciais({ nome }: { nome?: string }) {
 export function Vazio({ children }: { children: ReactNode }) {
   return <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-[13px] text-muted">{children}</div>;
 }
+
+export const COR_SITUACAO = {
+  ok: "var(--ok)",
+  atencao: "var(--warn)",
+  problema: "var(--bad)",
+} as const;
+
+export function PontoSituacao({ situacao, tamanho = 10 }: { situacao: keyof typeof COR_SITUACAO | null; tamanho?: number }) {
+  if (!situacao) return null;
+  return <span className="inline-block shrink-0 rounded-full" style={{ width: tamanho, height: tamanho, background: COR_SITUACAO[situacao] }} />;
+}

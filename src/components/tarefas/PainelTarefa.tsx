@@ -13,7 +13,10 @@ import {
   type ItemChecklist,
   type Tarefa,
 } from "../../lib/tipos";
-import { Botao, Entrada, Painel, Rotulo, Selecao, campo } from "../ui";
+import { Botao, Entrada, Painel, PontoSituacao, Rotulo, Selecao, campo } from "../ui";
+import { CampoMencao, TextoComMencoes } from "../LinhaDoTempo";
+import { RegistroRapido, tipoDeRegistro } from "./RegistroRapido";
+import { SITUACAO } from "../../lib/tipos";
 
 export function PainelTarefa({ id, fechar }: { id: string | null; fechar: () => void }) {
   const d = useDados();
@@ -34,6 +37,7 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
   const [coments, setComents] = useState<Comentario[]>([]);
   const [novoComent, setNovoComent] = useState("");
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
+  const [registrando, setRegistrando] = useState(false);
 
   const carregarExtras = useCallback(async () => {
     const [i, c] = await Promise.all([repo.checklist(t.id), repo.comentarios(t.id)]);
@@ -69,6 +73,8 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
     ? d.rotinas.find((r) => r.id === d.clienteRotinas.find((c) => c.id === t.cliente_rotina_id)?.rotina_id)
     : undefined;
   const aberta = t.status !== "feita" && t.status !== "nao_feita";
+  const tipoReg = tipoDeRegistro(t, rotina?.nome);
+  const registroFeito = d.registros.find((r) => r.tarefa_id === t.id);
 
   return (
     <div className="flex flex-col gap-5">
@@ -93,11 +99,27 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {registroFeito && (
+        <div className="flex items-start gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-[13px]">
+          <PontoSituacao situacao={registroFeito.situacao} tamanho={12} />
+          <div className="min-w-0 leading-snug">
+            <div className="font-medium">{registroFeito.situacao ? SITUACAO[registroFeito.situacao] : "Registrado"}</div>
+            {registroFeito.acoes.length > 0 && <div className="text-muted">{registroFeito.acoes.join(" · ")}</div>}
+            {registroFeito.alteracoes.map((a, i) => (
+              <div key={i} className="text-muted">{a.tipo}: {a.descricao}{a.antes || a.depois ? ` (${a.antes || "?"} → ${a.depois || "?"})` : ""}</div>
+            ))}
+            {registroFeito.nota && <p className="mt-1 whitespace-pre-wrap">{registroFeito.nota}</p>}
+          </div>
+        </div>
+      )}
+
+      {registrando && tipoReg && <RegistroRapido t={t} tipo={tipoReg} cancelar={() => setRegistrando(false)} concluido={() => setRegistrando(false)} />}
+
+      <div className={`flex flex-wrap gap-2 ${registrando ? "hidden" : ""}`}>
         {aberta ? (
           <>
-            <Botao variante="primario" onClick={() => salvar({ status: "feita" }, "Tarefa concluída")}>
-              Concluir
+            <Botao variante="primario" onClick={() => (tipoReg ? setRegistrando(true) : salvar({ status: "feita" }, "Tarefa concluída"))}>
+              {tipoReg ? "Registrar e concluir" : "Concluir"}
             </Botao>
             <Botao onClick={() => salvar({ status: "nao_feita" }, "Marcada como não feita")}>Não feita</Botao>
           </>
@@ -245,7 +267,7 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
               <div className="mb-0.5 text-[11.5px] text-muted">
                 {c.autor ?? "Alguém"} · {new Date(c.criado_em).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
               </div>
-              <p className="whitespace-pre-wrap leading-snug">{c.texto}</p>
+              <p className="whitespace-pre-wrap leading-snug"><TextoComMencoes texto={c.texto} /></p>
             </li>
           ))}
         </ul>
@@ -259,7 +281,7 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
             mudarItem(() => repo.comentar(t.id, texto));
           }}
         >
-          <textarea id="novo-comentario" rows={2} value={novoComent} onChange={(e) => setNovoComent(e.target.value)} placeholder="Escreva um comentário" className={`${campo} resize-y`} />
+          <CampoMencao id="novo-comentario" rows={2} valor={novoComent} mudar={setNovoComent} placeholder="Escreva um comentário. Use @Nome para avisar alguém" />
           <Botao type="submit" className="self-end">Comentar</Botao>
         </form>
       </section>

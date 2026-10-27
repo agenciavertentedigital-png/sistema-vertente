@@ -17,6 +17,8 @@ export default {
         "warn-soft": "var(--warn-soft)",
         ok: "var(--ok)",
         "ok-soft": "var(--ok-soft)",
+        bad: "var(--bad)",
+        "bad-soft": "var(--bad-soft)",
       },
       fontFamily: {
         display: ["var(--font-display)"],

@@ -22,12 +22,16 @@ import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
 import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, COR_PILAR, Selecao, Vazio } from "../../components/ui";
 import { Numero, ordenar } from "./GestaoClientes";
+import { LinhaDoTempo } from "../../components/LinhaDoTempo";
+import { PontoSituacao } from "../../components/ui";
+import { SITUACAO } from "../../lib/tipos";
 
 export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
   const [aberta, setAberta] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   const [verConcluidas, setVerConcluidas] = useState(false);
+  const [aba, setAba] = useState<"tarefas" | "linha">("tarefas");
   const c = d.cliente(clienteId);
 
   if (d.carregando) return <Vazio>Carregando…</Vazio>;
@@ -69,6 +73,21 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
+          {([["tarefas", "Tarefas e rotinas"], ["linha", "Linha do tempo"]] as const).map(([v, n]) => (
+            <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
+              {n}
+            </button>
+          ))}
+        </div>
+        <SaudeResumo clienteId={c.id} />
+      </div>
+
+      {aba === "linha" ? (
+        <LinhaDoTempo clienteId={c.id} />
+      ) : (
+      <>
       <div className="-mx-1 overflow-x-auto px-1 pb-2">
         <div className="grid min-w-[880px] gap-3" style={{ gridTemplateColumns: `repeat(${pilaresUsados.length}, minmax(0, 1fr))` }}>
           {pilaresUsados.map((p) => {
@@ -90,6 +109,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
       </div>
 
       <RotinasDoCliente clienteId={c.id} />
+      </>
+      )}
 
       <PainelTarefa id={aberta} fechar={() => setAberta(null)} />
       <NovaTarefa aberto={nova} fechar={() => setNova(false)} clienteFixo={c.id} aoCriar={setAberta} />
@@ -272,5 +293,27 @@ function NovaRotinaCliente({ clienteId, salvar }: { clienteId: string; salvar: (
         Adicionar
       </Botao>
     </form>
+  );
+}
+
+/** Última situação registrada de cada canal do cliente. */
+function SaudeResumo({ clienteId }: { clienteId: string }) {
+  const d = useDados();
+  const ultimos = new Map<string, (typeof d.registros)[number]>();
+  for (const r of d.registros
+    .filter((r) => r.cliente_id === clienteId && r.situacao && (r.tipo === "revisao" || r.tipo === "otimizacao"))
+    .sort((a, b) => a.criado_em.localeCompare(b.criado_em)))
+    ultimos.set(r.canal ?? "", r);
+  if (ultimos.size === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {[...ultimos.entries()].map(([canal, r]) => (
+        <span key={canal} className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12.5px]" title={r.nota ?? ""}>
+          <PontoSituacao situacao={r.situacao} />
+          {canal ? CANAL[canal as Canal] : "Conta"}: <strong className="font-medium">{SITUACAO[r.situacao!]}</strong>
+          <span className="text-muted">· {dataCurta(r.data)}</span>
+        </span>
+      ))}
+    </div>
   );
 }

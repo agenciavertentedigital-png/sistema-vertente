@@ -14,7 +14,7 @@ interface Contexto extends Dados {
 }
 
 const Ctx = createContext<Contexto | null>(null);
-const VAZIO: Dados = { clientes: [], membros: [], tarefas: [], rotinas: [], clienteRotinas: [] };
+const VAZIO: Dados = { clientes: [], membros: [], tarefas: [], rotinas: [], clienteRotinas: [], registros: [], notificacoes: [] };
 
 export function ProvedorDados({ eu, children }: { eu: string | null; children: ReactNode }) {
   const [dados, setDados] = useState<Dados>(VAZIO);
@@ -35,6 +35,11 @@ export function ProvedorDados({ eu, children }: { eu: string | null; children: R
 
   useEffect(() => {
     recarregar();
+    // Mantém a tela atualizada com o que o resto do time faz
+    const id = window.setInterval(() => {
+      if (document.visibilityState === "visible") recarregar();
+    }, 60_000);
+    return () => window.clearInterval(id);
   }, [recarregar]);
 
   const avisar = useCallback((texto: string) => {

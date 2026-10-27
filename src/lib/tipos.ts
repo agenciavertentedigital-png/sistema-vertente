@@ -109,6 +109,7 @@ export interface ClienteRotina {
   dia_mes: number | null;
   ativa: boolean;
   ultima_data: string | null;
+  criado_em?: string;
 }
 
 export type CamposTarefa = Partial<
@@ -141,4 +142,92 @@ export function dataCurta(data: string | null): string {
 
 export function atrasada(t: Pick<Tarefa, "prazo" | "status">): boolean {
   return Boolean(t.prazo && t.prazo < hoje() && STATUS_ABERTOS.includes(t.status));
+}
+
+// ------------------------------------------------------------------
+// Registros e notificações
+// ------------------------------------------------------------------
+export type TipoRegistro = "revisao" | "otimizacao" | "reuniao" | "nota" | "decisao" | "daily" | "weekly";
+export type Situacao = "ok" | "atencao" | "problema";
+
+export const SITUACAO: Record<Situacao, string> = { ok: "Tudo certo", atencao: "Atenção", problema: "Problema" };
+export const TIPO_REGISTRO: Record<TipoRegistro, string> = {
+  revisao: "Revisão",
+  otimizacao: "Otimização",
+  reuniao: "Reunião",
+  nota: "Nota",
+  decisao: "Decisão",
+  daily: "Daily",
+  weekly: "Weekly",
+};
+
+export const ACOES_REVISAO = [
+  "Nenhuma ação",
+  "Pausei anúncio",
+  "Ativei anúncio",
+  "Subi criativo",
+  "Ajustei orçamento",
+  "Conta sem saldo",
+  "Pedi material ao cliente",
+  "Avisei o cliente",
+];
+
+export const TIPOS_ALTERACAO = ["Orçamento", "Lance", "Público", "Criativo / anúncio", "Palavra-chave", "Campanha", "Outro"];
+
+export interface Alteracao {
+  tipo: string;
+  descricao: string;
+  antes?: string;
+  depois?: string;
+}
+
+export interface Registro {
+  id: string;
+  cliente_id: string;
+  tarefa_id: string | null;
+  tipo: TipoRegistro;
+  canal: Canal | null;
+  situacao: Situacao | null;
+  acoes: string[];
+  nota: string | null;
+  alteracoes: Alteracao[];
+  dados: { focos?: string[]; bloqueios?: string; decisoes?: string };
+  data: string;
+  autor_id: string | null;
+  criado_em: string;
+}
+
+export type NovoRegistro = Pick<Registro, "cliente_id" | "tipo"> &
+  Partial<Pick<Registro, "tarefa_id" | "canal" | "situacao" | "acoes" | "nota" | "alteracoes" | "dados">>;
+
+export interface Notificacao {
+  id: string;
+  tipo: "mencao" | "atribuicao" | "alerta";
+  texto: string;
+  cliente_id: string | null;
+  tarefa_id: string | null;
+  lida: boolean;
+  criado_em: string;
+}
+
+export interface ItemLinha {
+  id: string;
+  quando: string; // ISO
+  tipo: "registro" | "comentario" | "concluida";
+  registro?: Registro;
+  texto?: string;
+  tarefa?: string;
+  autor?: string | null;
+}
+
+/** Últimos n dias úteis (seg–sex) terminando hoje, do mais antigo para o mais novo. */
+export function diasUteis(n: number): string[] {
+  const out: string[] = [];
+  let d = hoje();
+  while (out.length < n) {
+    const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
+    if (dow !== 0 && dow !== 6) out.unshift(d);
+    d = somarDias(d, -1);
+  }
+  return out;
 }

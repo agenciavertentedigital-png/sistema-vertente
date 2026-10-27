@@ -12,6 +12,9 @@ import { sair, useSessao } from "./lib/sessao";
 import { ProvedorDados, useDados } from "./lib/dados";
 import { GestaoClientes } from "./pages/clientes/GestaoClientes";
 import { TelaCliente } from "./pages/clientes/TelaCliente";
+import { GestaoTrafego } from "./pages/trafego/GestaoTrafego";
+import { Reunioes } from "./pages/Reunioes";
+import { Sininho } from "./components/Sininho";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -62,6 +65,8 @@ export default function App() {
   if (rota === "base") pagina = <BaseClientes />;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
+  else if (rota === "trafego" || rota.startsWith("trafego-")) pagina = <GestaoTrafego rota={rota} ir={navegar} />;
+  else if (rota.startsWith("reuniao")) pagina = <Reunioes rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
   const menu = <Menu
@@ -100,9 +105,12 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-line bg-surface px-[max(16px,env(safe-area-inset-left,0px))] py-2.5 lg:hidden">
           <Marca />
+          <div className="flex items-center gap-1">
+          <Sininho ir={navegar} compacto />
           <button onClick={() => setMenuAberto(true)} className="rounded-lg p-2 hover:bg-raised" aria-label="Abrir menu">
             <MenuIcone size={20} />
           </button>
+          </div>
         </div>
         <main
           id="area-principal"

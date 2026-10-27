@@ -18,6 +18,8 @@
   --warn-soft: #fbeedb;
   --ok: #217a47;
   --ok-soft: #dcf1e4;
+  --bad: #c2362f;
+  --bad-soft: #f9e0de;
   --font-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
   --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -37,6 +39,8 @@
     --warn-soft: #33260f;
     --ok: #5cc98a;
     --ok-soft: #12301f;
+    --bad: #f0675e;
+    --bad-soft: #3a1714;
     color-scheme: dark;
   }
 }
@@ -54,6 +58,8 @@
   --warn-soft: #33260f;
   --ok: #5cc98a;
   --ok-soft: #12301f;
+  --bad: #f0675e;
+  --bad-soft: #3a1714;
   color-scheme: dark;
 }
 

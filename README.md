@@ -53,3 +53,11 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - Rotinas: `privado.gerar_rotinas()` roda todo dia às 06:00 (Brasília) pelo pg_cron. Cria a tarefa do dia previsto só se a anterior já foi fechada.
 - `membros.acesso` separa quem pode entrar no sistema de quem só aparece como responsável.
 - Telas: `#clientes` (tarefas por prazo), `#clientes-carteira`, `#clientes-entrada`, `#clientes-rotinas`, `#cliente-<id>` (kanban por pilar + rotinas do cliente).
+
+## Registro do dia a dia (outubro/2026)
+
+- **Registro rápido**: tarefas de rotina "Revisão…" e "Otimização…" pedem, ao concluir, a situação da conta (Tudo certo / Atenção / Problema), o que foi feito (revisão) ou as alterações com antes → depois (otimização). Fica na tabela `registros`.
+- **Gestão de Tráfego** (`#trafego`): Saúde das contas, um quadrado colorido por dia útil (10 dias) para cada conta com rotina de revisão; o `+` de hoje abre a revisão. `#trafego-alteracoes` lista o histórico de otimizações.
+- **Linha do tempo do cliente**: aba na tela do cliente com revisões, otimizações, notas, reuniões, decisões, comentários e tarefas concluídas.
+- **@menções e "Para mim"**: `@Nome` em comentários e registros avisa a pessoa (tabela `notificacoes`, via trigger). Conta marcada como Problema avisa o time. Atribuir tarefa a alguém também avisa.
+- **Daily e Weekly** (`#reuniao-daily`, `#reuniao-weekly`): contas em atenção, atrasadas, aguardando, números por pessoa e ata rápida (3 focos, bloqueios, decisões). Registrar conclui a tarefa da rotina.

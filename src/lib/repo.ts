@@ -7,7 +7,11 @@ import {
   type ClienteRotina,
   type Comentario,
   type ItemChecklist,
+  type ItemLinha,
   type Membro,
+  type Notificacao,
+  type NovoRegistro,
+  type Registro,
   type Rotina,
   type Tarefa,
 } from "./tipos";
@@ -19,6 +23,8 @@ export interface Dados {
   tarefas: Tarefa[];
   rotinas: Rotina[];
   clienteRotinas: ClienteRotina[];
+  registros: Registro[]; // últimos ~40 dias
+  notificacoes: Notificacao[]; // do usuário logado
 }
 
 export interface Repo {
@@ -33,7 +39,12 @@ export interface Repo {
   comentar(tarefaId: string, texto: string): Promise<void>;
   salvarRotina(id: string, campos: Partial<Omit<Rotina, "id">>): Promise<void>;
   salvarClienteRotina(id: string | null, campos: Partial<Omit<ClienteRotina, "id" | "ultima_data">>): Promise<void>;
+  registrar(r: NovoRegistro): Promise<void>;
+  linhaDoTempo(clienteId: string): Promise<ItemLinha[]>;
+  marcarLidas(ids: string[]): Promise<void>;
 }
+
+const CAMPOS_REGISTRO = "id, cliente_id, tarefa_id, tipo, canal, situacao, acoes, nota, alteracoes, dados, data, autor_id, criado_em";
 
 function erro(e: { message: string } | null) {
   if (e) throw new Error(e.message);
@@ -61,21 +72,25 @@ const repoSupabase = (): Repo => {
   return {
     async carregar() {
       const corte = `${somarDias(hoje(), -30)}T00:00:00Z`;
-      const [cl, me, ab, fe, ro, cr] = await Promise.all([
+      const [cl, me, ab, fe, ro, cr, rg, no] = await Promise.all([
         sb.from("clientes").select("id, nome, origem, marca").eq("status", "ativo").order("nome"),
         sb.from("membros").select("id, nome, acesso").eq("ativo", true).order("nome"),
         sb.from("tarefas").select(CAMPOS_TAREFA).in("status", ["a_fazer", "fazendo", "aguardando"]),
         sb.from("tarefas").select(CAMPOS_TAREFA).in("status", ["feita", "nao_feita"]).gte("concluida_em", corte),
         sb.from("rotinas").select("id, nome, pilar, frequencia_padrao, prioridade, checklist, mensagem, ativa").order("nome"),
-        sb.from("cliente_rotinas").select("id, cliente_id, rotina_id, canal, responsavel_id, frequencia, dia_semana, dia_mes, ativa, ultima_data"),
+        sb.from("cliente_rotinas").select("id, cliente_id, rotina_id, canal, responsavel_id, frequencia, dia_semana, dia_mes, ativa, ultima_data, criado_em"),
+        sb.from("registros").select(CAMPOS_REGISTRO).gte("data", somarDias(hoje(), -40)).order("criado_em", { ascending: false }),
+        sb.from("notificacoes").select("id, tipo, texto, cliente_id, tarefa_id, lida, criado_em").order("criado_em", { ascending: false }).limit(40),
       ]);
-      [cl, me, ab, fe, ro, cr].forEach((r) => erro(r.error));
+      [cl, me, ab, fe, ro, cr, rg, no].forEach((r) => erro(r.error));
       return {
         clientes: cl.data as Cliente[],
         membros: me.data as Membro[],
         tarefas: [...(ab.data as unknown as LinhaTarefa[]), ...(fe.data as unknown as LinhaTarefa[])].map(paraTarefa),
         rotinas: ro.data as Rotina[],
         clienteRotinas: cr.data as ClienteRotina[],
+        registros: rg.data as Registro[],
+        notificacoes: no.data as Notificacao[],
       };
     },
     async salvarTarefa(id, campos) {
@@ -127,6 +142,42 @@ const repoSupabase = (): Repo => {
     async salvarClienteRotina(id, campos) {
       if (id) erro((await sb.from("cliente_rotinas").update(campos).eq("id", id)).error);
       else erro((await sb.from("cliente_rotinas").insert(campos)).error);
+    },
+    async registrar(r) {
+      erro((await sb.from("registros").insert(r)).error);
+    },
+    async linhaDoTempo(clienteId) {
+      const [rg, co, fe] = await Promise.all([
+        sb.from("registros").select(`${CAMPOS_REGISTRO}, autor:membros(nome)`).eq("cliente_id", clienteId).order("criado_em", { ascending: false }).limit(150),
+        sb
+          .from("tarefa_comentarios")
+          .select("id, texto, criado_em, autor:membros(nome), tarefa:tarefas!inner(titulo, cliente_id)")
+          .eq("tarefa.cliente_id", clienteId)
+          .order("criado_em", { ascending: false })
+          .limit(100),
+        sb
+          .from("tarefas")
+          .select("id, titulo, concluida_em, responsavel:membros!tarefas_responsavel_id_fkey(nome)")
+          .eq("cliente_id", clienteId)
+          .eq("status", "feita")
+          .is("cliente_rotina_id", null)
+          .not("concluida_em", "is", null)
+          .order("concluida_em", { ascending: false })
+          .limit(60),
+      ]);
+      [rg, co, fe].forEach((r) => erro(r.error));
+      type R = Registro & { autor: { nome: string } | null };
+      type C = { id: string; texto: string; criado_em: string; autor: { nome: string } | null; tarefa: { titulo: string } };
+      type F = { id: string; titulo: string; concluida_em: string; responsavel: { nome: string } | null };
+      const itens: ItemLinha[] = [
+        ...(rg.data as unknown as R[]).map((r) => ({ id: r.id, quando: r.criado_em, tipo: "registro" as const, registro: r, autor: r.autor?.nome })),
+        ...(co.data as unknown as C[]).map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: c.tarefa.titulo, autor: c.autor?.nome })),
+        ...(fe.data as unknown as F[]).map((f) => ({ id: f.id, quando: f.concluida_em, tipo: "concluida" as const, tarefa: f.titulo, autor: f.responsavel?.nome })),
+      ];
+      return itens.sort((a, b) => b.quando.localeCompare(a.quando));
+    },
+    async marcarLidas(ids) {
+      if (ids.length) erro((await sb.from("notificacoes").update({ lida: true }).in("id", ids)).error);
     },
   };
 };
@@ -180,12 +231,38 @@ const repoMemoria = (): Repo => {
   addRotina("Madalena Brandão", rotinas[2], null, carol, somarDias(h, -2));
   addRotina("Espaço Larissa Lemos", rotinas[0], "meta", joao, somarDias(h, -1));
   addRotina("CDT Porto Seguro", rotinas[2], null, carol, somarDias(h, 3));
+  addRotina("Madalena Brandão", rotinas[0], "meta", joao, h);
+  addRotina("CDT Porto Seguro", rotinas[0], "meta", joao, h);
+  const daily: Rotina = { id: novoId(), nome: "Daily Vertente", pilar: "interno", frequencia_padrao: "diaria", prioridade: "urgente", ativa: true, mensagem: null,
+    checklist: ["Revisar rapidamente o dia anterior", "Status por setor: operacional, estratégico e comercial", "Definir os 3 focos do dia e resolver bloqueios"] };
+  rotinas.push(daily);
+  addRotina("Agência Vertente Digital", daily, null, rener, h);
   add({ cliente_id: cli("Óticas Carol SVA"), titulo: "Finalizar site com fotos enviadas", pilar: "trafego", responsavel_id: rener.id, prazo: somarDias(h, -5), status: "fazendo" });
   add({ cliente_id: cli("Clínica Nobre Fio"), titulo: "Otimizar ficha do Google", pilar: "gmn", responsavel_id: silvio.id, prazo: somarDias(h, 2), prioridade: "alta" });
   add({ cliente_id: cli("Advocacia Djalmas"), titulo: "Enviar sugestões de melhoria da ficha do Google", pilar: "gmn", responsavel_id: silvio.id, prazo: somarDias(h, 6) });
   add({ cliente_id: cli("Essenza Planejados"), titulo: "Briefing da campanha de lançamento", triagem: true });
   add({ cliente_id: cli("Terapia de Oração"), titulo: "Criativos para a Noite Oracional", triagem: true });
   add({ cliente_id: cli("Agência Vertente Digital"), titulo: "Melhorar a copy da landing page", pilar: "interno", responsavel_id: rener.id, prioridade: "baixa" });
+
+  const registros: Registro[] = [];
+  const notificacoes: Notificacao[] = [];
+  const reg = (cliente: string, canal: Registro["canal"], dia: string, situacao: Registro["situacao"], acoes: string[], nota: string | null, autor: Membro, tipo: Registro["tipo"] = "revisao", alteracoes: Registro["alteracoes"] = []) =>
+    registros.push({ id: novoId(), cliente_id: cli(cliente), tarefa_id: null, tipo, canal, situacao, acoes, nota, alteracoes, dados: {}, data: dia, autor_id: autor.id, criado_em: `${dia}T13:00:00.000Z` });
+  for (let i = 1; i <= 9; i++) {
+    const dia = somarDias(h, -i);
+    const dow = new Date(`${dia}T12:00:00Z`).getUTCDay();
+    if (dow === 0 || dow === 6) continue;
+    reg("Clínica Nobre Fio", "meta", dia, i === 2 ? "atencao" : "ok", ["Nenhuma ação"], i === 2 ? "CPL subiu 30% no conjunto de botox" : null, silvio);
+    reg("Clínica Nobre Fio", "google", dia, "ok", ["Nenhuma ação"], null, silvio);
+    if (i !== 3) reg("Espaço Larissa Lemos", "meta", dia, "ok", ["Nenhuma ação"], null, joao);
+    reg("Madalena Brandão", "meta", dia, i <= 2 ? "problema" : "ok", i <= 2 ? ["Conta sem saldo", "Avisei o cliente"] : ["Nenhuma ação"], i <= 2 ? "Conta sem saldo, campanhas paradas. @Caroline cobra o cliente" : null, joao);
+    if (i % 4 !== 0) reg("CDT Porto Seguro", "meta", dia, i === 1 ? "atencao" : "ok", ["Subi criativo"], i === 1 ? "Frequência acima de 3" : null, joao);
+  }
+  reg("Clínica Nobre Fio", "meta", somarDias(h, -6), "ok", [], "Pausados os 2 piores criativos e aumentado o orçamento do remarketing", silvio, "otimizacao", [
+    { tipo: "Criativo / anúncio", descricao: "Pausados Botox v2 e Laser v1", antes: "", depois: "" },
+    { tipo: "Orçamento", descricao: "Remarketing", antes: "R$ 30/dia", depois: "R$ 50/dia" },
+  ]);
+  notificacoes.push({ id: novoId(), tipo: "alerta", texto: "Madalena Brandão · Meta em vermelho: conta sem saldo", cliente_id: cli("Madalena Brandão"), tarefa_id: null, lida: false, criado_em: new Date().toISOString() });
 
   const semInternos = (t: (typeof tarefas)[number]): Tarefa => {
     const { itens, coments: _c, ...r } = t;
@@ -197,7 +274,15 @@ const repoMemoria = (): Repo => {
   return {
     async carregar() {
       await pausa();
-      return { clientes, membros, tarefas: tarefas.map(semInternos), rotinas: [...rotinas], clienteRotinas: [...clienteRotinas] };
+      return {
+        clientes,
+        membros,
+        tarefas: tarefas.map(semInternos),
+        rotinas: [...rotinas],
+        clienteRotinas: [...clienteRotinas],
+        registros: [...registros].sort((a, b) => b.criado_em.localeCompare(a.criado_em)),
+        notificacoes: [...notificacoes],
+      };
     },
     async salvarTarefa(id, campos) {
       if (id) {
@@ -235,6 +320,21 @@ const repoMemoria = (): Repo => {
     async salvarClienteRotina(id, campos) {
       if (id) Object.assign(clienteRotinas.find((r) => r.id === id)!, campos);
       else clienteRotinas.push({ id: novoId(), canal: null, responsavel_id: null, dia_semana: null, dia_mes: null, ativa: true, ultima_data: null, frequencia: "semanal", cliente_id: "", rotina_id: "", ...campos });
+    },
+    async registrar(r) {
+      registros.push({ id: novoId(), tarefa_id: null, canal: null, situacao: null, acoes: [], nota: null, alteracoes: [], dados: {}, data: hoje(), autor_id: rener.id, criado_em: new Date().toISOString(), ...r });
+    },
+    async linhaDoTempo(clienteId) {
+      const nome = (id: string | null) => membros.find((m) => m.id === id)?.nome;
+      return [
+        ...registros.filter((r) => r.cliente_id === clienteId).map((r) => ({ id: r.id, quando: r.criado_em, tipo: "registro" as const, registro: r, autor: nome(r.autor_id) })),
+        ...tarefas
+          .filter((t) => t.cliente_id === clienteId)
+          .flatMap((t) => t.coments.map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: t.titulo, autor: c.autor }))),
+      ].sort((a, b) => b.quando.localeCompare(a.quando));
+    },
+    async marcarLidas(ids) {
+      notificacoes.forEach((n) => ids.includes(n.id) && (n.lida = true));
     },
   };
 };
