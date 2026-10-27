@@ -5,3 +5,5 @@
 -- * Migração do ClickUp: 110 tarefas abertas dos clientes ativos -> 61 rotinas de cliente
 --   (uma tarefa aberta cada, checklist do modelo) + 46 tarefas avulsas com link para a tarefa original.
 --   3 cópias repetidas de rotinas foram descartadas. Subtarefas do ClickUp não foram migradas.
+-- * 27/10/2026 11h40: a pedido do Rener, todas as tarefas e rotinas de cliente importadas foram apagadas
+--   (delete from tarefas; delete from cliente_rotinas). O sistema começa do zero; os 8 modelos de rotina ficam como rascunho.
