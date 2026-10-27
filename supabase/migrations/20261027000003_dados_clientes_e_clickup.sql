@@ -7,3 +7,16 @@
 --   3 cópias repetidas de rotinas foram descartadas. Subtarefas do ClickUp não foram migradas.
 -- * 27/10/2026 11h40: a pedido do Rener, todas as tarefas e rotinas de cliente importadas foram apagadas
 --   (delete from tarefas; delete from cliente_rotinas). O sistema começa do zero; os 8 modelos de rotina ficam como rascunho.
+-- * 27/10/2026 13h30: rotinas criadas (dados aplicados direto no banco):
+--   Modelos novos/ajustados: "Otimização semanal Meta" (antes "Otimização semanal"), "Otimização semanal Google",
+--   "Daily Vertente", "Weekly Vertente", "Projeção comercial e metas do mês", "Fechamento financeiro mensal".
+--   37 rotinas de cliente:
+--   - Revisão diária Meta (dias úteis): João Paulo em Larissa, Apple Mania, Madalena, Plus Sain, CDT, Cecy,
+--     Dra Marcela e Óticas Carol SVA; Silvio em Nobre Fio e Tríade.
+--   - Revisão diária Google (dias úteis, Silvio): Nobre Fio, Tríade, Gildomar, SuperLoc, Aloísio Gás, Djalmas.
+--   - Otimização semanal Meta (Silvio): Nobre Fio ter, OTC SVA sex, Madalena sex, Tríade qui, Larissa qui, Cecy qui,
+--     Plus Sain qua, Apple Mania qua, Dra Marcela seg, CDT sex.
+--   - Otimização semanal Google (Silvio): Nobre Fio ter, OTC SVA sex, Djalmas seg, Tríade qui, SuperLoc qui,
+--     Gildomar qui, Aloísio Gás seg.
+--   - Agência Vertente Digital: Daily (dias úteis, Rener), Weekly (segunda, Rener),
+--     Projeção comercial e metas (dia 1, Rener), Fechamento financeiro (dia 2, Silvio).
