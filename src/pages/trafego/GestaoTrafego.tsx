@@ -3,11 +3,16 @@ import { RefreshCw } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { CANAL, SITUACAO, STATUS_ABERTOS, dataCurta, diasUteis, hoje, type Canal, type Registro, type Situacao } from "../../lib/tipos";
 import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
+import { VisaoGeral } from "./VisaoGeral";
+import { Contas } from "./Contas";
+import { useTrafego } from "../../lib/trafego";
 import { Botao, COR_SITUACAO, Iniciais, Painel, PontoSituacao, Selecao, Vazio } from "../../components/ui";
 
 const ABAS = [
-  { id: "trafego", nome: "Saúde das contas" },
+  { id: "trafego", nome: "Visão geral" },
+  { id: "trafego-saude", nome: "Saúde das contas" },
   { id: "trafego-alteracoes", nome: "Histórico de alterações" },
+  { id: "trafego-contas", nome: "Contas" },
 ];
 
 const PESO: Record<Situacao | "nada", number> = { problema: 0, atencao: 1, nada: 2, ok: 3 };
@@ -16,6 +21,7 @@ const DIA_CURTO = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const d = useDados();
   const aba = ABAS.some((a) => a.id === rota) ? rota : "trafego";
+  const trafego = useTrafego();
   return (
     <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -23,7 +29,7 @@ export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => v
           <div className="eyebrow">Fase 2 · Operacional</div>
           <h1 className="mt-1 text-[26px] font-semibold leading-tight">Gestão de Tráfego</h1>
         </div>
-        <Botao variante="fantasma" onClick={() => d.recarregar()} aria-label="Atualizar">
+        <Botao variante="fantasma" onClick={() => { d.recarregar(); trafego.recarregar(); }} aria-label="Recarregar a tela">
           <RefreshCw size={14} />
         </Botao>
       </header>
@@ -42,7 +48,17 @@ export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => v
           ))}
         </div>
       </div>
-      {d.carregando ? <Vazio>Carregando…</Vazio> : aba === "trafego" ? <Saude ir={ir} /> : <Alteracoes ir={ir} />}
+      {d.carregando ? (
+        <Vazio>Carregando…</Vazio>
+      ) : aba === "trafego" ? (
+        <VisaoGeral trafego={trafego} ir={ir} />
+      ) : aba === "trafego-saude" ? (
+        <Saude ir={ir} />
+      ) : aba === "trafego-contas" ? (
+        <Contas trafego={trafego} />
+      ) : (
+        <Alteracoes ir={ir} />
+      )}
     </div>
   );
 }

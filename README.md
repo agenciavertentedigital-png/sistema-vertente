@@ -61,3 +61,11 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - **Linha do tempo do cliente**: aba na tela do cliente com revisões, otimizações, notas, reuniões, decisões, comentários e tarefas concluídas.
 - **@menções e "Para mim"**: `@Nome` em comentários e registros avisa a pessoa (tabela `notificacoes`, via trigger). Conta marcada como Problema avisa o time. Atribuir tarefa a alguém também avisa.
 - **Daily e Weekly** (`#reuniao-daily`, `#reuniao-weekly`): contas em atenção, atrasadas, aguardando, números por pessoa e ata rápida (3 focos, bloqueios, decisões). Registrar conclui a tarefa da rotina.
+
+## Fase 2 · Meta Ads (outubro/2026)
+
+- Tabelas `contas_anuncio` (conta ↔ cliente, status, saldo) e `metricas_diarias` (por campanha e dia); visão `metricas_conta_dia`.
+- Edge Function `sincronizar-meta`: busca status, saldo e métricas na Graph API (v23.0). Primeira vez traz 30 dias; depois os últimos 3. Avisa no sininho quando a conta muda de status ou o saldo dá para menos de 3 dias.
+- Agendamento `sincronizar-meta` (pg_cron + pg_net) às 7h, 12h e 17h de Brasília; a chave do agendamento fica no Vault (`chave_cron_meta`).
+- Segredo necessário: `META_ACCESS_TOKEN` (token de Usuário do Sistema da BM da agência, com `ads_read`, com as contas atribuídas).
+- Telas: Gestão de Tráfego → Visão geral (investimento, resultado principal, custo, ontem, saldo, alertas, campanhas) e Contas (vincular/acompanhar). Números de ontem também aparecem na tela do cliente e no registro da revisão.

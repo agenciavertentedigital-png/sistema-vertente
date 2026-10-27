@@ -14,6 +14,7 @@ import {
 } from "../../lib/tipos";
 import { Botao, Entrada, Rotulo, Selecao, COR_SITUACAO } from "../ui";
 import { CampoMencao } from "../LinhaDoTempo";
+import { NumerosDaConta } from "../NumerosDaConta";
 
 /** Qual registro a tarefa pede ao ser concluída (null = conclui direto). */
 export function tipoDeRegistro(t: Tarefa, nomeRotina?: string): TipoRegistro | null {
@@ -83,6 +84,8 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
         <div className="eyebrow">Registro rápido{t.canal ? ` · ${CANAL[t.canal]}` : ""}</div>
         <h3 className="mt-0.5 text-[15px] font-semibold">{tipo === "revisao" ? "Como está a conta hoje?" : "Como ficou a conta depois da otimização?"}</h3>
       </div>
+
+      {t.canal !== "google" && <NumerosDaConta clienteId={t.cliente_id} compacto />}
 
       <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Situação da conta">
         {(Object.keys(SITUACAO) as Situacao[]).map((s) => (

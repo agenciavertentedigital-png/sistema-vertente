@@ -185,6 +185,9 @@ const repoSupabase = (): Repo => {
 // ------------------------------------------------------------------
 // Memória (modo demonstração, sem banco): dados de exemplo
 // ------------------------------------------------------------------
+/** Ids dos clientes de demonstração, por nome (usado pelos dados de tráfego de exemplo). */
+export const DEMO_IDS = new Map<string, string>();
+
 const repoMemoria = (): Repo => {
   let seq = 0;
   const novoId = () => `ex-${++seq}`;
@@ -195,6 +198,7 @@ const repoMemoria = (): Repo => {
     origem: c.origem === "Vertente" ? "vertente" : "parceria_marcone",
     marca: c.grupo ?? null,
   }));
+  clientes.forEach((c) => DEMO_IDS.set(c.nome, c.id));
   const membros: Membro[] = ["Rener", "Silvio", "Caroline", "João Paulo"].map((nome, i) => ({ id: novoId(), nome, acesso: i === 0 }));
   const [rener, silvio, carol, joao] = membros;
   const cli = (nome: string) => clientes.find((c) => c.nome === nome)!.id;

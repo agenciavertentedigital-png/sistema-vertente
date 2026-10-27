@@ -23,6 +23,7 @@ import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, COR_PILAR, Selecao, Vazio } from "../../components/ui";
 import { Numero, ordenar } from "./GestaoClientes";
 import { LinhaDoTempo } from "../../components/LinhaDoTempo";
+import { NumerosDaConta } from "../../components/NumerosDaConta";
 import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
 
@@ -72,6 +73,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <Numero rotulo="Rotinas ativas" valor={d.clienteRotinas.filter((r) => r.cliente_id === c.id && r.ativa).length} />
         <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
       </div>
+
+      <NumerosDaConta clienteId={c.id} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
