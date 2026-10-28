@@ -190,8 +190,8 @@ Deno.serve(async (req) => {
           cliques: Number(l.inline_link_clicks ?? 0),
           resultados: r.valor,
           tipo_resultado: r.tipo,
-          // Leads de verdade: formulário (lead_grouped) ou pixel. O "lead" genérico da Meta conta conversas de WhatsApp também.
-          leads: acao(l.actions, "onsite_conversion.lead_grouped") + acao(l.actions, "offsite_conversion.fb_pixel_lead"),
+          // Só leads de formulário instantâneo (leadgen_grouped). "lead", "onsite_conversion.lead(_grouped)" e o lead do pixel repetem conversas de WhatsApp.
+          leads: acao(l.actions, "leadgen_grouped"),
           conversas: acao(l.actions, "onsite_conversion.messaging_conversation_started_7d"),
           atualizado_em: new Date().toISOString(),
         };

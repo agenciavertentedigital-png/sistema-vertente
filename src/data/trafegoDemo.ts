@@ -106,7 +106,7 @@ function linha(b: Base, extra: Partial<LinhaMeta> = {}): LinhaMeta {
     add("onsite_conversion.messaging_first_reply", b.resultados * 0.78);
     add("onsite_conversion.messaging_user_depth_2_message_send", b.resultados * 0.55);
   } else if (b.tipo === "lead") {
-    add("onsite_conversion.lead_grouped", b.resultados);
+    add("leadgen_grouped", b.resultados);
     add("landing_page_view", b.cliques * 0.72);
   } else if (b.tipo === "purchase") {
     add("landing_page_view", b.cliques * 0.7);

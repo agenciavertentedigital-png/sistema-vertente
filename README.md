@@ -69,3 +69,14 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - Agendamento `sincronizar-meta` (pg_cron + pg_net) às 7h, 12h e 17h de Brasília; a chave do agendamento fica no Vault (`chave_cron_meta`).
 - Segredo necessário: `META_ACCESS_TOKEN` (token de Usuário do Sistema da BM da agência, com `ads_read`, com as contas atribuídas).
 - Telas: Gestão de Tráfego → Visão geral (investimento, resultado principal, custo, ontem, saldo, alertas, campanhas) e Contas (vincular/acompanhar). Números de ontem também aparecem na tela do cliente e no registro da revisão.
+
+## Tarefas em Kanban (Gestão de Clientes → Tarefas)
+
+- Filtros que valem de verdade e ficam salvos no navegador: período (atrasadas, hoje, esta semana seg–dom, próximos 7 dias, este mês, sem prazo), responsável (minhas, de alguém, sem responsável), pilar, cliente e busca.
+- Os cartões de número (Atrasadas, Para hoje, Esta semana, Próximos 7 dias) também filtram ao clicar.
+- Quadro por status (arrastar muda o status; revisão/otimização arrastada para "Feita" abre o registro), por responsável (arrastar reatribui) ou por prazo; ou visão em lista.
+
+## Dashboard do cliente (Gestão de Tráfego → Dashboards dos clientes)
+
+- Ao vivo da Meta pela função `relatorio-meta`: totais exatos do período (alcance e frequência não somados por dia), comparação com o período anterior, funil geral, gráfico diário, métricas por objetivo de campanha com funil próprio, melhores criativos com imagem e tabela de campanhas.
+- Contato = conversa iniciada + lead de formulário instantâneo (`leadgen_grouped`). Os eventos `lead`, `onsite_conversion.lead(_grouped)` e o lead do pixel repetem as conversas de WhatsApp e não entram na soma.

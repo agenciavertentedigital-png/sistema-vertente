@@ -219,7 +219,7 @@ function Contas({ rel }: { rel: RelatorioMeta }) {
 
 type Resumo = ReturnType<typeof resumirRelatorio>;
 
-/** Contatos do relatório: conversas + resultados das campanhas de leads/contato (sem duplicar). */
+/** Contatos = conversas iniciadas + leads das campanhas de cadastro/contato (ou de formulário). O lead do pixel fica fora porque pode repetir a conversa. */
 function contatosDe(r: Resumo) {
   const leadsGrupo = r.grupos.find((g) => g.id === "leads")?.resultados ?? 0;
   return r.total.conversas + Math.max(leadsGrupo, r.total.leads);
@@ -259,7 +259,7 @@ function VisaoGeral({ r }: { r: Resumo }) {
       <h2 className="text-[15px] font-semibold">Visão geral</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi rotulo="Investimento" valor={brl(t.gasto)} v={variacao(t.gasto, a.gasto)} destaque />
-        <Kpi rotulo="Contatos (conversas + leads)" valor={int(ct)} v={variacao(ct, ctAnt)} destaque dica="Conversas iniciadas no WhatsApp/Direct + leads de formulário, site ou pixel" />
+        <Kpi rotulo="Contatos (conversas + leads)" valor={int(ct)} v={variacao(ct, ctAnt)} destaque dica="Conversas iniciadas no WhatsApp/Direct + leads das campanhas de cadastro, formulário ou contato pelo site" />
         <Kpi rotulo="Custo por contato" valor={brl(divisao(t.gasto, ct))} v={variacao(divisao(t.gasto, ct), divisao(a.gasto, ctAnt))} inverso destaque />
         {temVendas ? (
           <Kpi rotulo="Retorno (ROAS)" valor={`${dec(divisao(t.valor, t.gasto))}x`} v={variacao(divisao(t.valor, t.gasto), divisao(a.valor, a.gasto))} destaque dica="Valor das compras ÷ investimento" />

@@ -79,7 +79,8 @@ export interface Metricas {
   conversas: number;
   respostas: number;
   conversasProfundas: number;
-  leads: number;
+  leads: number; // formulário instantâneo
+  leadsPixel: number; // evento Lead do pixel/CAPI (pode repetir conversas)
   carrinho: number;
   checkout: number;
   compras: number;
@@ -103,7 +104,8 @@ export function metricas(l: LinhaMeta | null | undefined): Metricas {
     conversas: acao(a, "onsite_conversion.messaging_conversation_started_7d"),
     respostas: acao(a, "onsite_conversion.messaging_first_reply"),
     conversasProfundas: acao(a, "onsite_conversion.messaging_user_depth_2_message_send"),
-    leads: acao(a, "onsite_conversion.lead_grouped") + acao(a, "offsite_conversion.fb_pixel_lead"),
+    leads: acao(a, "leadgen_grouped"),
+    leadsPixel: acao(a, "offsite_conversion.fb_pixel_lead"),
     carrinho: acao(a, "omni_add_to_cart", "offsite_conversion.fb_pixel_add_to_cart", "add_to_cart"),
     checkout: acao(a, "omni_initiated_checkout", "offsite_conversion.fb_pixel_initiate_checkout", "initiate_checkout"),
     compras: acao(a, "omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase"),
