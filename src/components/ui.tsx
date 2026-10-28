@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes } from "react";
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 import type { Pilar, Prioridade, Status } from "../lib/tipos";
 
 export const campo =
@@ -51,8 +52,9 @@ export function Painel({ aberto, fechar, titulo, children, largura = 520 }: { ab
     return () => window.removeEventListener("keydown", onKey);
   }, [aberto, fechar]);
   if (!aberto) return null;
-  return (
-    <div className="fixed inset-0 z-50">
+  // Portal: o painel não herda as cores do menu lateral
+  return createPortal(
+    <div className="fixed inset-0 z-50 text-fg">
       <div className="absolute inset-0 bg-black/40" onClick={fechar} />
       <section
         role="dialog"
@@ -68,7 +70,8 @@ export function Painel({ aberto, fechar, titulo, children, largura = 520 }: { ab
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

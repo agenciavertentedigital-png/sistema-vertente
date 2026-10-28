@@ -1,16 +1,22 @@
-/** Marca provisória: três faixas descendo como uma vertente. Trocar pelo logo oficial. */
-export function Marca({ compacta = false }: { compacta?: boolean }) {
+import simboloAzul from "../assets/simbolo-azul.png";
+import simboloPrata from "../assets/simbolo-prata.png";
+
+/** Logo oficial da Vertente. `sobreEscuro` usa a versão prata (menu marinho, tema escuro). */
+export function Marca({ compacta = false, sobreEscuro = false }: { compacta?: boolean; sobreEscuro?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
-        <rect width="28" height="28" rx="8" fill="var(--accent)" />
-        <path d="M6 9 L14 19 L22 9" fill="none" stroke="var(--accent-fg)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M10 9 L14 14 L18 9" fill="none" stroke="var(--accent-fg)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
-      </svg>
+      {sobreEscuro ? (
+        <img src={simboloPrata} alt="" width={34} height={34} className="h-[34px] w-[34px] object-contain" />
+      ) : (
+        <>
+          <img src={simboloAzul} alt="" width={32} height={32} className="h-8 w-8 object-contain dark-oculto" />
+          <img src={simboloPrata} alt="" width={32} height={32} className="h-8 w-8 object-contain claro-oculto" />
+        </>
+      )}
       {!compacta && (
-        <div className="leading-tight">
-          <div className="font-display text-[15px] font-semibold">Vertente</div>
-          <div className="eyebrow text-[10px]">Sistema interno</div>
+        <div className="leading-none">
+          <div className="font-display text-[16px] font-bold tracking-[0.14em]">VERTENTE</div>
+          <div className="mt-1 text-[9.5px] font-medium uppercase tracking-[0.32em] text-muted">Digital · Sistema</div>
         </div>
       )}
     </div>

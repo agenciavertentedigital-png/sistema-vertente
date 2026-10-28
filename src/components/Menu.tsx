@@ -48,7 +48,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
   return (
     <nav className="flex h-full flex-col gap-5 overflow-y-auto px-3 pb-3 pt-4" aria-label="Menu principal">
       <div className="px-1.5">
-        <Marca />
+        <Marca sobreEscuro />
       </div>
 
       <div className="flex flex-col gap-0.5">

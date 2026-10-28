@@ -80,3 +80,30 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 
 - Ao vivo da Meta pela função `relatorio-meta`: totais exatos do período (alcance e frequência não somados por dia), comparação com o período anterior, funil geral, gráfico diário, métricas por objetivo de campanha com funil próprio, melhores criativos com imagem e tabela de campanhas.
 - Contato = conversa iniciada + lead de formulário instantâneo (`leadgen_grouped`). Os eventos `lead`, `onsite_conversion.lead(_grouped)` e o lead do pixel repetem as conversas de WhatsApp e não entram na soma.
+
+## Identidade visual
+
+- Logo oficial em `src/assets` (versão azul para fundo claro, prata para fundo escuro), menu lateral em azul-marinho e fonte Poppins.
+
+## Fase 3 · Google Meu Negócio (`#gmn`)
+
+- Perfis por cliente e perfis de prospecção. Análise GBP Check com 15 critérios (Fraco / Razoável / Bom, com pesos), nota de 0 a 100, plano de ação, evolução mensal e relatório em PDF (imprimir).
+- Função `gbp-check` (Places API New): busca de empresa, leitura dos dados públicos (nota, avaliações, horário, telefone, site, categorias) e grade de ranking 5×5.
+- Precisa da chave `google_places_key` no Vault (`select vault.create_secret('<chave>', 'google_places_key');`).
+
+## Fase 4 · Social Media (`#social`)
+
+- Calendário mensal, quadro de produção (Ideia → Em produção → Com o cliente → Ajuste → Aprovado → Publicado, arrastando) e aprovações com mensagem pronta para o WhatsApp.
+
+## Fase 5 · Financeiro (`#financeiro`, só administradores)
+
+- Mensalidades por cliente (valores por serviço em `cliente_servicos`), `gerar_mensalidades(mês)`, recebimentos, despesas (copiar do mês anterior), MRR, atraso, resultado e margem.
+
+## Fase 6 · Gestor de Projetos (`#projetos`)
+
+- Nota de saúde por cliente: entregas 25%, tráfego 25%, relacionamento 20%, financeiro 15%, GMN 10%, social 5% (`src/lib/saude.ts`).
+
+## Fase 7 · Cadastro e Contratos (`#cadastro`, `#contratos`)
+
+- Ficha completa do cliente e link público de cadastro (`#cadastro-publico-<token>`, função `cadastro-publico`).
+- Contratos gerados do modelo com as variáveis da ficha; PDF pela impressão do navegador.

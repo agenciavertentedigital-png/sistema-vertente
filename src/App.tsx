@@ -15,6 +15,13 @@ import { TelaCliente } from "./pages/clientes/TelaCliente";
 import { GestaoTrafego } from "./pages/trafego/GestaoTrafego";
 import { Reunioes } from "./pages/Reunioes";
 import { Sininho } from "./components/Sininho";
+import { GoogleMeuNegocio } from "./pages/gmn/GoogleMeuNegocio";
+import { SocialMedia } from "./pages/social/SocialMedia";
+import { Financeiro } from "./pages/financeiro/Financeiro";
+import { GestorProjetos } from "./pages/projetos/GestorProjetos";
+import { Cadastro } from "./pages/cadastro/Cadastro";
+import { Contratos } from "./pages/cadastro/Contratos";
+import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -49,6 +56,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Link público de cadastro: abre sem login
+  if (rota.startsWith("cadastro-publico-")) return <CadastroPublico token={rota.slice(17)} />;
+
   if (sessao.tipo === "carregando") {
     return <div className="grid h-full place-items-center text-muted">Carregando…</div>;
   }
@@ -67,6 +77,12 @@ export default function App() {
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
   else if (rota === "trafego" || rota.startsWith("trafego-")) pagina = <GestaoTrafego rota={rota} ir={navegar} />;
   else if (rota.startsWith("reuniao")) pagina = <Reunioes rota={rota} ir={navegar} />;
+  else if (rota === "gmn" || rota.startsWith("gmn-")) pagina = <GoogleMeuNegocio rota={rota} ir={navegar} />;
+  else if (rota === "social" || rota.startsWith("social-")) pagina = <SocialMedia rota={rota} ir={navegar} />;
+  else if (rota === "financeiro" || rota.startsWith("financeiro-")) pagina = <Financeiro rota={rota} ir={navegar} />;
+  else if (rota === "projetos" || rota.startsWith("projetos-")) pagina = <GestorProjetos rota={rota} ir={navegar} />;
+  else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
+  else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
   const menu = <Menu
@@ -81,13 +97,13 @@ export default function App() {
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <div className="flex h-full">
-      <aside className="hidden w-[248px] shrink-0 border-r border-line bg-surface lg:block">{menu}</aside>
+      <aside className="menu-marinho hidden w-[252px] shrink-0 lg:block">{menu}</aside>
 
       {menuAberto && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuAberto(false)} />
           <aside
-            className="absolute inset-y-0 left-0 w-[272px] max-w-[85vw] bg-surface shadow-xl"
+            className="menu-marinho absolute inset-y-0 left-0 w-[272px] max-w-[85vw] shadow-xl"
             style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingLeft: "env(safe-area-inset-left, 0px)" }}
           >
             <button

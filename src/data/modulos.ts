@@ -39,7 +39,7 @@ export interface Modulo {
 }
 
 /** Fase em construção agora. Fases menores já estão prontas. */
-export const FASE_ATUAL = 2;
+export const FASE_ATUAL = 8;
 
 export const FASES: { numero: number; nome: string }[] = [
   { numero: 0, nome: "Fundação" },

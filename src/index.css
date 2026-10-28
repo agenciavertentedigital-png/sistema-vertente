@@ -4,63 +4,82 @@
 
 /* Layout: menu lateral fixo + área de trabalho; central inicial em blocos Operacional / Gerencial.
    Neutros com leve viés azul-petróleo; acento petróleo ("vertente" = água descendo). */
+/* Identidade Vertente: azul-marinho do logo + prata. Fonte Poppins (objetiva e clara). */
 :root {
-  --bg: #f2f5f6;
+  --bg: #f3f5fa;
   --surface: #ffffff;
-  --raised: #e9eef0;
-  --line: #d6dee2;
-  --fg: #142027;
-  --muted: #5a6a72;
-  --accent: #1b6a8e;
-  --accent-soft: #dcebf2;
+  --raised: #eceff7;
+  --line: #dfe4ef;
+  --fg: #0e1533;
+  --muted: #5d6784;
+  --accent: #1d34a0;
+  --accent-soft: #e5eafb;
   --accent-fg: #ffffff;
-  --warn: #a8640a;
-  --warn-soft: #fbeedb;
-  --ok: #217a47;
-  --ok-soft: #dcf1e4;
-  --bad: #c2362f;
-  --bad-soft: #f9e0de;
-  --font-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --warn: #b26a06;
+  --warn-soft: #fdf0dc;
+  --ok: #18804a;
+  --ok-soft: #dcf3e5;
+  --bad: #cc3a32;
+  --bad-soft: #fbe3e1;
+  --sombra: 0 1px 2px rgb(14 21 51 / 0.04), 0 6px 18px -10px rgb(14 21 51 / 0.12);
+  --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Poppins", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c1317;
-    --surface: #121b20;
-    --raised: #19242a;
-    --line: #253239;
-    --fg: #e4ecef;
-    --muted: #8c9ea6;
-    --accent: #5cb3d9;
-    --accent-soft: #15303d;
-    --accent-fg: #06141b;
-    --warn: #e7a64a;
-    --warn-soft: #33260f;
-    --ok: #5cc98a;
-    --ok-soft: #12301f;
-    --bad: #f0675e;
-    --bad-soft: #3a1714;
+    --bg: #070a18;
+    --surface: #0f1429;
+    --raised: #171d36;
+    --line: #242b48;
+    --fg: #e9ecf6;
+    --muted: #8f97b5;
+    --accent: #8ea3ff;
+    --accent-soft: #1a2350;
+    --accent-fg: #070a18;
+    --warn: #f0ae52;
+    --warn-soft: #36270e;
+    --ok: #5fd193;
+    --ok-soft: #10301f;
+    --bad: #ff7468;
+    --bad-soft: #3d1613;
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.3);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0c1317;
-  --surface: #121b20;
-  --raised: #19242a;
-  --line: #253239;
-  --fg: #e4ecef;
-  --muted: #8c9ea6;
-  --accent: #5cb3d9;
-  --accent-soft: #15303d;
-  --accent-fg: #06141b;
-  --warn: #e7a64a;
-  --warn-soft: #33260f;
-  --ok: #5cc98a;
-  --ok-soft: #12301f;
-  --bad: #f0675e;
-  --bad-soft: #3a1714;
+  --bg: #070a18;
+  --surface: #0f1429;
+  --raised: #171d36;
+  --line: #242b48;
+  --fg: #e9ecf6;
+  --muted: #8f97b5;
+  --accent: #8ea3ff;
+  --accent-soft: #1a2350;
+  --accent-fg: #070a18;
+  --warn: #f0ae52;
+  --warn-soft: #36270e;
+  --ok: #5fd193;
+  --ok-soft: #10301f;
+  --bad: #ff7468;
+  --bad-soft: #3d1613;
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.3);
   color-scheme: dark;
+}
+
+/* Menu lateral sempre em azul-marinho, como o logo */
+.menu-marinho {
+  --surface: transparent;
+  --raised: rgb(255 255 255 / 0.07);
+  --line: rgb(255 255 255 / 0.1);
+  --fg: #eef1fb;
+  --muted: #9aa5cf;
+  --accent: #ffffff;
+  --accent-soft: rgb(255 255 255 / 0.13);
+  --accent-fg: #0b1442;
+  --bad: #ff8a80;
+  background: linear-gradient(180deg, #0d1850 0%, #08103a 55%, #050a26 100%);
+  color: var(--fg);
 }
 
 html,
@@ -83,14 +102,15 @@ h3 {
   letter-spacing: -0.01em;
 }
 .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--muted);
 }
 .num {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
 }
 :focus-visible {
@@ -104,3 +124,20 @@ h3 {
     animation: none !important;
   }
 }
+
+/* Cartões com leve profundidade */
+.rounded-2xl.border.bg-surface,
+.rounded-xl.border.bg-surface {
+  box-shadow: var(--sombra);
+}
+h1 {
+  letter-spacing: -0.02em;
+}
+/* Troca de logo conforme o tema */
+.claro-oculto { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .claro-oculto { display: block; }
+  :root:not([data-theme="light"]) .dark-oculto { display: none; }
+}
+:root[data-theme="dark"] .claro-oculto { display: block; }
+:root[data-theme="dark"] .dark-oculto { display: none; }
