@@ -122,7 +122,8 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     const { data } = await admin.auth.getUser(jwt);
     if (!data.user) return responder({ erro: "Faça login para atualizar." }, 401);
-    const { data: m } = await admin.from("membros").select("id").eq("user_id", data.user.id).eq("ativo", true).eq("acesso", true).maybeSingle();
+    const { data: m } = await admin.from("membros").select("id").or(`user_id.eq.${data.user.id},email.eq.${(data.user.email ?? "").toLowerCase()}`).eq("ativo", true).eq("acesso", true).limit(1).maybeSingle();
+    // mesmo critério das regras do banco: vínculo pelo usuário ou pelo e-mail do login
     if (!m) return responder({ erro: "Sem acesso." }, 403);
   }
 
