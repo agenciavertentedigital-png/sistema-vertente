@@ -269,7 +269,10 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
                     <tr className="border-b border-line bg-raised/40">
                       <td colSpan={8} className="px-3 pb-3 pt-1">
                         <Campanhas conta={r.conta} ini={ini} fim={fim} />
-                        <button onClick={() => ir(`cliente-${r.conta.cliente_id}`)} className="mt-2 text-[12.5px] text-accent">Abrir {cliente}</button>
+                        <div className="mt-2 flex gap-4">
+                          <button onClick={() => ir(`trafego-cliente-${r.conta.cliente_id}`)} className="text-[12.5px] font-medium text-accent">Abrir dashboard de {cliente}</button>
+                          <button onClick={() => ir(`cliente-${r.conta.cliente_id}`)} className="text-[12.5px] text-muted hover:text-fg">Tarefas do cliente</button>
+                        </div>
                       </td>
                     </tr>
                   )}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { hoje, somarDias } from "./tipos";
-import { CLIENTES_DEMO_TRAFEGO } from "../data/trafegoDemo";
+import { CLIENTES_DEMO_TRAFEGO, relatorioDemo } from "../data/trafegoDemo";
+import type { RelatorioMeta } from "./relatorio";
 
 export type StatusConta =
   | "ativa"
@@ -105,6 +106,7 @@ interface RepoTrafego {
   sincronizar(contaId?: string): Promise<string>;
   salvarConta(id: string | null, campos: CamposConta): Promise<void>;
   removerConta(id: string): Promise<void>;
+  relatorio(clienteId: string, inicio: string, fim: string): Promise<RelatorioMeta>;
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -160,6 +162,15 @@ const repoSupabase = (): RepoTrafego => {
       const r = await sb.from("contas_anuncio").delete().eq("id", id);
       if (r.error) throw new Error(r.error.message);
     },
+    async relatorio(clienteId, inicio, fim) {
+      const { data, error } = await sb.functions.invoke("relatorio-meta", { body: { cliente_id: clienteId, inicio, fim } });
+      if (error) {
+        const ctx = (error as { context?: Response }).context;
+        const corpo = ctx ? await ctx.json().catch(() => null) : null;
+        throw new Error(corpo?.erro ?? error.message);
+      }
+      return data as RelatorioMeta;
+    },
   };
 };
 
@@ -208,6 +219,10 @@ const repoMemoria = (): RepoTrafego => {
     async removerConta(id) {
       const i = contas.findIndex((c) => c.id === id);
       if (i >= 0) contas.splice(i, 1);
+    },
+    async relatorio(clienteId, inicio, fim) {
+      await new Promise((r) => setTimeout(r, 400));
+      return relatorioDemo(clienteId, inicio, fim);
     },
   };
 };

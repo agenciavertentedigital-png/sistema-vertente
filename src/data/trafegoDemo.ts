@@ -1,6 +1,7 @@
 import { DEMO_IDS } from "../lib/repo";
 import { hoje, somarDias } from "../lib/tipos";
 import type { ContaAnuncio, DiaConta, LinhaCampanha } from "../lib/trafego";
+import type { Acao, AnuncioMeta, CampanhaMeta, LinhaMeta, RelatorioMeta } from "../lib/relatorio";
 
 const CONVERSA = "onsite_conversion.messaging_conversation_started_7d";
 
@@ -88,4 +89,136 @@ export function CLIENTES_DEMO_TRAFEGO() {
     }
   });
   return { contas, dias, campanhas };
+}
+
+// ------------------------------------------------------------------
+// Relatório "ao vivo" de exemplo (mesmo formato da função relatorio-meta)
+// ------------------------------------------------------------------
+
+type Base = { gasto: number; impressoes: number; cliques: number; resultados: number; tipo: string };
+
+function linha(b: Base, extra: Partial<LinhaMeta> = {}): LinhaMeta {
+  const acoes: Acao[] = [{ action_type: "link_click", value: String(b.cliques) }];
+  const valores: Acao[] = [];
+  const add = (t: string, v: number) => v > 0 && acoes.push({ action_type: t, value: String(Math.round(v)) });
+  if (b.tipo === CONVERSA) {
+    add(CONVERSA, b.resultados);
+    add("onsite_conversion.messaging_first_reply", b.resultados * 0.78);
+    add("onsite_conversion.messaging_user_depth_2_message_send", b.resultados * 0.55);
+  } else if (b.tipo === "lead") {
+    add("onsite_conversion.lead_grouped", b.resultados);
+    add("landing_page_view", b.cliques * 0.72);
+  } else if (b.tipo === "purchase") {
+    add("landing_page_view", b.cliques * 0.7);
+    add("omni_add_to_cart", b.resultados * 4);
+    add("omni_initiated_checkout", b.resultados * 2.2);
+    add("omni_purchase", b.resultados);
+    if (b.resultados) valores.push({ action_type: "omni_purchase", value: String(Math.round(b.resultados * 189)) });
+  }
+  add("post_engagement", b.impressoes * 0.04);
+  add("video_view", b.impressoes * 0.12);
+  const alcance = Math.round(b.impressoes * 0.62);
+  return {
+    spend: b.gasto.toFixed(2),
+    impressions: String(b.impressoes),
+    reach: String(alcance),
+    frequency: alcance ? (b.impressoes / alcance).toFixed(4) : "0",
+    clicks: String(Math.round(b.cliques * 1.6)),
+    inline_link_clicks: String(b.cliques),
+    actions: acoes,
+    action_values: valores,
+    video_thruplay_watched_actions: [{ action_type: "video_view", value: String(Math.round(b.impressoes * 0.05)) }],
+    results: b.tipo ? [{ indicator: b.tipo === CONVERSA ? `actions:${CONVERSA}` : b.tipo, values: [{ value: String(b.resultados) }] }] : undefined,
+    ...extra,
+  };
+}
+
+const soma = (xs: Base[], tipo = ""): Base =>
+  xs.reduce((s, x) => ({ gasto: s.gasto + x.gasto, impressoes: s.impressoes + x.impressoes, cliques: s.cliques + x.cliques, resultados: s.resultados + x.resultados, tipo: tipo || x.tipo }), {
+    gasto: 0, impressoes: 0, cliques: 0, resultados: 0, tipo,
+  });
+
+
+/** Soma linhas já montadas (cada uma com suas ações), como a Meta faz no nível da conta. */
+function juntar(ls: LinhaMeta[], extra: Partial<LinhaMeta> = {}): LinhaMeta {
+  const num = (k: keyof LinhaMeta) => ls.reduce((s, l) => s + Number((l[k] as string) ?? 0), 0);
+  const acoes = (k: "actions" | "action_values" | "video_thruplay_watched_actions") => {
+    const m = new Map<string, number>();
+    for (const l of ls) for (const a of l[k] ?? []) m.set(a.action_type, (m.get(a.action_type) ?? 0) + Number(a.value));
+    return [...m.entries()].map(([action_type, v]) => ({ action_type, value: String(Math.round(v)) }));
+  };
+  const impressions = num("impressions");
+  const reach = Math.round(num("reach") * 0.85);
+  return {
+    spend: num("spend").toFixed(2),
+    impressions: String(impressions),
+    reach: String(reach),
+    frequency: reach ? (impressions / reach).toFixed(4) : "0",
+    clicks: String(num("clicks")),
+    inline_link_clicks: String(num("inline_link_clicks")),
+    actions: acoes("actions"),
+    action_values: acoes("action_values"),
+    video_thruplay_watched_actions: acoes("video_thruplay_watched_actions"),
+    ...extra,
+  };
+}
+
+const NOMES_AD = ["[IMG] Antes e depois", "[VÍDEO] Depoimento", "[CARROSSEL] Serviços", "[IMG] Oferta da semana"];
+
+export function relatorioDemo(clienteId: string, inicio: string, fim: string): RelatorioMeta {
+  const { contas, campanhas } = CLIENTES_DEMO_TRAFEGO();
+  const n = Math.round((Date.parse(`${fim}T12:00:00Z`) - Date.parse(`${inicio}T12:00:00Z`)) / 86400000) + 1;
+  const antIni = somarDias(inicio, -n);
+  const antFim = somarDias(inicio, -1);
+  return {
+    inicio,
+    fim,
+    anterior: { since: antIni, until: antFim },
+    contas: contas
+      .filter((c) => c.cliente_id === clienteId)
+      .map((c) => {
+        const daConta = campanhas.filter((x) => x.conta_id === c.id);
+        const base = (de: string, ate: string) =>
+          daConta.filter((x) => x.data >= de && x.data <= ate).map((x) => ({ gasto: x.gasto, impressoes: x.impressoes, cliques: x.cliques, resultados: x.resultados, tipo: x.tipo_resultado ?? "", data: x.data, id: x.campanha_id, nome: x.campanha, obj: x.objetivo, st: x.status_campanha }));
+        const periodo = base(inicio, fim);
+        const ids = [...new Set(periodo.map((x) => x.id))];
+        const camps: CampanhaMeta[] = ids.map((id) => {
+          const xs = periodo.filter((x) => x.id === id);
+          return { ...linha(soma(xs, xs[0].tipo), { objective: xs[0].obj ?? undefined }), campaign_id: id, campaign_name: xs[0].nome, status: xs[xs.length - 1].st ?? "ACTIVE", orcamento_dia: Math.round(soma(xs).gasto / n) };
+        });
+        const anuncios: AnuncioMeta[] = camps.flatMap((cp, i) => {
+          const b = soma(periodo.filter((x) => x.id === cp.campaign_id));
+          return [0.55, 0.3, 0.15].map((p, j) => ({
+            ...linha({ gasto: b.gasto * p, impressoes: Math.round(b.impressoes * p), cliques: Math.round(b.cliques * p * (1.2 - j * 0.25)), resultados: Math.round(b.resultados * p * (1.25 - j * 0.3)), tipo: b.tipo }, { objective: cp.objective }),
+            ad_id: `${cp.campaign_id}-ad${j}`,
+            ad_name: `AD0${i + 1}${j} ${NOMES_AD[(i + j) % NOMES_AD.length]}`,
+            adset_name: "Público aberto · 10 km",
+            campaign_id: cp.campaign_id,
+            campaign_name: cp.campaign_name,
+            status: j === 2 ? "PAUSED" : "ACTIVE",
+            previa: null,
+            miniatura: null,
+            tipo_criativo: j === 1 ? "VIDEO" : "SHARE",
+          }));
+        });
+        const porCampanha = (xs: typeof periodo) =>
+          [...new Set(xs.map((x) => x.id))].map((id) => {
+            const ys = xs.filter((x) => x.id === id);
+            return linha(soma(ys, ys[0].tipo));
+          });
+        const diario: LinhaMeta[] = [];
+        for (let k = 0; k < n; k++) {
+          const dia = somarDias(inicio, k);
+          diario.push(juntar(porCampanha(periodo.filter((x) => x.data === dia)), { date_start: dia }));
+        }
+        return {
+          conta: { id: c.id, conta_id: c.conta_id, nome: c.nome, status: c.status, saldo: c.saldo, pre_paga: c.pre_paga },
+          total: juntar(porCampanha(periodo)),
+          anterior: juntar(porCampanha(base(antIni, antFim))),
+          diario,
+          campanhas: camps,
+          anuncios,
+        };
+      }),
+  };
 }

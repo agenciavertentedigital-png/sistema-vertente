@@ -5,11 +5,14 @@ import { CANAL, SITUACAO, STATUS_ABERTOS, dataCurta, diasUteis, hoje, type Canal
 import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
 import { VisaoGeral } from "./VisaoGeral";
 import { Contas } from "./Contas";
+import { DashboardCliente } from "./DashboardCliente";
+import { ListaDashboards } from "./ListaDashboards";
 import { useTrafego } from "../../lib/trafego";
 import { Botao, COR_SITUACAO, Iniciais, Painel, PontoSituacao, Selecao, Vazio } from "../../components/ui";
 
 const ABAS = [
   { id: "trafego", nome: "Visão geral" },
+  { id: "trafego-dashboards", nome: "Dashboards dos clientes" },
   { id: "trafego-saude", nome: "Saúde das contas" },
   { id: "trafego-alteracoes", nome: "Histórico de alterações" },
   { id: "trafego-contas", nome: "Contas" },
@@ -22,6 +25,7 @@ export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => v
   const d = useDados();
   const aba = ABAS.some((a) => a.id === rota) ? rota : "trafego";
   const trafego = useTrafego();
+  if (rota.startsWith("trafego-cliente-")) return <DashboardCliente key={rota} clienteId={rota.slice("trafego-cliente-".length)} ir={ir} />;
   return (
     <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -52,6 +56,8 @@ export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => v
         <Vazio>Carregando…</Vazio>
       ) : aba === "trafego" ? (
         <VisaoGeral trafego={trafego} ir={ir} />
+      ) : aba === "trafego-dashboards" ? (
+        <ListaDashboards trafego={trafego} ir={ir} />
       ) : aba === "trafego-saude" ? (
         <Saude ir={ir} />
       ) : aba === "trafego-contas" ? (
@@ -290,13 +296,13 @@ function Alteracoes({ ir }: { ir: (r: string) => void }) {
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <Selecao id="alt-cliente" aria-label="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} className="w-auto">
+        <Selecao id="alt-cliente" aria-label="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} className="!w-auto">
           <option value="">Todos os clientes</option>
           {clientes.map((c) => (
             <option key={c.id} value={c.id}>{c.nome}</option>
           ))}
         </Selecao>
-        <Selecao id="alt-canal" aria-label="Canal" value={canal} onChange={(e) => setCanal(e.target.value)} className="w-auto">
+        <Selecao id="alt-canal" aria-label="Canal" value={canal} onChange={(e) => setCanal(e.target.value)} className="!w-auto">
           <option value="">Todos os canais</option>
           {Object.entries(CANAL).map(([v, n]) => (
             <option key={v} value={v}>{n}</option>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Inbox, Plus, RefreshCw } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { repo } from "../../lib/repo";
@@ -9,15 +9,14 @@ import {
   STATUS_ABERTOS,
   atrasada,
   hoje,
-  somarDias,
   type Pilar,
   type Tarefa,
 } from "../../lib/tipos";
-import { CartaoTarefa } from "../../components/tarefas/CartaoTarefa";
 import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
 import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, Entrada, Selecao, Vazio } from "../../components/ui";
 import { Rotinas } from "./Rotinas";
+import { QuadroTarefas } from "../../components/tarefas/QuadroTarefas";
 
 const ABAS = [
   { id: "clientes", nome: "Tarefas" },
@@ -38,7 +37,7 @@ export function GestaoClientes({ rota, ir }: { rota: string; ir: (r: string) => 
   const naEntrada = d.tarefas.filter((t) => t.triagem && STATUS_ABERTOS.includes(t.status)).length;
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
+    <div className="mx-auto flex max-w-[1320px] flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="eyebrow">Fase 1 · Operacional</div>
@@ -88,101 +87,11 @@ export function GestaoClientes({ rota, ir }: { rota: string; ir: (r: string) => 
       ) : aba === "clientes-rotinas" ? (
         <Rotinas />
       ) : (
-        <ListaTarefas abrir={setAberta} />
+        <QuadroTarefas abrir={setAberta} />
       )}
 
       <PainelTarefa id={aberta} fechar={() => setAberta(null)} />
       <NovaTarefa aberto={nova !== null} caixaEntrada={nova === "demanda"} fechar={() => setNova(null)} aoCriar={nova === "tarefa" ? setAberta : undefined} />
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------
-// Tarefas agrupadas por prazo
-// ------------------------------------------------------------------
-function ListaTarefas({ abrir }: { abrir: (id: string) => void }) {
-  const d = useDados();
-  const [resp, setResp] = useState<string>("todos");
-  const [pilar, setPilar] = useState<string>("todos");
-  const [cliente, setCliente] = useState<string>("todos");
-  const [busca, setBusca] = useState("");
-  const h = hoje();
-  const semana = somarDias(h, 7);
-
-  const filtradas = useMemo(
-    () =>
-      d.tarefas
-        .filter((t) => STATUS_ABERTOS.includes(t.status) && !t.triagem)
-        .filter((t) => resp === "todos" || (resp === "sem" ? !t.responsavel_id : t.responsavel_id === resp))
-        .filter((t) => pilar === "todos" || t.pilar === pilar)
-        .filter((t) => cliente === "todos" || t.cliente_id === cliente)
-        .filter((t) => !busca.trim() || t.titulo.toLowerCase().includes(busca.trim().toLowerCase()))
-        .sort(ordenar),
-    [d.tarefas, resp, pilar, cliente, busca],
-  );
-
-  const grupos: { nome: string; tarefas: Tarefa[]; alerta?: boolean }[] = [
-    { nome: "Atrasadas", tarefas: filtradas.filter((t) => atrasada(t)), alerta: true },
-    { nome: "Hoje", tarefas: filtradas.filter((t) => t.prazo === h) },
-    { nome: "Próximos 7 dias", tarefas: filtradas.filter((t) => t.prazo && t.prazo > h && t.prazo <= semana) },
-    { nome: "Depois", tarefas: filtradas.filter((t) => t.prazo && t.prazo > semana) },
-    { nome: "Sem prazo", tarefas: filtradas.filter((t) => !t.prazo) },
-  ];
-
-  const concluidasSemana = d.tarefas.filter((t) => t.status === "feita" && t.concluida_em && t.concluida_em.slice(0, 10) >= somarDias(h, -7)).length;
-
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Numero rotulo="Atrasadas" valor={grupos[0].tarefas.length} alerta={grupos[0].tarefas.length > 0} />
-        <Numero rotulo="Para hoje" valor={grupos[1].tarefas.length} />
-        <Numero rotulo="Próximos 7 dias" valor={grupos[2].tarefas.length} />
-        <Numero rotulo="Concluídas em 7 dias" valor={concluidasSemana} />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          <Chip ativo={resp === "todos"} onClick={() => setResp("todos")}>Todos</Chip>
-          {d.eu && <Chip ativo={resp === d.eu} onClick={() => setResp(d.eu!)}>Minhas</Chip>}
-          {d.membros
-            .filter((m) => m.id !== d.eu)
-            .map((m) => (
-              <Chip key={m.id} ativo={resp === m.id} onClick={() => setResp(m.id)}>{m.nome}</Chip>
-            ))}
-          <Chip ativo={resp === "sem"} onClick={() => setResp("sem")}>Sem responsável</Chip>
-        </div>
-        <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-          <Selecao id="filtro-pilar" value={pilar} onChange={(e) => setPilar(e.target.value)} className="sm:w-[170px]">
-            <option value="todos">Todos os pilares</option>
-            {PILARES.map((p) => (
-              <option key={p} value={p}>{PILAR[p]}</option>
-            ))}
-          </Selecao>
-          <Selecao id="filtro-cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} className="sm:w-[200px]">
-            <option value="todos">Todos os clientes</option>
-            {d.clientes.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Selecao>
-          <Entrada id="filtro-busca" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar tarefa" className="sm:w-[180px]" />
-        </div>
-      </div>
-
-      {filtradas.length === 0 && <Vazio>Nenhuma tarefa aberta com esses filtros.</Vazio>}
-      {grupos
-        .filter((g) => g.tarefas.length > 0)
-        .map((g) => (
-          <section key={g.nome} className="flex flex-col gap-2">
-            <h2 className={`flex items-center gap-2 text-[13px] font-semibold ${g.alerta ? "text-warn" : ""}`}>
-              {g.nome} <span className="num font-normal text-muted">{g.tarefas.length}</span>
-            </h2>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {g.tarefas.map((t) => (
-                <CartaoTarefa key={t.id} tarefa={t} abrir={abrir} />
-              ))}
-            </div>
-          </section>
-        ))}
     </div>
   );
 }

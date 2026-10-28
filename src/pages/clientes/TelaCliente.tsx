@@ -60,6 +60,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
           <h1 className="mt-1 text-[26px] font-semibold leading-tight">{c.nome}</h1>
         </div>
         <div className="flex gap-2">
+          <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}>Dashboard de tráfego</Botao>
           <Botao onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
           <Botao variante="primario" onClick={() => setNova(true)}>
             <Plus size={14} /> Nova tarefa
