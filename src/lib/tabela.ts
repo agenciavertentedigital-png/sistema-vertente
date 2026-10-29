@@ -32,15 +32,27 @@ export function useTabela<T extends { id: string }>(nome: string, colunas: strin
       return;
     }
     const o = JSON.parse(chaveOpcoes) as OpcoesTabela;
-    let q = supabase.from(nome).select(colunas);
-    if (o.desde) q = q.gte(o.desde.coluna, o.desde.valor);
-    if (o.ordem) q = q.order(o.ordem.coluna, { ascending: o.ordem.asc ?? true });
-    if (o.limite) q = q.limit(o.limite);
-    const { data, error } = await q;
-    if (error) setErro(error.message);
+    // O Supabase devolve no máximo 1000 linhas por vez: busca em páginas
+    const todas: T[] = [];
+    let falha = "";
+    for (let de = 0; ; de += 1000) {
+      let q = supabase.from(nome).select(colunas);
+      if (o.desde) q = q.gte(o.desde.coluna, o.desde.valor);
+      if (o.ordem) q = q.order(o.ordem.coluna, { ascending: o.ordem.asc ?? true });
+      q = q.order("id");
+      const ate = o.limite ? Math.min(de + 999, o.limite - 1) : de + 999;
+      const { data, error } = await q.range(de, ate);
+      if (error) {
+        falha = error.message;
+        break;
+      }
+      todas.push(...((data ?? []) as unknown as T[]));
+      if (!data || data.length < ate - de + 1 || (o.limite && todas.length >= o.limite)) break;
+    }
+    if (falha) setErro(falha);
     else {
       setErro("");
-      setLinhas((data ?? []) as unknown as T[]);
+      setLinhas(todas);
     }
     setCarregando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

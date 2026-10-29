@@ -31,8 +31,14 @@ export const SERVICOS: Record<string, string> = {
   consultoria: "Assessoria Estratégica",
 };
 
-export const CATEGORIAS_DESPESA = ["Pessoal", "Ferramentas", "Estrutura", "Impostos", "Terceiros", "Marketing", "Outros"];
-export const CATEGORIAS_RECEITA = ["Mensalidade", "Projeto avulso", "Consultoria", "Outros"];
+// Mesmas categorias da planilha "Controle Financeiro" da agência
+export const CATEGORIAS_DESPESA = ["Escritório", "Pró-labore", "Mão de obra", "Recursos humanos", "Educação", "Ferramentas", "Jurídico e contábil", "Eventos", "Parcerias", "Publicidade e vendas", "Outros"];
+export const CATEGORIAS_RECEITA = ["Mensalidade", "Recebimento", "CRM", "Consultoria", "Projeto avulso", "Outros"];
+
+/** Nome do cliente para agrupar receitas sem cliente ligado ("Nobre Fio (Tráfego Pago)" → "Nobre Fio"). */
+export function origemReceita(descricao: string) {
+  return descricao.replace(/\s*\(.*$/, "").replace(/\s+-\s+.*$/, "").replace(/\s+(Fixo|Variável)$/i, "").trim() || descricao;
+}
 export const FORMAS = ["pix", "boleto", "cartão", "transferência", "dinheiro"];
 
 export type Situacao = "pago" | "atrasado" | "aberto";

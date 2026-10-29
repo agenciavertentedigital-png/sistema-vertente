@@ -1,28 +1,38 @@
-import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, Plus, Sparkles, Trash2, Wallet } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, Copy, History, Plus, Sparkles, Trash2, Wallet } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { moedaBR, useTabela } from "../../lib/tabela";
 import { hoje } from "../../lib/tipos";
 import { supabase } from "../../lib/supabase";
 import { useFichas } from "../../lib/cadastro";
-import { CAMPOS_LANCAMENTO, CATEGORIAS_DESPESA, CATEGORIAS_RECEITA, FORMAS, SERVICOS, situacao, type Lancamento } from "../../lib/financeiro";
+import { CAMPOS_LANCAMENTO, CATEGORIAS_DESPESA, CATEGORIAS_RECEITA, FORMAS, SERVICOS, origemReceita, situacao, type Lancamento } from "../../lib/financeiro";
 import { demoLancamentos } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Barras, Cabecalho, Kpi, Selo, nomeMes, somarMeses } from "../../components/visual";
 
-type Aba = "financeiro" | "financeiro-receber" | "financeiro-despesas" | "financeiro-mensalidades";
+type Aba = "financeiro" | "financeiro-historico" | "financeiro-receber" | "financeiro-despesas" | "financeiro-mensalidades";
 const COR_SIT = { pago: "var(--ok)", atrasado: "var(--bad)", aberto: "var(--warn)" } as const;
 const NOME_SIT = { pago: "Pago", atrasado: "Atrasado", aberto: "Em aberto" } as const;
 
 export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const d = useDados();
-  const aba = (["financeiro-receber", "financeiro-despesas", "financeiro-mensalidades"].includes(rota) ? rota : "financeiro") as Aba;
+  const aba = (["financeiro-historico", "financeiro-receber", "financeiro-despesas", "financeiro-mensalidades"].includes(rota) ? rota : "financeiro") as Aba;
   const [mes, setMes] = useState(hoje().slice(0, 7) + "-01");
-  const lanc = useTabela<Lancamento>("lancamentos", CAMPOS_LANCAMENTO, demoLancamentos, { desde: { coluna: "competencia", valor: somarMeses(hoje(), -12) }, ordem: { coluna: "vencimento" } });
+  const lanc = useTabela<Lancamento>("lancamentos", CAMPOS_LANCAMENTO, demoLancamentos, { desde: { coluna: "competencia", valor: "2024-01-01" }, ordem: { coluna: "vencimento" } });
   const fichas = useFichas();
   const [editando, setEditando] = useState<Partial<Lancamento> | null>(null);
 
   const linhas = useMemo(() => lanc.linhas.map((l) => ({ ...l, valor: Number(l.valor) })), [lanc.linhas]);
+  // Abre no mês mais recente com lançamentos quando o mês atual ainda está vazio
+  const ajustado = useRef(false);
+  useEffect(() => {
+    if (ajustado.current || lanc.carregando || !linhas.length) return;
+    ajustado.current = true;
+    if (!linhas.some((l) => l.competencia.slice(0, 7) === mes.slice(0, 7))) {
+      setMes(linhas.reduce((m, l) => (l.competencia > m ? l.competencia : m), linhas[0].competencia));
+    }
+  }, [lanc.carregando, linhas, mes]);
+  const nomeReceita = (l: Lancamento) => (l.cliente_id ? d.cliente(l.cliente_id)?.nome ?? fichas.fichas.find((f) => f.id === l.cliente_id)?.nome : null) ?? origemReceita(l.descricao);
   const doMes = linhas.filter((l) => l.competencia.slice(0, 7) === mes.slice(0, 7));
   const receitas = doMes.filter((l) => l.tipo === "receita");
   const despesas = doMes.filter((l) => l.tipo === "despesa");
@@ -34,8 +44,8 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
   const margem = soma(receitas) ? resultado / soma(receitas) : null;
   const clientesPagantes = fichas.fichas.filter((f) => f.status === "ativo" && fichas.mensalidade(f.id) > 0).length;
 
-  const seis = Array.from({ length: 6 }, (_, i) => somarMeses(mes, i - 5));
-  const serie = seis.map((m) => {
+  const doze = Array.from({ length: 12 }, (_, i) => somarMeses(mes, i - 11));
+  const serie = doze.map((m) => {
     const ls = linhas.filter((l) => l.competencia.slice(0, 7) === m.slice(0, 7));
     return {
       rotulo: nomeMes(m, true),
@@ -107,6 +117,7 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
       <Abas<Aba>
         abas={[
           { id: "financeiro", nome: "Visão do mês" },
+          { id: "financeiro-historico", nome: "Histórico completo" },
           { id: "financeiro-receber", nome: "Recebimentos", contador: atrasadoTotal.length },
           { id: "financeiro-despesas", nome: "Despesas" },
           { id: "financeiro-mensalidades", nome: "Mensalidades por cliente" },
@@ -121,7 +132,7 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           <section className="rounded-2xl border border-line bg-surface p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-[15px] font-semibold">Receitas x despesas · 6 meses</h2>
+              <h2 className="text-[15px] font-semibold">Receitas x despesas · 12 meses</h2>
               <div className="flex gap-3 text-[11.5px] text-muted">
                 <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-[#1d34a0]" /> Receitas</span>
                 <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-[#b8c0d8]" /> Despesas</span>
@@ -136,12 +147,14 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
           <section className="rounded-2xl border border-line bg-surface p-4 lg:col-span-2">
             <h2 className="text-[15px] font-semibold">Receita por cliente no mês</h2>
             <Distribuicao
-              itens={[...new Set(receitas.map((r) => r.cliente_id))].map((id) => ({ nome: d.cliente(id ?? "")?.nome ?? fichas.fichas.find((f) => f.id === id)?.nome ?? "Avulso", valor: soma(receitas.filter((r) => r.cliente_id === id)) })).sort((a, b) => b.valor - a.valor)}
+              itens={[...new Set(receitas.map(nomeReceita))].map((nome) => ({ nome, valor: soma(receitas.filter((r) => nomeReceita(r) === nome)) })).sort((a, b) => b.valor - a.valor)}
               total={soma(receitas)}
               colunas
             />
           </section>
         </div>
+      ) : aba === "financeiro-historico" ? (
+        <Historico linhas={linhas} abrirMes={(m) => { setMes(m); ir("financeiro"); }} nomeReceita={nomeReceita} />
       ) : aba === "financeiro-receber" ? (
         <Lista
           titulo="Recebimentos"
@@ -389,5 +402,121 @@ function EditorLancamento({ l, fechar, lanc }: { l: Partial<Lancamento>; fechar:
         </div>
       </div>
     </Painel>
+  );
+}
+
+// ------------------------------------------------------------------
+// Histórico completo, mês a mês
+// ------------------------------------------------------------------
+function Historico({ linhas, abrirMes, nomeReceita }: { linhas: Lancamento[]; abrirMes: (m: string) => void; nomeReceita: (l: Lancamento) => string }) {
+  const meses = [...new Set(linhas.map((l) => l.competencia.slice(0, 7)))].sort();
+  if (!meses.length) return <Vazio>Nenhum lançamento ainda.</Vazio>;
+  const soma = (ls: Lancamento[]) => ls.reduce((s, l) => s + l.valor, 0);
+  const porMes = meses.map((m) => {
+    const ls = linhas.filter((l) => l.competencia.startsWith(m));
+    const ent = soma(ls.filter((l) => l.tipo === "receita"));
+    const sai = soma(ls.filter((l) => l.tipo === "despesa"));
+    return { m, ent, sai, res: ent - sai, margem: ent ? (ent - sai) / ent : null };
+  });
+  const totEnt = porMes.reduce((s, x) => s + x.ent, 0);
+  const totSai = porMes.reduce((s, x) => s + x.sai, 0);
+  const melhor = [...porMes].sort((a, b) => b.ent - a.ent)[0];
+  const positivos = porMes.filter((x) => x.res >= 0).length;
+  const ult3 = porMes.slice(-3).reduce((s, x) => s + x.ent, 0) / Math.min(3, porMes.length);
+  const ant3 = porMes.slice(-6, -3).reduce((s, x) => s + x.ent, 0) / Math.max(1, Math.min(3, porMes.length - 3));
+  const maxV = Math.max(...porMes.map((x) => Math.max(x.ent, x.sai)), 1);
+  const H = 190;
+  const receitasTop = [...new Set(linhas.filter((l) => l.tipo === "receita").map(nomeReceita))]
+    .map((nome) => ({ nome, valor: soma(linhas.filter((l) => l.tipo === "receita" && nomeReceita(l) === nome)) }))
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 10);
+  const categorias = CATEGORIAS_DESPESA.map((c) => ({ nome: c, valor: soma(linhas.filter((l) => l.tipo === "despesa" && l.categoria === c)) })).filter((x) => x.valor).sort((a, b) => b.valor - a.valor);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <Kpi icone={History} rotulo={`Faturado em ${meses.length} meses`} valor={moedaBR(totEnt, 0)} detalhe={`${nomeMes(meses[0] + "-01", true)} a ${nomeMes(meses[meses.length - 1] + "-01", true)}`} tom="accent" />
+        <Kpi rotulo="Média mensal de entrada" valor={moedaBR(totEnt / meses.length, 0)} detalhe={`saída média ${moedaBR(totSai / meses.length, 0)}`} />
+        <Kpi rotulo="Resultado acumulado" valor={moedaBR(totEnt - totSai, 0)} detalhe={`margem ${totEnt ? Math.round(((totEnt - totSai) / totEnt) * 100) : 0}%`} tom={totEnt - totSai >= 0 ? "ok" : "bad"} />
+        <Kpi rotulo="Melhor mês" valor={moedaBR(melhor.ent, 0)} detalhe={nomeMes(melhor.m + "-01")} tom="ok" />
+        <Kpi rotulo="Meses no positivo" valor={`${positivos} de ${meses.length}`} detalhe={ant3 ? `entrada últimos 3 meses ${ult3 >= ant3 ? "▲" : "▼"} ${Math.abs(Math.round(((ult3 - ant3) / ant3) * 100))}%` : undefined} tom={positivos >= meses.length / 2 ? "ok" : "warn"} />
+      </div>
+
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-[15px] font-semibold">Entradas, saídas e resultado · mês a mês</h2>
+          <div className="flex gap-3 text-[11.5px] text-muted">
+            <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-[#1d34a0]" /> Entradas</span>
+            <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-[#b8c0d8]" /> Saídas</span>
+            <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-ok" /> Resultado positivo</span>
+            <span className="flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-full bg-bad" /> negativo</span>
+          </div>
+        </div>
+        <div className="mt-4 overflow-x-auto pb-1">
+          <div className="flex items-end gap-1.5" style={{ minWidth: meses.length * 38, height: H + 64 }}>
+            {porMes.map((x) => (
+              <button key={x.m} onClick={() => abrirMes(x.m + "-01")} title={`${nomeMes(x.m + "-01")}\nEntradas ${moedaBR(x.ent)}\nSaídas ${moedaBR(x.sai)}\nResultado ${moedaBR(x.res)}`} className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg pt-1 hover:bg-raised">
+                <span className={`num text-[10px] font-semibold ${x.res >= 0 ? "text-ok" : "text-bad"}`}>{x.res >= 0 ? "+" : "−"}{Math.abs(x.res / 1000).toFixed(1).replace(".", ",")}k</span>
+                <div className="flex w-full items-end justify-center gap-0.5" style={{ height: H }}>
+                  <div className="w-full max-w-[14px] rounded-t" style={{ height: Math.max(2, (x.ent / maxV) * H), background: "#1d34a0" }} />
+                  <div className="w-full max-w-[14px] rounded-t" style={{ height: Math.max(2, (x.sai / maxV) * H), background: "#b8c0d8" }} />
+                </div>
+                <span className={`h-2 w-2 rounded-full ${x.res >= 0 ? "bg-ok" : "bg-bad"}`} />
+                <span className="text-[10px] leading-tight text-muted">{nomeMes(x.m + "-01", true)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-1 text-[11.5px] text-muted">Clique num mês para abrir os lançamentos dele.</p>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="rounded-2xl border border-line bg-surface p-4">
+          <h2 className="text-[15px] font-semibold">Quem mais trouxe receita no período</h2>
+          <Distribuicao itens={receitasTop} total={totEnt} />
+        </section>
+        <section className="rounded-2xl border border-line bg-surface p-4">
+          <h2 className="text-[15px] font-semibold">Despesas por categoria no período</h2>
+          <Distribuicao itens={categorias} total={totSai} />
+        </section>
+      </div>
+
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <h2 className="text-[15px] font-semibold">Tabela mês a mês</h2>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[620px] text-[13px]">
+            <thead>
+              <tr className="text-left text-[11.5px] text-muted">
+                <th className="py-2 font-medium">Mês</th>
+                <th className="py-2 text-right font-medium">Entradas</th>
+                <th className="py-2 text-right font-medium">Saídas</th>
+                <th className="py-2 text-right font-medium">Resultado</th>
+                <th className="py-2 text-right font-medium">Margem</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {[...porMes].reverse().map((x) => (
+                <tr key={x.m} className="cursor-pointer hover:bg-raised/60" onClick={() => abrirMes(x.m + "-01")}>
+                  <td className="py-2 font-medium">{nomeMes(x.m + "-01")}</td>
+                  <td className="num py-2 text-right">{moedaBR(x.ent)}</td>
+                  <td className="num py-2 text-right">{moedaBR(x.sai)}</td>
+                  <td className={`num py-2 text-right font-semibold ${x.res >= 0 ? "text-ok" : "text-bad"}`}>{moedaBR(x.res)}</td>
+                  <td className={`num py-2 text-right ${x.res >= 0 ? "text-ok" : "text-bad"}`}>{x.margem === null ? "—" : `${(x.margem * 100).toFixed(1).replace(".", ",")}%`}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-line font-semibold">
+                <td className="py-2">Total</td>
+                <td className="num py-2 text-right">{moedaBR(totEnt)}</td>
+                <td className="num py-2 text-right">{moedaBR(totSai)}</td>
+                <td className={`num py-2 text-right ${totEnt - totSai >= 0 ? "text-ok" : "text-bad"}`}>{moedaBR(totEnt - totSai)}</td>
+                <td className="num py-2 text-right">{totEnt ? `${(((totEnt - totSai) / totEnt) * 100).toFixed(1).replace(".", ",")}%` : "—"}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    </div>
   );
 }

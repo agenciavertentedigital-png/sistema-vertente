@@ -122,11 +122,11 @@ export function demoLancamentos(): Lancamento[] {
       out.push({ id: `lr-${m}-${i}`, tipo: "receita", cliente_id: cli(c), descricao: `Mensalidade ${c}`, categoria: "Mensalidade", valor: v, competencia: comp, vencimento: venc, pago_em: pago, forma: "pix", observacoes: null });
     }
     const despesas: [string, string, number][] = [
-      ["Salários e pró-labore", "Pessoal", 6200],
-      ["Ferramentas (Meta, Google, Canva, ClickUp…)", "Ferramentas", 680 + Math.round(acaso() * 120)],
-      ["Aluguel e escritório", "Estrutura", 1200],
-      ["Impostos (DAS)", "Impostos", 900 + Math.round(acaso() * 200)],
-      ["Freelancers", "Terceiros", Math.round(acaso() * 1500)],
+      ["Pró-labore", "Pró-labore", 5000],
+      ["Ferramentas (Reportei, ClickUp, Canva…)", "Ferramentas", 680 + Math.round(acaso() * 120)],
+      ["Aluguel e escritório", "Escritório", 1200],
+      ["DAS - Simples Nacional", "Jurídico e contábil", 900 + Math.round(acaso() * 200)],
+      ["Freelancers", "Mão de obra", Math.round(acaso() * 1500)],
     ];
     despesas.forEach(([desc, cat, v], k) => {
       const venc = `${comp.slice(0, 8)}${String(5 + k * 4).padStart(2, "0")}`;
