@@ -37,6 +37,8 @@ const TABELAS: Record<string, string> = {
   contrato_modelos: "Modelos de contrato.",
   processos: "Modelos de processo (Pré-onboarding, Onboarding…): etapas com título, pilar, dias após o início e checklist.",
   processos_aplicados: "Processos aplicados a clientes (nome, cliente_id, inicio). As tarefas do processo têm tarefas.processo_aplicado_id = processos_aplicados.id.",
+  briefings: "Briefing estratégico de cada cliente (um por cliente): campos = {negocio_resumo, produtos_carro_chefe, ticket_medio, area_atendimento, sazonalidade, persona, dores_desejos, objecoes, diferenciais, concorrentes, tom_de_voz, restricoes, objetivo_principal, metas_90_dias, verba_midia, kpi_principal, atendimento_leads, processo_venda, conversao, historico_marketing, funcionou, materiais, estrategia_atual, funil_campanhas, proximos_testes, pontos_atencao}. Use para entender o contexto e a estratégia do cliente.",
+  notas: "Anotações do time (cliente_id nulo = interna da agência): titulo, texto, etiqueta geral|estrategia|reuniao|ideia|alinhamento|aprendizado|pendencia, fixada (importante), autor_id, atualizado_em.",
   servicos: "Catálogo de serviços.",
 };
 
@@ -210,6 +212,7 @@ ${Object.entries(TABELAS).map(([t, d]) => `- ${t}: ${d}`).join("\n")}
 Dicas:
 - IDs ligam as tabelas (cliente_id -> clientes.id, responsavel_id/autor_id -> membros.id, conta_id -> contas_anuncio.id, perfil_id -> gmn_perfis.id). Busque nomes para mostrar em vez de IDs.
 - Para achar um cliente pelo nome use consultar_tabela em clientes com filtro ilike '%parte do nome%'.
+- Perguntas sobre estratégia, público, oferta ou "como está o cliente X": leia o briefing (briefings) e as notas fixadas/recentes do cliente (notas) junto com os números.
 - Tarefas atrasadas: status em (a_fazer, fazendo, aguardando) e prazo < hoje.
 - Tráfego: "contatos" = conversas + leads; custo por contato = gasto / contatos. Para números exatos de um período e criativos, use relatorio_meta_ao_vivo.
 - Financeiro: resultado do mês = receitas − despesas pela competência. Se a consulta de lançamentos voltar vazia ou com erro de permissão, explique que só administradores veem o financeiro.

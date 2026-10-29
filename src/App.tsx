@@ -26,6 +26,8 @@ import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 import { Crm } from "./pages/Crm";
 import { Assistente } from "./pages/Assistente";
 import { Integracoes } from "./pages/Integracoes";
+import { CentralAnotacoes } from "./pages/CentralAnotacoes";
+import { BriefingPublico } from "./pages/cadastro/BriefingPublico";
 import { Sparkles } from "lucide-react";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
@@ -80,6 +82,7 @@ export default function App() {
 
   // Link público de cadastro: abre sem login
   if (rota.startsWith("cadastro-publico-")) return <CadastroPublico token={rota.slice(17)} />;
+  if (rota.startsWith("briefing-publico-")) return <BriefingPublico token={rota.slice(17)} />;
 
   if (sessao.tipo === "carregando") {
     return <div className="grid h-full place-items-center text-muted">Carregando…</div>;
@@ -106,6 +109,7 @@ export default function App() {
   else if (rota === "crm") pagina = <Crm />;
   else if (rota === "assistente") pagina = <Assistente />;
   else if (rota === "integracoes") pagina = <Integracoes />;
+  else if (rota === "anotacoes" || rota.startsWith("anotacoes-")) pagina = <CentralAnotacoes rota={rota} ir={navegar} />;
   else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
   else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;

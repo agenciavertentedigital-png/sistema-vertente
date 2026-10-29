@@ -28,14 +28,37 @@ import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
 import { PastaDrive } from "../../components/PastaDrive";
 import { AplicarProcesso, ProgressoProcessos, useProcessos } from "./Processos";
-import { ListChecks } from "lucide-react";
+import { AtSign, FileText, FolderOpen, ListChecks, MapPin, MessageCircle, Pin, Target } from "lucide-react";
+import { BriefingCliente } from "../../components/BriefingCliente";
+import { Anotacoes } from "../../components/Anotacoes";
+import { completudeBriefing, useBriefings, useNotas } from "../../lib/briefing";
+import { useFichas } from "../../lib/cadastro";
+
+type Aba = "tarefas" | "briefing" | "notas" | "linha" | "drive";
 
 export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
   const [aberta, setAberta] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   const [verConcluidas, setVerConcluidas] = useState(false);
-  const [aba, setAba] = useState<"tarefas" | "linha" | "drive">("tarefas");
+  const [aba, setAbaEstado] = useState<Aba>(() => {
+    try {
+      return (localStorage.getItem("vertente.aba-cliente") as Aba) || "tarefas";
+    } catch {
+      return "tarefas";
+    }
+  });
+  const setAba = (a: Aba) => {
+    setAbaEstado(a);
+    try {
+      localStorage.setItem("vertente.aba-cliente", a);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
+  const briefings = useBriefings();
+  const notas = useNotas();
+  const { fichas } = useFichas();
   const [aplicar, setAplicar] = useState(false);
   const proc = useProcessos();
   const c = d.cliente(clienteId);
@@ -63,8 +86,9 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <div className="min-w-0">
           <div className="eyebrow">{c.origem === "parceria_marcone" ? "Parceria Marcone" : "Cliente Vertente"}</div>
           <h1 className="mt-1 text-[26px] font-semibold leading-tight">{c.nome}</h1>
+          <Atalhos ficha={fichas.find((f) => f.id === c.id)} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Botao onClick={() => setAplicar(true)}><ListChecks size={14} /> Aplicar onboarding</Botao>
           <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}>Dashboard de tráfego</Botao>
           <Botao onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
@@ -81,13 +105,19 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
       </div>
 
+      <ResumoEstrategico
+        b={briefings.linhas.find((x) => x.cliente_id === c.id)}
+        fixadas={notas.linhas.filter((n) => n.cliente_id === c.id && n.fixada).map((n) => n.titulo || n.texto)}
+        ir={setAba}
+      />
+
       <ProgressoProcessos clienteId={c.id} aplicados={proc.aplicados.linhas} />
 
       <NumerosDaConta clienteId={c.id} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
-          {([["tarefas", "Tarefas e rotinas"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
+        <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1">
+          {([["tarefas", "Tarefas e rotinas"], ["briefing", "Briefing"], ["notas", "Anotações"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
             <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
               {n}
             </button>
@@ -96,7 +126,11 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <SaudeResumo clienteId={c.id} />
       </div>
 
-      {aba === "linha" ? (
+      {aba === "briefing" ? (
+        <BriefingCliente clienteId={c.id} />
+      ) : aba === "notas" ? (
+        <Anotacoes clienteId={c.id} />
+      ) : aba === "linha" ? (
         <LinhaDoTempo clienteId={c.id} />
       ) : aba === "drive" ? (
         <PastaDrive clienteId={c.id} />
@@ -329,6 +363,70 @@ function SaudeResumo({ clienteId }: { clienteId: string }) {
           <span className="text-muted">· {dataCurta(r.data)}</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Atalhos da ficha: contato, Instagram, cidade e pasta do Drive. */
+function Atalhos({ ficha }: { ficha?: import("../../lib/cadastro").Ficha }) {
+  if (!ficha) return null;
+  const tel = ficha.contato_telefone?.replace(/\D/g, "");
+  const ig = ficha.instagram?.replace(/^@/, "").trim();
+  const itens = [
+    ficha.segmento || ficha.cidade ? { icone: MapPin, texto: [ficha.segmento, ficha.cidade].filter(Boolean).join(" · ") } : null,
+    tel ? { icone: MessageCircle, texto: ficha.contato_nome ? `${ficha.contato_nome.split(" ")[0]} no WhatsApp` : "WhatsApp", href: `https://wa.me/${tel.length <= 11 ? "55" + tel : tel}` } : null,
+    ig ? { icone: AtSign, texto: ig, href: `https://instagram.com/${ig}` } : null,
+    ficha.pasta_drive ? { icone: FolderOpen, texto: "Pasta no Drive", href: ficha.pasta_drive } : null,
+  ].filter(Boolean) as { icone: typeof MapPin; texto: string; href?: string }[];
+  if (!itens.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-muted">
+      {itens.map((i) =>
+        i.href ? (
+          <a key={i.texto} href={i.href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-accent"><i.icone size={13} /> {i.texto}</a>
+        ) : (
+          <span key={i.texto} className="inline-flex items-center gap-1"><i.icone size={13} /> {i.texto}</span>
+        ),
+      )}
+    </div>
+  );
+}
+
+/** Faixa com o essencial do briefing e as notas fixadas, sempre visível na tela do cliente. */
+function ResumoEstrategico({ b, fixadas, ir }: { b?: import("../../lib/briefing").Briefing; fixadas: string[]; ir: (a: Aba) => void }) {
+  const comp = completudeBriefing(b);
+  const v = (k: string) => b?.campos?.[k]?.trim();
+  const itens = [
+    { rotulo: "Objetivo", texto: v("objetivo_principal") },
+    { rotulo: "KPI", texto: v("kpi_principal") },
+    { rotulo: "Verba", texto: v("verba_midia") },
+  ];
+  return (
+    <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+      <button onClick={() => ir("briefing")} className="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-left hover:ring-1 hover:ring-accent/30 sm:flex-row sm:items-center sm:gap-5" style={{ boxShadow: "var(--sombra)" }}>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Target size={17} /></span>
+          <div>
+            <div className="text-[13px] font-semibold">Briefing</div>
+            <div className={`num text-[12px] ${comp.pct >= 80 ? "text-ok" : comp.pct >= 40 ? "text-warn" : "text-muted"}`}>{comp.pct}% preenchido</div>
+          </div>
+        </div>
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
+          {itens.map((i) => (
+            <div key={i.rotulo} className="min-w-0">
+              <div className="text-[11px] uppercase tracking-wide text-muted">{i.rotulo}</div>
+              <div className={`truncate text-[13px] ${i.texto ? "font-medium" : "text-muted"}`}>{i.texto || "Definir no briefing"}</div>
+            </div>
+          ))}
+        </div>
+      </button>
+      <button onClick={() => ir("notas")} className="flex items-center gap-3 rounded-2xl bg-surface p-4 text-left hover:ring-1 hover:ring-accent/30 lg:w-[300px]" style={{ boxShadow: "var(--sombra)" }}>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">{fixadas.length ? <Pin size={16} /> : <FileText size={16} />}</span>
+        <div className="min-w-0">
+          <div className="text-[13px] font-semibold">{fixadas.length ? `${fixadas.length} nota${fixadas.length > 1 ? "s" : ""} fixada${fixadas.length > 1 ? "s" : ""}` : "Anotações"}</div>
+          <div className="truncate text-[12px] text-muted">{fixadas[0] ?? "Combinados, ideias e aprendizados"}</div>
+        </div>
+      </button>
     </div>
   );
 }

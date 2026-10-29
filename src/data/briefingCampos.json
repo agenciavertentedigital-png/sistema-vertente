@@ -1,0 +1,42 @@
+[
+  { "secao": "O negócio", "campos": [
+    { "chave": "negocio_resumo", "rotulo": "O que a empresa faz", "dica": "Em 2 ou 3 frases: o que vende, para quem e há quanto tempo.", "cliente": true, "grande": true },
+    { "chave": "produtos_carro_chefe", "rotulo": "Produtos ou serviços carro-chefe", "dica": "Os que mais vendem ou que quer vender mais.", "cliente": true },
+    { "chave": "ticket_medio", "rotulo": "Ticket médio e margem", "dica": "Valor médio de uma venda. Margem, se souber.", "cliente": true },
+    { "chave": "area_atendimento", "rotulo": "Região de atendimento", "dica": "Cidades, bairros ou raio que atende.", "cliente": true },
+    { "chave": "sazonalidade", "rotulo": "Sazonalidade e datas importantes", "dica": "Meses fortes e fracos, datas comerciais que importam.", "cliente": true }
+  ]},
+  { "secao": "Cliente ideal", "campos": [
+    { "chave": "persona", "rotulo": "Quem é o cliente ideal", "dica": "Idade, gênero, renda, momento de vida, onde mora.", "cliente": true, "grande": true },
+    { "chave": "dores_desejos", "rotulo": "Dores, desejos e motivos de compra", "dica": "Por que as pessoas compram de você.", "cliente": true },
+    { "chave": "objecoes", "rotulo": "Objeções mais comuns", "dica": "O que faz a pessoa não comprar (preço, confiança, prazo…).", "cliente": true }
+  ]},
+  { "secao": "Posicionamento", "campos": [
+    { "chave": "diferenciais", "rotulo": "Diferenciais", "dica": "Por que escolher você e não o concorrente.", "cliente": true },
+    { "chave": "concorrentes", "rotulo": "Principais concorrentes", "dica": "Nomes, Instagram ou site.", "cliente": true },
+    { "chave": "tom_de_voz", "rotulo": "Tom de voz e identidade", "dica": "Como a marca fala: próxima, técnica, divertida, sofisticada…", "cliente": true },
+    { "chave": "restricoes", "rotulo": "O que evitar", "dica": "Palavras, temas, promessas ou imagens que não podem aparecer.", "cliente": true }
+  ]},
+  { "secao": "Objetivos e metas", "campos": [
+    { "chave": "objetivo_principal", "rotulo": "Objetivo principal", "dica": "Mais vendas, mais contatos no WhatsApp, agenda cheia, lançar produto…", "cliente": true },
+    { "chave": "metas_90_dias", "rotulo": "Metas dos próximos 90 dias", "dica": "Com números: contatos por mês, vendas, faturamento.", "cliente": true },
+    { "chave": "verba_midia", "rotulo": "Verba mensal de anúncios", "dica": "Quanto pode investir por mês em mídia.", "cliente": true },
+    { "chave": "kpi_principal", "rotulo": "Indicador principal (KPI)", "dica": "O número que vamos acompanhar toda semana. Ex.: custo por contato até R$ 8.", "cliente": false }
+  ]},
+  { "secao": "Comercial", "campos": [
+    { "chave": "atendimento_leads", "rotulo": "Quem atende os contatos", "dica": "Pessoa, canal (WhatsApp, telefone, loja) e horário de atendimento.", "cliente": true },
+    { "chave": "processo_venda", "rotulo": "Como a venda acontece", "dica": "Do primeiro contato até o pagamento.", "cliente": true },
+    { "chave": "conversao", "rotulo": "Vendas e fechamento", "dica": "Quantas vendas por mês e de cada 10 contatos, quantos compram.", "cliente": true }
+  ]},
+  { "secao": "Histórico", "campos": [
+    { "chave": "historico_marketing", "rotulo": "O que já foi feito em marketing", "dica": "Anúncios, agências anteriores, influenciadores, panfletos…", "cliente": true },
+    { "chave": "funcionou", "rotulo": "O que funcionou e o que não funcionou", "dica": "Campanhas, ofertas e criativos que deram certo ou errado.", "cliente": true },
+    { "chave": "materiais", "rotulo": "Materiais disponíveis", "dica": "Fotos, vídeos, depoimentos, catálogo, identidade visual.", "cliente": true }
+  ]},
+  { "secao": "Estratégia da Vertente", "interna": true, "campos": [
+    { "chave": "estrategia_atual", "rotulo": "Estratégia atual", "dica": "A linha que estamos seguindo agora e por quê.", "cliente": false, "grande": true },
+    { "chave": "funil_campanhas", "rotulo": "Funil e campanhas", "dica": "Topo, meio e fundo: campanhas, públicos e ofertas de cada etapa.", "cliente": false },
+    { "chave": "proximos_testes", "rotulo": "Próximos testes e ideias", "dica": "O que vamos testar a seguir.", "cliente": false },
+    { "chave": "pontos_atencao", "rotulo": "Pontos de atenção do relacionamento", "dica": "Como o cliente gosta de ser atendido, sensibilidades, quem decide.", "cliente": false }
+  ]}
+]

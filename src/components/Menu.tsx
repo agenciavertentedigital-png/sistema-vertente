@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck, Home, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plug, Sparkles, Sun } from "lucide-react";
+import { CalendarCheck, Home, LogOut, Moon, PanelLeftClose, NotebookPen, PanelLeftOpen, Plug, Sparkles, Sun } from "lucide-react";
 import { Sininho } from "./Sininho";
 import { BASE_CLIENTES, GRUPOS, MODULOS } from "../data/modulos";
 import { Marca } from "./Marca";
@@ -79,6 +79,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
           recolhido={recolhido}
         />
         <Item ativo={rota.startsWith("reuniao")} onClick={() => ir("reuniao-daily")} icone={CalendarCheck} rotulo="Daily e Weekly" recolhido={recolhido} />
+        <Item ativo={rota.startsWith("anotacoes")} onClick={() => ir("anotacoes")} icone={NotebookPen} rotulo="Anotações e briefings" recolhido={recolhido} />
         <Item ativo={rota === "integracoes"} onClick={() => ir("integracoes")} icone={Plug} rotulo="Integrações" recolhido={recolhido} />
         {recolhido ? <div className="flex justify-center"><Sininho ir={ir} compacto /></div> : <Sininho ir={ir} />}
       </div>
