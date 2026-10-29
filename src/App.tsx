@@ -22,6 +22,7 @@ import { GestorProjetos } from "./pages/projetos/GestorProjetos";
 import { Cadastro } from "./pages/cadastro/Cadastro";
 import { Contratos } from "./pages/cadastro/Contratos";
 import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
+import { Crm } from "./pages/Crm";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -81,6 +82,7 @@ export default function App() {
   else if (rota === "social" || rota.startsWith("social-")) pagina = <SocialMedia rota={rota} ir={navegar} />;
   else if (rota === "financeiro" || rota.startsWith("financeiro-")) pagina = <Financeiro rota={rota} ir={navegar} />;
   else if (rota === "projetos" || rota.startsWith("projetos-")) pagina = <GestorProjetos rota={rota} ir={navegar} />;
+  else if (rota === "crm") pagina = <Crm />;
   else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
   else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
@@ -130,7 +132,11 @@ export default function App() {
         </div>
         <main
           id="area-principal"
-          className="min-h-0 flex-1 overflow-y-auto py-6 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] sm:py-8 lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))]"
+          className={`min-h-0 flex-1 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))] ${
+            rota === "crm"
+              ? "overflow-hidden pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 sm:pb-5 sm:pt-5"
+              : "overflow-y-auto py-6 sm:py-8"
+          }`}
         >
           {pagina}
         </main>

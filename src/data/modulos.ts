@@ -151,6 +151,17 @@ export const MODULOS: Modulo[] = [
     entregas: ["Calendário por cliente", "Upload de materiais", "Fluxo de aprovação"],
   },
   {
+    id: "crm",
+    nome: "CRM",
+    grupo: "operacional",
+    fase: null,
+    icone: MessagesSquare,
+    resumo: "CRM Vertente Digital aberto dentro do sistema (login na própria tela do CRM).",
+    telas: [],
+    integracoes: [],
+    entregas: [],
+  },
+  {
     id: "financeiro",
     nome: "Financeiro",
     grupo: "gerencial",
@@ -214,7 +225,7 @@ export const MODULOS: Modulo[] = [
   },
   // Áreas no radar, sem fase definida
   { id: "comercial", nome: "Comercial", grupo: "futuro", fase: null, icone: Handshake, resumo: "Metas com ritmo diário, prospecção e reuniões.", telas: [], integracoes: [], entregas: [] },
-  { id: "crm", nome: "CRM", grupo: "futuro", fase: null, icone: MessagesSquare, resumo: "Pipeline e conversas dos leads dos clientes.", telas: [], integracoes: [], entregas: [] },
+  
   { id: "agentes", nome: "Agentes IA", grupo: "futuro", fase: null, icone: Bot, resumo: "Agentes que executam rotinas e pedem autorização.", telas: [], integracoes: [], entregas: [] },
 ];
 
