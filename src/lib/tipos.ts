@@ -68,6 +68,7 @@ export interface Tarefa {
   cliente_rotina_id: string | null;
   origem: "manual" | "rotina" | "clickup";
   clickup_id: string | null;
+  processo_aplicado_id?: string | null;
   concluida_em: string | null;
   checklist_total: number;
   checklist_feitos: number;

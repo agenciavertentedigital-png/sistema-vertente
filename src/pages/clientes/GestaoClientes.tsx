@@ -17,12 +17,14 @@ import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, Entrada, Selecao, Vazio } from "../../components/ui";
 import { Rotinas } from "./Rotinas";
 import { QuadroTarefas } from "../../components/tarefas/QuadroTarefas";
+import { Processos } from "./Processos";
 
 const ABAS = [
   { id: "clientes", nome: "Tarefas" },
   { id: "clientes-carteira", nome: "Carteira" },
   { id: "clientes-entrada", nome: "Caixa de entrada" },
   { id: "clientes-rotinas", nome: "Rotinas" },
+  { id: "clientes-onboarding", nome: "Onboarding" },
 ];
 
 export function ordenar(a: Tarefa, b: Tarefa) {
@@ -86,6 +88,8 @@ export function GestaoClientes({ rota, ir }: { rota: string; ir: (r: string) => 
         <CaixaEntrada abrir={setAberta} novaDemanda={() => setNova("demanda")} />
       ) : aba === "clientes-rotinas" ? (
         <Rotinas />
+      ) : aba === "clientes-onboarding" ? (
+        <Processos />
       ) : (
         <QuadroTarefas abrir={setAberta} />
       )}

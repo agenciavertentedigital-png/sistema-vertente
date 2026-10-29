@@ -16,7 +16,7 @@ const MAX_RODADAS = 10;
 
 // Tabelas que o assistente pode ler (sem tokens de link nem dados de login)
 const TABELAS: Record<string, string> = {
-  clientes: "Clientes e ficha cadastral. status: ativo|pausado|encerrado. origem: vertente|parceria_marcone (clientes da agência parceira do Marcone).",
+  clientes: "Clientes e ficha cadastral (pasta_drive = link da pasta do cliente no Google Drive). status: ativo|pausado|encerrado. origem: vertente|parceria_marcone (clientes da agência parceira do Marcone).",
   cliente_servicos: "Serviços contratados por cliente e valor mensal. servico_codigo: trafego_meta, trafego_google, gmn, social_media, consultoria.",
   membros: "Time da agência (nome, papel admin|gestor|cs|visualizador, ativo).",
   tarefas: "Tarefas. status: a_fazer|fazendo|aguardando|feita|nao_feita. pilar: trafego|social|gmn|cs|interno. prioridade: urgente|alta|normal|baixa. prazo (data). responsavel_id -> membros. origem: manual|rotina|clickup.",
@@ -35,6 +35,8 @@ const TABELAS: Record<string, string> = {
   lancamentos: "Financeiro da agência (só administradores): tipo receita|despesa, categoria, valor, competencia (1º dia do mês), vencimento, pago_em. Histórico desde out/2024 importado da planilha.",
   contratos: "Contratos: status rascunho|enviado|assinado|cancelado, valor_mensal, inicio, meses.",
   contrato_modelos: "Modelos de contrato.",
+  processos: "Modelos de processo (Pré-onboarding, Onboarding…): etapas com título, pilar, dias após o início e checklist.",
+  processos_aplicados: "Processos aplicados a clientes (nome, cliente_id, inicio). As tarefas do processo têm tarefas.processo_aplicado_id = processos_aplicados.id.",
   servicos: "Catálogo de serviços.",
 };
 
@@ -110,12 +112,32 @@ function aplicarFiltros(q: any, filtros: { coluna: string; op: string; valor: un
   return q;
 }
 
-async function executar(nome: string, entrada: Json, sb: SupabaseClient, jwt: string): Promise<unknown> {
+interface Acesso {
+  sb: SupabaseClient;
+  jwt: string | null; // login de quem pergunta (no sistema)
+  chaveCron: string | null; // chamada interna (WhatsApp)
+  membroId: string;
+  admin: boolean;
+}
+
+/** Na chamada interna as regras do banco não se aplicam sozinhas: repete aqui as restrições. */
+function conferirTabela(tabela: string, a: Acesso) {
+  if (!TABELAS[tabela]) throw new Error("Tabela não permitida.");
+  if (a.chaveCron && tabela === "lancamentos" && !a.admin) throw new Error("Só administradores veem o financeiro.");
+}
+// deno-lint-ignore no-explicit-any
+function restringir(q: any, tabela: string, a: Acesso) {
+  if (a.chaveCron && tabela === "notificacoes") q = q.eq("membro_id", a.membroId);
+  return q;
+}
+
+async function executar(nome: string, entrada: Json, a: Acesso): Promise<unknown> {
+  const sb = a.sb;
   if (nome === "consultar_tabela") {
     const tabela = String(entrada.tabela);
-    if (!TABELAS[tabela]) throw new Error("Tabela não permitida.");
+    conferirTabela(tabela, a);
     let q = sb.from(tabela).select(String(entrada.colunas || "*"));
-    q = aplicarFiltros(q, entrada.filtros as never);
+    q = restringir(aplicarFiltros(q, entrada.filtros as never), tabela, a);
     if (entrada.ordem) q = q.order(String(entrada.ordem), { ascending: !entrada.decrescente });
     const { data, error } = await q.limit(Math.min(500, Number(entrada.limite ?? 100)));
     if (error) throw new Error(error.message);
@@ -124,7 +146,7 @@ async function executar(nome: string, entrada: Json, sb: SupabaseClient, jwt: st
 
   if (nome === "agregar") {
     const tabela = String(entrada.tabela);
-    if (!TABELAS[tabela]) throw new Error("Tabela não permitida.");
+    conferirTabela(tabela, a);
     const grupos = (entrada.agrupar_por as string[] | undefined) ?? [];
     const somar = (entrada.somar as string[] | undefined) ?? [];
     const mes = entrada.agrupar_mes ? String(entrada.agrupar_mes) : null;
@@ -133,7 +155,7 @@ async function executar(nome: string, entrada: Json, sb: SupabaseClient, jwt: st
     const linhas: Json[] = [];
     for (let de = 0; de < 20000; de += 1000) {
       let q = sb.from(tabela).select(cols.length ? cols.join(",") : "*");
-      q = aplicarFiltros(q, entrada.filtros as never);
+      q = restringir(aplicarFiltros(q, entrada.filtros as never), tabela, a);
       const { data, error } = await q.range(de, de + 999);
       if (error) throw new Error(error.message);
       linhas.push(...((data ?? []) as unknown as Json[]));
@@ -157,7 +179,7 @@ async function executar(nome: string, entrada: Json, sb: SupabaseClient, jwt: st
   if (nome === "relatorio_meta_ao_vivo") {
     const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/relatorio-meta`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+      headers: a.chaveCron ? { "x-chave-cron": a.chaveCron, "Content-Type": "application/json" } : { Authorization: `Bearer ${a.jwt}`, "Content-Type": "application/json" },
       body: JSON.stringify({ cliente_id: entrada.cliente_id, inicio: entrada.inicio, fim: entrada.fim }),
     });
     const j = (await r.json()) as Json;
@@ -176,7 +198,7 @@ async function executar(nome: string, entrada: Json, sb: SupabaseClient, jwt: st
   throw new Error("Ferramenta desconhecida.");
 }
 
-function sistema(nome: string, papel: string, pagina: string | undefined) {
+function sistema(nome: string, papel: string, pagina: string | undefined, canal?: string) {
   return `Você é o Assistente da Vertente Digital, agência de marketing (tráfego pago, Google Meu Negócio, social media e CRM) de Minas Gerais. Você fica dentro do Sistema Vertente, o sistema interno da agência, e conversa com ${nome} (${papel}).
 Hoje é ${hojeBR()} (horário de Brasília).${pagina ? ` A pessoa está na tela "${pagina}" do sistema.` : ""}
 
@@ -192,7 +214,13 @@ Dicas:
 - Tráfego: "contatos" = conversas + leads; custo por contato = gasto / contatos. Para números exatos de um período e criativos, use relatorio_meta_ao_vivo.
 - Financeiro: resultado do mês = receitas − despesas pela competência. Se a consulta de lançamentos voltar vazia ou com erro de permissão, explique que só administradores veem o financeiro.
 
-Responda em português do Brasil, de forma direta e organizada: comece pela resposta, use tabelas e listas em Markdown quando ajudarem, valores em R$ com vírgula decimal, datas no formato dd/mm/aaaa. Em análises, aponte o que chama atenção e sugira próximos passos práticos.`;
+Responda em português do Brasil, de forma direta e organizada: comece pela resposta, use tabelas e listas em Markdown quando ajudarem, valores em R$ com vírgula decimal, datas no formato dd/mm/aaaa. Em análises, aponte o que chama atenção e sugira próximos passos práticos.${
+    canal === "whatsapp"
+      ? `
+
+Você está respondendo num grupo de WhatsApp do time. Seja curto (até ~15 linhas), use a formatação do WhatsApp (*negrito*, listas com •) e NUNCA use tabelas Markdown, títulos com # ou links em Markdown.`
+      : ""
+  }`;
 }
 
 Deno.serve(async (req) => {
@@ -202,20 +230,34 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: u } = await admin.auth.getUser(jwt);
-  if (!u.user) return responder({ erro: "Sua sessão expirou. Saia e entre de novo no sistema." }, 401);
-  const { data: m } = await admin.from("membros").select("id, nome, papel").or(`user_id.eq.${u.user.id},email.eq.${(u.user.email ?? "").toLowerCase()}`).eq("ativo", true).eq("acesso", true).limit(1).maybeSingle();
+  const corpo = (await req.json().catch(() => ({}))) as { mensagens?: { role: string; content: string }[]; pagina?: string; membro_id?: string; canal?: string };
+
+  // Quem pergunta: login do sistema ou chamada interna (WhatsApp) com a chave do servidor
+  const chaveCron = req.headers.get("x-chave-cron");
+  const interno = chaveCron ? (await admin.rpc("validar_chave_cron", { chave: chaveCron })).data === true : false;
+  let jwt: string | null = null;
+  let m: { id: string; nome: string; papel: string } | null = null;
+  if (interno) {
+    if (!corpo.membro_id) return responder({ erro: "Informe o membro." }, 400);
+    const r = await admin.from("membros").select("id, nome, papel").eq("id", corpo.membro_id).eq("ativo", true).maybeSingle();
+    m = r.data;
+  } else {
+    jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: u } = await admin.auth.getUser(jwt);
+    if (!u.user) return responder({ erro: "Sua sessão expirou. Saia e entre de novo no sistema." }, 401);
+    const r = await admin.from("membros").select("id, nome, papel").or(`user_id.eq.${u.user.id},email.eq.${(u.user.email ?? "").toLowerCase()}`).eq("ativo", true).eq("acesso", true).limit(1).maybeSingle();
+    m = r.data;
+  }
   if (!m) return responder({ erro: "Sem acesso." }, 403);
 
   const chave = Deno.env.get("ANTHROPIC_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "anthropic_api_key" })).data as string | null);
   const chaveOpenai = chave ? null : Deno.env.get("OPENAI_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "openai_api_key" })).data as string | null);
   if (!chave && !chaveOpenai) return responder({ erro: "O assistente ainda não está ligado: falta a chave da IA (anthropic_api_key ou openai_api_key no Vault do Supabase)." }, 412);
 
-  // Cliente com o login de quem pergunta: as regras de acesso do banco continuam valendo
-  const sb = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
-
-  const corpo = (await req.json().catch(() => ({}))) as { mensagens?: { role: string; content: string }[]; pagina?: string };
+  // No sistema: cliente com o login de quem pergunta (as regras do banco valem).
+  // Interno: cliente do servidor, com as restrições repetidas em conferirTabela/restringir.
+  const sb = interno ? admin : createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
+  const acesso: Acesso = { sb, jwt, chaveCron: interno ? chaveCron : null, membroId: m.id, admin: m.papel === "admin" };
   const historico = (corpo.mensagens ?? []).filter((x) => (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && x.content.trim()).slice(-20);
   if (!historico.length || historico[historico.length - 1].role !== "user") return responder({ erro: "Envie uma pergunta." }, 400);
 
@@ -225,7 +267,7 @@ Deno.serve(async (req) => {
   /** Executa uma ferramenta e devolve o texto do resultado para a IA. */
   async function rodarFerramenta(nome: string, entrada: Json): Promise<{ texto: string; erro: boolean }> {
     try {
-      const saida = await executar(nome, entrada, sb, jwt);
+      const saida = await executar(nome, entrada, acesso);
       consultas.push({ ferramenta: nome, tabela: (entrada.tabela as string) ?? (nome === "relatorio_meta_ao_vivo" ? "Meta" : undefined), ok: true });
       let texto = JSON.stringify(saida);
       if (texto.length > 60000) texto = texto.slice(0, 60000) + "… (resultado cortado; refine os filtros)";
@@ -239,7 +281,7 @@ Deno.serve(async (req) => {
   // ---------------- OpenAI (Responses API com funções) ----------------
   if (!chave && chaveOpenai) {
     const ferramentas = FERRAMENTAS.map((f) => ({ type: "function", name: f.name, description: f.description, parameters: f.input_schema }));
-    const instrucoes = sistema(m.nome, m.papel, corpo.pagina);
+    const instrucoes = sistema(m.nome, m.papel, corpo.pagina, corpo.canal);
     let entrada: unknown = historico.map((x) => ({ role: x.role, content: x.content.slice(0, 12000) }));
     let anterior: string | null = null;
     try {
@@ -285,7 +327,7 @@ Deno.serve(async (req) => {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": chave!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: MODELO, max_tokens: 4096, system: sistema(m.nome, m.papel, corpo.pagina), tools: FERRAMENTAS, messages: mensagens }),
+        body: JSON.stringify({ model: MODELO, max_tokens: 4096, system: sistema(m.nome, m.papel, corpo.pagina, corpo.canal), tools: FERRAMENTAS, messages: mensagens }),
       });
       const j = (await r.json()) as Json;
       if (j.type === "error" || !r.ok) {

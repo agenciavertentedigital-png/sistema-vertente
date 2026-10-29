@@ -27,10 +27,11 @@ export interface Ficha {
   link_gmn: string | null;
   dia_vencimento: number | null;
   forma_pagamento: string | null;
+  pasta_drive: string | null;
 }
 
 export const CAMPOS_FICHA =
-  "id, nome, status, origem, marca, cliente_desde, observacoes, razao_social, documento, contato_nome, contato_telefone, contato_email, endereco, cidade, segmento, instagram, site, link_gmn, dia_vencimento, forma_pagamento";
+  "id, nome, status, origem, marca, cliente_desde, observacoes, razao_social, documento, contato_nome, contato_telefone, contato_email, endereco, cidade, segmento, instagram, site, link_gmn, dia_vencimento, forma_pagamento, pasta_drive";
 
 /** Campos que contam para "ficha completa". */
 export const CAMPOS_ESSENCIAIS: { campo: keyof Ficha; nome: string }[] = [
@@ -76,6 +77,7 @@ function fichasDemo(): Ficha[] {
     link_gmn: null,
     dia_vencimento: [5, 10, 15, 20][i % 4],
     forma_pagamento: "pix",
+    pasta_drive: null,
   }));
 }
 

@@ -121,3 +121,9 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - Para o login do CRM funcionar embutido em todos os navegadores, o sistema deve rodar em `sistema.agenciavertente.com.br` (mesmo site do CRM, sem bloqueio de cookie de terceiros).
 
 - Sistema publicado em https://sistema.agenciavertente.com.br (domínio verificado na Vercel em 29/10/2026). Links de cadastro sempre usam esse endereço.
+
+## Onboarding, Drive e WhatsApp
+
+- **Processos (Gestão de Clientes → Onboarding):** modelos de Pré-onboarding (6 etapas) e Onboarding (9 etapas) com checklists. "Aplicar em um cliente" cria as tarefas com prazo (fim de semana passa para segunda), responsável por pilar e checklist. Progresso aparece na tela do cliente. Modelos editáveis; dá para criar outros (Offboarding, Renovação).
+- **Pasta no Drive:** link da pasta do cliente na ficha (`clientes.pasta_drive`). A aba "Pasta no Drive" da tela do cliente mostra os arquivos (visualização incorporada do Google Drive, depende do login Google no navegador).
+- **WhatsApp (Z-API):** função `whatsapp` recebe o webhook `?chave=<whatsapp_webhook_chave>`, responde só no grupo configurado e só para membros com `membros.telefone`. Chama o `assistente` em modo interno (`x-chave-cron` + `membro_id`). Mensagens começando com `//` são ignoradas. Configuração em **Integrações** (só admin): credenciais Z-API, webhook, escolha do grupo e telefones do time.

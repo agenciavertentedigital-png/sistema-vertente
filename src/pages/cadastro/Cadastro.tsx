@@ -176,6 +176,7 @@ function EditorFicha({ ficha, fichas, fechar }: { ficha: Ficha | null; fichas: R
           {texto("instagram", "Instagram")}
           {texto("site", "Site")}
           {texto("link_gmn", "Link do Google Meu Negócio")}
+          {texto("pasta_drive", "Pasta no Google Drive")}
         </div>
         <h3 className="eyebrow">Contrato e cobrança</h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

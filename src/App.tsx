@@ -25,6 +25,7 @@ import { Contratos } from "./pages/cadastro/Contratos";
 import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 import { Crm } from "./pages/Crm";
 import { Assistente } from "./pages/Assistente";
+import { Integracoes } from "./pages/Integracoes";
 import { Sparkles } from "lucide-react";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
@@ -104,6 +105,7 @@ export default function App() {
   else if (rota === "projetos" || rota.startsWith("projetos-")) pagina = <GestorProjetos rota={rota} ir={navegar} />;
   else if (rota === "crm") pagina = <Crm />;
   else if (rota === "assistente") pagina = <Assistente />;
+  else if (rota === "integracoes") pagina = <Integracoes />;
   else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
   else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;

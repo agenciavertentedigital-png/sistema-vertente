@@ -54,7 +54,7 @@ function erro(e: { message: string } | null) {
 // Supabase
 // ------------------------------------------------------------------
 const CAMPOS_TAREFA =
-  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, tarefa_checklist(feito)";
+  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, tarefa_checklist(feito)";
 
 type LinhaTarefa = Omit<Tarefa, "checklist_total" | "checklist_feitos"> & { tarefa_checklist: { feito: boolean }[] };
 

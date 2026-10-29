@@ -26,13 +26,18 @@ import { LinhaDoTempo } from "../../components/LinhaDoTempo";
 import { NumerosDaConta } from "../../components/NumerosDaConta";
 import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
+import { PastaDrive } from "../../components/PastaDrive";
+import { AplicarProcesso, ProgressoProcessos, useProcessos } from "./Processos";
+import { ListChecks } from "lucide-react";
 
 export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
   const [aberta, setAberta] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   const [verConcluidas, setVerConcluidas] = useState(false);
-  const [aba, setAba] = useState<"tarefas" | "linha">("tarefas");
+  const [aba, setAba] = useState<"tarefas" | "linha" | "drive">("tarefas");
+  const [aplicar, setAplicar] = useState(false);
+  const proc = useProcessos();
   const c = d.cliente(clienteId);
 
   if (d.carregando) return <Vazio>Carregando…</Vazio>;
@@ -60,6 +65,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
           <h1 className="mt-1 text-[26px] font-semibold leading-tight">{c.nome}</h1>
         </div>
         <div className="flex gap-2">
+          <Botao onClick={() => setAplicar(true)}><ListChecks size={14} /> Aplicar onboarding</Botao>
           <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}>Dashboard de tráfego</Botao>
           <Botao onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
           <Botao variante="primario" onClick={() => setNova(true)}>
@@ -75,11 +81,13 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
       </div>
 
+      <ProgressoProcessos clienteId={c.id} aplicados={proc.aplicados.linhas} />
+
       <NumerosDaConta clienteId={c.id} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
-          {([["tarefas", "Tarefas e rotinas"], ["linha", "Linha do tempo"]] as const).map(([v, n]) => (
+          {([["tarefas", "Tarefas e rotinas"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
             <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
               {n}
             </button>
@@ -90,6 +98,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
 
       {aba === "linha" ? (
         <LinhaDoTempo clienteId={c.id} />
+      ) : aba === "drive" ? (
+        <PastaDrive clienteId={c.id} />
       ) : (
       <>
       <div className="-mx-1 overflow-x-auto px-1 pb-2">
@@ -118,6 +128,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
 
       <PainelTarefa id={aberta} fechar={() => setAberta(null)} />
       <NovaTarefa aberto={nova} fechar={() => setNova(false)} clienteFixo={c.id} aoCriar={setAberta} />
+      {aplicar && <AplicarProcesso processos={proc.processos.linhas} clienteId={c.id} fechar={() => setAplicar(false)} aoAplicar={() => proc.aplicados.recarregar()} />}
     </div>
   );
 }
