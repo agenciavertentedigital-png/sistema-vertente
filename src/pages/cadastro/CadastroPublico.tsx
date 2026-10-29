@@ -57,7 +57,7 @@ export function CadastroPublico({ token }: { token: string }) {
   async function enviar(e: FormEvent) {
     e.preventDefault();
     if (!supabase) {
-      setEstado("enviado");
+      setErro("Este é só um exemplo de como o cliente vê o formulário. Nada foi enviado.");
       return;
     }
     setEnviando(true);
@@ -90,6 +90,9 @@ export function CadastroPublico({ token }: { token: string }) {
                 <h1 className="mt-1 text-[22px] font-semibold">{nome}</h1>
                 <p className="mt-1 text-[13px] text-muted">Preencha seus dados para o cadastro e o contrato com a Vertente Digital.</p>
               </div>
+              {!supabase && (
+                <p className="rounded-xl bg-warn-soft px-3 py-2 text-[12.5px] text-warn">Exemplo da prévia: este formulário não grava dados. O link real é gerado pelo sistema em sistema.agenciavertente.com.br.</p>
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {CAMPOS.map((c) => (
                   <label key={c.id} className={`flex flex-col gap-1 text-[12.5px] text-muted ${c.id === "endereco" || c.id === "razao_social" ? "sm:col-span-2" : ""}`}>

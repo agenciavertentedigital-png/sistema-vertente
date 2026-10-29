@@ -113,9 +113,11 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - Chat com a função `assistente` (Claude via API da Anthropic, modelo em `ASSISTENTE_MODELO`, padrão `claude-sonnet-5-5`).
 - Ferramentas só de leitura: `consultar_tabela`, `agregar` e `relatorio_meta_ao_vivo`. As consultas usam o login de quem pergunta, então as regras de acesso do banco valem (financeiro só para administradores).
 - Conversas salvas em `assistente_conversas` (cada pessoa vê só as suas).
-- Precisa da chave `anthropic_api_key` no Vault: `select vault.create_secret('<chave>', 'anthropic_api_key');`.
+- Usa Claude se houver `anthropic_api_key` no Vault; senão usa a OpenAI com `openai_api_key` (modelo em `ASSISTENTE_MODELO_OPENAI`, padrão `gpt-5.5`, API Responses com funções).
 
 ## CRM (`/crm`)
 
 - O CRM Vertente (app.agenciavertente.com.br) aparece embutido. O fornecedor não envia X-Frame-Options nem CSP frame-ancestors (verificado em 28/10/2026).
 - Para o login do CRM funcionar embutido em todos os navegadores, o sistema deve rodar em `sistema.agenciavertente.com.br` (mesmo site do CRM, sem bloqueio de cookie de terceiros).
+
+- Sistema publicado em https://sistema.agenciavertente.com.br (domínio verificado na Vercel em 29/10/2026). Links de cadastro sempre usam esse endereço.

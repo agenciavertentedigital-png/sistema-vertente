@@ -9,6 +9,7 @@ import { PaginaModulo } from "./pages/PaginaModulo";
 import { BaseClientes } from "./pages/BaseClientes";
 import { Entrar } from "./pages/Entrar";
 import { sair, useSessao } from "./lib/sessao";
+import { supabase } from "./lib/supabase";
 import { ProvedorDados, useDados } from "./lib/dados";
 import { GestaoClientes } from "./pages/clientes/GestaoClientes";
 import { TelaCliente } from "./pages/clientes/TelaCliente";
@@ -41,6 +42,23 @@ export default function App() {
   const [rota, ir] = useRota();
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [recolhido, setRecolhido] = useState(() => {
+    try {
+      return localStorage.getItem("vertente.menu-recolhido") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const alternarRecolhido = () => {
+    setRecolhido((r) => {
+      try {
+        localStorage.setItem("vertente.menu-recolhido", r ? "0" : "1");
+      } catch {
+        /* sem armazenamento: vale só nesta visita */
+      }
+      return !r;
+    });
+  };
 
   const alternarTema = () => {
     const novo = tema === "dark" ? "light" : "dark";
@@ -102,7 +120,18 @@ export default function App() {
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <div className="flex h-full">
-      <aside className="menu-marinho hidden w-[252px] shrink-0 lg:block">{menu}</aside>
+      <aside className={`menu-marinho hidden shrink-0 transition-[width] duration-200 lg:block ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
+        <Menu
+          rota={rota}
+          ir={navegar}
+          tema={tema}
+          alternarTema={alternarTema}
+          usuario={usuario}
+          onSair={sessao.tipo === "logado" ? sair : undefined}
+          recolhido={recolhido}
+          alternarRecolhido={alternarRecolhido}
+        />
+      </aside>
 
       {menuAberto && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -124,6 +153,11 @@ export default function App() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {!supabase && (
+          <div className="bg-warn-soft px-4 py-1.5 text-center text-[12px] text-warn">
+            Prévia com dados de exemplo: nada aqui é salvo. O sistema real fica em <b>sistema.agenciavertente.com.br</b>.
+          </div>
+        )}
         <div className="flex items-center justify-between border-b border-line bg-surface px-[max(16px,env(safe-area-inset-left,0px))] py-2.5 lg:hidden">
           <Marca />
           <div className="flex items-center gap-1">

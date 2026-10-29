@@ -4,7 +4,7 @@ import { useDados } from "../../lib/dados";
 import { completude, useFichas, type Ficha } from "../../lib/cadastro";
 import { SERVICOS } from "../../lib/financeiro";
 import { moedaBR } from "../../lib/tabela";
-import { supabase } from "../../lib/supabase";
+import { SISTEMA_URL, supabase } from "../../lib/supabase";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 
@@ -127,12 +127,12 @@ function EditorFicha({ ficha, fichas, fechar }: { ficha: Ficha | null; fichas: R
   async function gerarLink() {
     if (!ficha) return;
     if (!supabase) {
-      setLink(`${location.origin}${location.pathname}#cadastro-publico-exemplo`);
+      d.avisar("Na prévia não dá para gerar link de verdade. Gere pelo sistema em sistema.agenciavertente.com.br.");
       return;
     }
     const { data, error } = await supabase.from("cadastro_links").insert({ cliente_id: ficha.id }).select("token").single();
     if (error) return d.avisar(error.message);
-    setLink(`${location.origin}/#cadastro-publico-${(data as { token: string }).token}`);
+    setLink(`${SISTEMA_URL}/#cadastro-publico-${(data as { token: string }).token}`);
   }
   const mensagem = `Oi, tudo bem? 😊\n\nPara deixarmos tudo certinho no seu cadastro e no contrato, preencha seus dados neste link (leva 2 minutos):\n${link}\n\nQualquer dúvida é só chamar!`;
 

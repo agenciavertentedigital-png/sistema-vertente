@@ -1,6 +1,7 @@
 // Assistente de IA do Sistema Vertente: responde no chat consultando os dados do sistema.
 // Só leitura. As consultas rodam com o login de quem pergunta, então valem as mesmas permissões do banco
-// (ex.: financeiro só para administradores). Chave da Anthropic: segredo ANTHROPIC_API_KEY ou 'anthropic_api_key' no Vault.
+// (ex.: financeiro só para administradores).
+// IA: Anthropic (Claude) se houver 'anthropic_api_key' no Vault; senão OpenAI (ChatGPT) com 'openai_api_key'.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const cors = {
@@ -10,6 +11,7 @@ const cors = {
 type Json = Record<string, unknown>;
 
 const MODELO = Deno.env.get("ASSISTENTE_MODELO") || "claude-sonnet-5-5";
+const MODELO_OPENAI = Deno.env.get("ASSISTENTE_MODELO_OPENAI") || "gpt-5.5";
 const MAX_RODADAS = 10;
 
 // Tabelas que o assistente pode ler (sem tokens de link nem dados de login)
@@ -207,7 +209,8 @@ Deno.serve(async (req) => {
   if (!m) return responder({ erro: "Sem acesso." }, 403);
 
   const chave = Deno.env.get("ANTHROPIC_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "anthropic_api_key" })).data as string | null);
-  if (!chave) return responder({ erro: "O assistente ainda não está ligado: falta a chave da API da Anthropic (anthropic_api_key no Vault do Supabase)." }, 412);
+  const chaveOpenai = chave ? null : Deno.env.get("OPENAI_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "openai_api_key" })).data as string | null);
+  if (!chave && !chaveOpenai) return responder({ erro: "O assistente ainda não está ligado: falta a chave da IA (anthropic_api_key ou openai_api_key no Vault do Supabase)." }, 412);
 
   // Cliente com o login de quem pergunta: as regras de acesso do banco continuam valendo
   const sb = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
@@ -219,11 +222,69 @@ Deno.serve(async (req) => {
   const mensagens: Json[] = historico.map((x) => ({ role: x.role, content: x.content.slice(0, 12000) }));
   const consultas: { ferramenta: string; tabela?: string; ok: boolean }[] = [];
 
+  /** Executa uma ferramenta e devolve o texto do resultado para a IA. */
+  async function rodarFerramenta(nome: string, entrada: Json): Promise<{ texto: string; erro: boolean }> {
+    try {
+      const saida = await executar(nome, entrada, sb, jwt);
+      consultas.push({ ferramenta: nome, tabela: (entrada.tabela as string) ?? (nome === "relatorio_meta_ao_vivo" ? "Meta" : undefined), ok: true });
+      let texto = JSON.stringify(saida);
+      if (texto.length > 60000) texto = texto.slice(0, 60000) + "… (resultado cortado; refine os filtros)";
+      return { texto, erro: false };
+    } catch (e) {
+      consultas.push({ ferramenta: nome, tabela: entrada.tabela as string, ok: false });
+      return { texto: `Erro: ${(e as Error).message}`, erro: true };
+    }
+  }
+
+  // ---------------- OpenAI (Responses API com funções) ----------------
+  if (!chave && chaveOpenai) {
+    const ferramentas = FERRAMENTAS.map((f) => ({ type: "function", name: f.name, description: f.description, parameters: f.input_schema }));
+    const instrucoes = sistema(m.nome, m.papel, corpo.pagina);
+    let entrada: unknown = historico.map((x) => ({ role: x.role, content: x.content.slice(0, 12000) }));
+    let anterior: string | null = null;
+    try {
+      for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
+        const r = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${chaveOpenai}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: MODELO_OPENAI, instructions: instrucoes, input: entrada, tools: ferramentas, ...(anterior ? { previous_response_id: anterior } : {}) }),
+        });
+        const j = (await r.json()) as Json;
+        if (!r.ok || j.error) {
+          const e = (j.error as { message?: string } | undefined)?.message ?? `Erro ${r.status} na API da OpenAI`;
+          return responder({ erro: `A IA não respondeu: ${e}` }, 502);
+        }
+        anterior = String(j.id);
+        const saida = (j.output as { type: string; call_id?: string; name?: string; arguments?: string; content?: { type: string; text?: string }[] }[]) ?? [];
+        const chamadas = saida.filter((o) => o.type === "function_call");
+        if (!chamadas.length) {
+          const texto = saida.filter((o) => o.type === "message").flatMap((o) => o.content ?? []).filter((c) => c.type === "output_text").map((c) => c.text).join("\n").trim();
+          return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, modelo: MODELO_OPENAI });
+        }
+        entrada = await Promise.all(
+          chamadas.map(async (c) => {
+            let args: Json = {};
+            try {
+              args = JSON.parse(c.arguments || "{}");
+            } catch { /* argumentos inválidos: a ferramenta devolve erro */ }
+            const res = await rodarFerramenta(c.name!, args);
+            return { type: "function_call_output", call_id: c.call_id, output: res.texto };
+          }),
+        );
+      }
+      return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, modelo: MODELO_OPENAI });
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 500);
+    }
+  }
+
+  // ---------------- Anthropic (Claude) ----------------
+
   try {
     for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        headers: { "x-api-key": chave!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({ model: MODELO, max_tokens: 4096, system: sistema(m.nome, m.papel, corpo.pagina), tools: FERRAMENTAS, messages: mensagens }),
       });
       const j = (await r.json()) as Json;
@@ -240,16 +301,8 @@ Deno.serve(async (req) => {
       }
       const resultados = await Promise.all(
         usos.map(async (b) => {
-          try {
-            const saida = await executar(b.name!, b.input ?? {}, sb, jwt);
-            consultas.push({ ferramenta: b.name!, tabela: (b.input?.tabela as string) ?? (b.name === "relatorio_meta_ao_vivo" ? "Meta" : undefined), ok: true });
-            let texto = JSON.stringify(saida);
-            if (texto.length > 60000) texto = texto.slice(0, 60000) + "… (resultado cortado; refine os filtros)";
-            return { type: "tool_result", tool_use_id: b.id, content: texto };
-          } catch (e) {
-            consultas.push({ ferramenta: b.name!, tabela: b.input?.tabela as string, ok: false });
-            return { type: "tool_result", tool_use_id: b.id, content: `Erro: ${(e as Error).message}`, is_error: true };
-          }
+          const res = await rodarFerramenta(b.name!, b.input ?? {});
+          return { type: "tool_result", tool_use_id: b.id, content: res.texto, ...(res.erro ? { is_error: true } : {}) };
         }),
       );
       mensagens.push({ role: "user", content: resultados });

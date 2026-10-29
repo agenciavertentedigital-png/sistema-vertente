@@ -9,3 +9,6 @@ const chave = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefine
  */
 export const supabase: SupabaseClient | null = url && chave ? createClient(url, chave) : null;
 export const modoDemonstracao = supabase === null;
+
+/** Endereço oficial do sistema (links enviados para clientes usam sempre este). */
+export const SISTEMA_URL = "https://sistema.agenciavertente.com.br";
