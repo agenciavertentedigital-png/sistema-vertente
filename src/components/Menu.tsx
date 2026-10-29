@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck, Home, LogOut, Moon, Sun } from "lucide-react";
+import { CalendarCheck, Home, LogOut, Moon, Sparkles, Sun } from "lucide-react";
 import { Sininho } from "./Sininho";
 import { BASE_CLIENTES, GRUPOS, MODULOS } from "../data/modulos";
 import { Marca } from "./Marca";
@@ -53,6 +53,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair }: Props) {
 
       <div className="flex flex-col gap-0.5">
         <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={Home} rotulo="Central" />
+        <Item ativo={rota === "assistente"} onClick={() => ir("assistente")} icone={Sparkles} rotulo="Assistente IA" />
         <Item
           ativo={rota === BASE_CLIENTES.id}
           onClick={() => ir(BASE_CLIENTES.id)}

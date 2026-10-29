@@ -23,6 +23,8 @@ import { Cadastro } from "./pages/cadastro/Cadastro";
 import { Contratos } from "./pages/cadastro/Contratos";
 import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 import { Crm } from "./pages/Crm";
+import { Assistente } from "./pages/Assistente";
+import { Sparkles } from "lucide-react";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -83,6 +85,7 @@ export default function App() {
   else if (rota === "financeiro" || rota.startsWith("financeiro-")) pagina = <Financeiro rota={rota} ir={navegar} />;
   else if (rota === "projetos" || rota.startsWith("projetos-")) pagina = <GestorProjetos rota={rota} ir={navegar} />;
   else if (rota === "crm") pagina = <Crm />;
+  else if (rota === "assistente") pagina = <Assistente />;
   else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
   else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
@@ -133,13 +136,23 @@ export default function App() {
         <main
           id="area-principal"
           className={`min-h-0 flex-1 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))] ${
-            rota === "crm"
+            rota === "crm" || rota === "assistente"
               ? "overflow-hidden pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 sm:pb-5 sm:pt-5"
               : "overflow-y-auto py-6 sm:py-8"
           }`}
         >
           {pagina}
         </main>
+        {rota !== "assistente" && rota !== "crm" && (
+          <button
+            onClick={() => navegar("assistente")}
+            className="fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex items-center gap-2 rounded-full bg-gradient-to-br from-[#1d34a0] to-[#0b1450] px-4 py-3 text-[13px] font-medium text-white shadow-xl transition-transform hover:-translate-y-0.5"
+            style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}
+            aria-label="Abrir o Assistente de IA"
+          >
+            <Sparkles size={16} /> <span className="hidden sm:inline">Perguntar à IA</span>
+          </button>
+        )}
       </div>
       <Aviso />
     </div>
