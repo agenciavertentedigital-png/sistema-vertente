@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
-import { Columns3, List, X } from "lucide-react";
+import { Columns3, List, Search, X } from "lucide-react";
+import { MenuFiltro } from "../Filtro";
 import { useDados } from "../../lib/dados";
 import { repo } from "../../lib/repo";
 import {
@@ -16,7 +17,7 @@ import {
 } from "../../lib/tipos";
 import { CartaoTarefa } from "./CartaoTarefa";
 import { tipoDeRegistro } from "./RegistroRapido";
-import { Entrada, Iniciais, Selecao, Vazio } from "../ui";
+import { COR_PILAR, Entrada, Iniciais, Selecao, Vazio } from "../ui";
 
 // ------------------------------------------------------------------
 // Filtros
@@ -129,57 +130,59 @@ export function QuadroTarefas({ abrir }: { abrir: (id: string) => void }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Números clicáveis: viram filtro */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface sm:grid-cols-4 [&>*+*]:border-l [&>*+*]:border-line [&>*:nth-child(3)]:max-sm:border-l-0 [&>*:nth-child(n+3)]:max-sm:border-t">
         <NumeroFiltro rotulo="Atrasadas" valor={conta("atrasadas")} ativo={f.periodo === "atrasadas"} alerta={conta("atrasadas") > 0} onClick={() => set({ periodo: f.periodo === "atrasadas" ? "todas" : "atrasadas" })} />
         <NumeroFiltro rotulo="Para hoje" valor={conta("hoje")} ativo={f.periodo === "hoje"} onClick={() => set({ periodo: f.periodo === "hoje" ? "todas" : "hoje" })} />
         <NumeroFiltro rotulo="Esta semana" valor={conta("semana")} ativo={f.periodo === "semana"} onClick={() => set({ periodo: f.periodo === "semana" ? "todas" : "semana" })} />
         <NumeroFiltro rotulo="Próximos 7 dias" valor={conta("prox7")} ativo={f.periodo === "prox7"} onClick={() => set({ periodo: f.periodo === "prox7" ? "todas" : "prox7" })} />
       </div>
 
-      {/* Barra de filtros */}
-      <div className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="eyebrow mr-1">Prazo</span>
-          {PERIODOS.map((p) => (
-            <Chip key={p.id} ativo={f.periodo === p.id} onClick={() => set({ periodo: p.id })} title={p.dica}>
-              {p.nome}
-              {p.id !== "todas" && <span className="num ml-1 opacity-70">{conta(p.id)}</span>}
-            </Chip>
-          ))}
+      {/* Barra de filtros: uma linha só, cada filtro abre sua lista */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1 sm:max-w-[280px]">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+          <Entrada id="filtro-busca" value={f.busca} onChange={(e) => set({ busca: e.target.value })} placeholder="Buscar tarefa ou cliente" className="!h-8 !pl-8" />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="eyebrow mr-1">Quem</span>
-          <Chip ativo={f.resp === "todos"} onClick={() => set({ resp: "todos" })}>Todos</Chip>
-          {d.eu && <Chip ativo={f.resp === d.eu} onClick={() => set({ resp: d.eu! })}>Minhas</Chip>}
-          {d.membros
-            .filter((m) => m.id !== d.eu)
-            .map((m) => (
-              <Chip key={m.id} ativo={f.resp === m.id} onClick={() => set({ resp: m.id })}>
-                {m.nome}
-              </Chip>
-            ))}
-          <Chip ativo={f.resp === "sem"} onClick={() => set({ resp: "sem" })}>Sem responsável</Chip>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Selecao id="filtro-pilar" value={f.pilar} onChange={(e) => set({ pilar: e.target.value })} className="!w-auto">
-            <option value="todos">Todos os pilares</option>
-            {PILARES.map((p) => (
-              <option key={p} value={p}>{PILAR[p]}</option>
-            ))}
-          </Selecao>
-          <Selecao id="filtro-cliente" value={f.cliente} onChange={(e) => set({ cliente: e.target.value })} className="!w-auto max-w-[220px]">
-            <option value="todos">Todos os clientes</option>
-            {d.clientes.map((c) => (
-              <option key={c.id} value={c.id}>{c.nome}</option>
-            ))}
-          </Selecao>
-          <Entrada id="filtro-busca" value={f.busca} onChange={(e) => set({ busca: e.target.value })} placeholder="Buscar tarefa ou cliente" className="!w-auto min-w-[200px] flex-1 sm:flex-none" />
-          {filtrosAtivos && (
-            <button onClick={() => setF({ ...PADRAO, visao: f.visao, agrupar: f.agrupar })} className="flex items-center gap-1 text-[12.5px] text-muted hover:text-fg">
-              <X size={13} /> Limpar filtros
-            </button>
-          )}
-          <div className="ml-auto flex items-center gap-2">
+        <MenuFiltro
+          rotulo="Prazo"
+          valor={f.periodo}
+          padrao="todas"
+          mudar={(id) => set({ periodo: id as Periodo })}
+          opcoes={PERIODOS.map((p) => ({ id: p.id, nome: p.nome, dica: p.dica, contador: p.id === "todas" ? undefined : conta(p.id) }))}
+        />
+        <MenuFiltro
+          rotulo="Quem"
+          valor={f.resp}
+          padrao="todos"
+          mudar={(id) => set({ resp: id })}
+          opcoes={[
+            { id: "todos", nome: "Todos" },
+            ...(d.eu ? [{ id: d.eu, nome: "Minhas", antes: <Iniciais nome={d.membro(d.eu)?.nome} /> }] : []),
+            ...d.membros.filter((m) => m.id !== d.eu).map((m) => ({ id: m.id, nome: m.nome, antes: <Iniciais nome={m.nome} /> })),
+            { id: "sem", nome: "Sem responsável" },
+          ]}
+        />
+        <MenuFiltro
+          rotulo="Pilar"
+          valor={f.pilar}
+          padrao="todos"
+          mudar={(id) => set({ pilar: id })}
+          opcoes={[{ id: "todos", nome: "Todos" }, ...PILARES.map((p) => ({ id: p, nome: PILAR[p], antes: <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COR_PILAR[p] }} /> }))]}
+        />
+        <MenuFiltro
+          rotulo="Cliente"
+          valor={f.cliente}
+          padrao="todos"
+          buscavel
+          mudar={(id) => set({ cliente: id })}
+          opcoes={[{ id: "todos", nome: "Todos" }, ...d.clientes.map((c) => ({ id: c.id, nome: c.nome }))]}
+        />
+        {filtrosAtivos && (
+          <button onClick={() => setF({ ...PADRAO, visao: f.visao, agrupar: f.agrupar })} className="flex h-8 items-center gap-1 rounded-lg px-2 text-[12.5px] text-muted hover:bg-raised hover:text-fg">
+            <X size={13} /> Limpar
+          </button>
+        )}
+        <div className="ml-auto flex items-center gap-2">
             {f.visao === "kanban" && (
               <Selecao id="agrupar" aria-label="Agrupar colunas por" value={f.agrupar} onChange={(e) => set({ agrupar: e.target.value as Agrupar })} className="!w-auto">
                 <option value="status">Colunas: status</option>
@@ -195,7 +198,6 @@ export function QuadroTarefas({ abrir }: { abrir: (id: string) => void }) {
                 <List size={14} /> Lista
               </button>
             </div>
-          </div>
         </div>
       </div>
 
@@ -368,30 +370,19 @@ function Lista({ tarefas, abrir }: { tarefas: Tarefa[]; abrir: (id: string) => v
 }
 
 // ------------------------------------------------------------------
-function Chip({ ativo, onClick, children, title }: { ativo: boolean; onClick: () => void; children: React.ReactNode; title?: string }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-pressed={ativo}
-      className={`whitespace-nowrap rounded-full border px-3 py-1 text-[12.5px] transition-colors ${ativo ? "border-accent bg-accent text-accent-fg" : "border-line text-muted hover:border-accent hover:text-fg"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function NumeroFiltro({ rotulo, valor, ativo, alerta, onClick }: { rotulo: string; valor: number; ativo: boolean; alerta?: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       aria-pressed={ativo}
-      className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-        ativo ? "border-accent bg-accent-soft ring-2 ring-accent" : alerta ? "border-warn bg-warn-soft hover:border-warn" : "border-line bg-surface hover:border-accent"
-      }`}
+      className={`relative px-4 py-3 text-left ${ativo ? "bg-accent-soft/70" : "hover:bg-raised/50"}`}
     >
-      <div className={`num text-[24px] font-medium leading-none ${alerta && !ativo ? "text-warn" : ativo ? "text-accent" : ""}`}>{valor}</div>
-      <div className={`mt-1 text-[12px] ${alerta && !ativo ? "text-warn" : "text-muted"}`}>{rotulo}{ativo ? " · filtrando" : ""}</div>
+      {ativo && <span className="absolute inset-x-0 bottom-0 h-[2px] bg-accent" />}
+      <div className="flex items-center gap-1.5 text-[12px] text-muted">
+        {alerta && <span className="h-1.5 w-1.5 rounded-full bg-bad" />}
+        {rotulo}
+      </div>
+      <div className={`num mt-1 text-[22px] font-semibold leading-none ${alerta ? "text-bad" : ativo ? "text-accent" : ""}`}>{valor}</div>
     </button>
   );
 }

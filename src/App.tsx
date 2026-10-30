@@ -47,6 +47,12 @@ export default function App() {
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuAberto, setMenuAberto] = useState(false);
   const [comando, setComando] = useState(false);
+  const [novaSenha, setNovaSenha] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    const { data } = supabase.auth.onAuthStateChange((evento) => { if (evento === "PASSWORD_RECOVERY") setNovaSenha(true); });
+    return () => data.subscription.unsubscribe();
+  }, []);
   const abrirComando = useCallback(() => setComando(true), []);
   useAtalhoComando(abrirComando);
   const [recolhido, setRecolhido] = useState(() => {
@@ -91,7 +97,7 @@ export default function App() {
   if (sessao.tipo === "carregando") {
     return <div className="grid h-full place-items-center text-muted">Carregando…</div>;
   }
-  if (sessao.tipo === "deslogado") return <Entrar />;
+  if (sessao.tipo === "deslogado" || (!supabase && rota === "entrar")) return <Entrar />;
   if (sessao.tipo === "sem-acesso") return <Entrar semAcessoEmail={sessao.email} />;
 
   const usuario =
@@ -204,6 +210,7 @@ export default function App() {
         )}
       </div>
       <Aviso />
+      {novaSenha && <NovaSenha fechar={() => setNovaSenha(false)} />}
       <Comando aberto={comando} fechar={() => setComando(false)} ir={navegar} alternarTema={alternarTema} />
     </div>
     </ProvedorDados>
@@ -231,6 +238,29 @@ function AbasCadastro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
         </button>
       ))}
     </div>
+    </div>
+  );
+}
+
+/** Depois do link "Esqueci a senha": define a nova senha. */
+function NovaSenha({ fechar }: { fechar: () => void }) {
+  const [senha, setSenha] = useState("");
+  const [msg, setMsg] = useState("");
+  async function salvar(e: React.FormEvent) {
+    e.preventDefault();
+    const { error } = await supabase!.auth.updateUser({ password: senha });
+    if (error) setMsg(error.message);
+    else fechar();
+  }
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-[rgb(12_14_20/0.4)] px-4">
+      <form onSubmit={salvar} className="anim-surgir w-full max-w-[360px] rounded-2xl border border-line bg-surface p-5" style={{ boxShadow: "var(--sombra-flutuante)" }}>
+        <h2 className="text-[17px] font-semibold">Criar nova senha</h2>
+        <p className="mt-1 text-[13px] text-muted">Mínimo de 8 caracteres.</p>
+        <input type="password" autoFocus minLength={8} required value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" className="mt-4 h-11 w-full rounded-xl border border-line bg-bg px-3.5 outline-none focus:border-accent" />
+        {msg && <p className="mt-2 text-[13px] text-bad">{msg}</p>}
+        <button type="submit" className="mt-4 h-11 w-full rounded-xl bg-accent font-semibold text-accent-fg">Salvar senha</button>
+      </form>
     </div>
   );
 }
