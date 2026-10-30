@@ -47,7 +47,38 @@ export function demoAnalises(): AnaliseGmn[] {
         data,
         nota: calcularNota(criterios),
         criterios,
-        dados: { nota_media: 4.2 + forca * 0.7, avaliacoes: Math.round(20 + forca * 180 + (3 - m) * 9), fotos: 10 },
+        dados: {
+          nota_media: 4.2 + forca * 0.7,
+          avaliacoes: Math.round(20 + forca * 180 + (3 - m) * 9),
+          fotos: 10,
+          ...(m === 0
+            ? {
+                completo: {
+                  categorias: ["Ótica", "Loja de óculos de sol", "Optometrista"],
+                  descricao_tamanho: 224,
+                  reivindicado: true,
+                  perguntas: null,
+                  distribuicao: { "5": 131, "4": 9, "3": 3, "2": 1, "1": 4 },
+                  temas: [["vendedores", 14], ["atendente", 12], ["educado", 10], ["consultor", 8], ["preço", 7], ["atenção", 7], ["simpáticas", 5]] as [string, number][],
+                  fotos: 30,
+                  atributos: 4,
+                  servicos: 0,
+                  respostas_pct: 35,
+                  avaliacoes_lidas: 50,
+                  avaliacoes_sem_resposta: [
+                    { nota: 5, texto: "Ótimo atendimento!", autor: "Bruno M.", data: new Date(Date.now() - 864e5).toISOString(), respondida: false, resposta_data: null },
+                    { nota: 2, texto: "Demoraram para entregar meus óculos, precisei voltar duas vezes.", autor: "Ana P.", data: new Date(Date.now() - 6 * 864e5).toISOString(), respondida: false, resposta_data: null },
+                  ],
+                  ultima_avaliacao: new Date(Date.now() - 864e5).toISOString(),
+                  avaliacoes_30d: 11,
+                  ultima_postagem: new Date(Date.now() - 7 * 864e5).toISOString(),
+                  postagens_90d: 6,
+                  postagens_recentes: [{ data: new Date(Date.now() - 7 * 864e5).toISOString(), texto: "Os pequenos também merecem enxergar o mundo com conforto e muito charme! Óculos infantis para o Dia das Crianças.", imagem: null, link: null }],
+                  custo: 0.0129,
+                },
+              }
+            : {}),
+        },
         origem: "manual",
         observacoes: null,
       });

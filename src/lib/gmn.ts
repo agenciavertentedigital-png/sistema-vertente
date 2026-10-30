@@ -43,6 +43,128 @@ export interface DadosGoogle {
   tem_descricao?: boolean;
   respostas_dono?: number | null; // das avaliações mais recentes lidas
   avaliacoes_lidas?: number | null;
+  /** Análise completa (DataForSEO) */
+  completo?: DadosCompletos;
+}
+
+export interface InfoDfs {
+  titulo: string | null;
+  categoria: string | null;
+  categorias_adicionais: string[];
+  descricao: string | null;
+  telefone: string | null;
+  site: string | null;
+  nota: number | null;
+  avaliacoes: number | null;
+  distribuicao: Record<string, number> | null;
+  fotos: number | null;
+  reivindicado: boolean | null;
+  perguntas: number | null;
+  tem_horario: boolean;
+  atributos: number;
+  servicos: number;
+  temas: Record<string, number> | null;
+  imagem: string | null;
+}
+export interface AvaliacaoDfs { nota: number | null; texto: string | null; autor: string | null; data: string | null; respondida: boolean; resposta_data: string | null }
+export interface PostagemDfs { data: string | null; texto: string | null; imagem: string | null; link: string | null }
+
+export interface DadosCompletos {
+  categorias: string[];
+  descricao_tamanho: number;
+  reivindicado: boolean | null;
+  perguntas: number | null;
+  distribuicao: Record<string, number> | null;
+  temas: [string, number][];
+  fotos: number | null;
+  atributos: number;
+  servicos: number;
+  respostas_pct: number | null;
+  avaliacoes_lidas: number;
+  avaliacoes_sem_resposta: AvaliacaoDfs[];
+  ultima_avaliacao: string | null;
+  avaliacoes_30d: number;
+  ultima_postagem: string | null;
+  postagens_90d: number;
+  postagens_recentes: PostagemDfs[];
+  custo: number;
+}
+
+const diasDesde = (iso: string | null) => (iso ? Math.floor((Date.now() - new Date(iso.replace(" +00:00", "Z").replace(" ", "T")).getTime()) / 864e5) : null);
+export { diasDesde };
+
+/** Converte a análise completa (DataForSEO) em níveis sugeridos e observações automáticas. */
+export function sugerirCompleto(info: InfoDfs, avaliacoes: AvaliacaoDfs[] | null, postagens: PostagemDfs[] | null, custo: number) {
+  const n = info.avaliacoes ?? 0;
+  const r = info.nota ?? 0;
+  const fotos = info.fotos ?? 0;
+  const cats = info.categorias_adicionais ?? [];
+  const desc = info.descricao?.trim().length ?? 0;
+  const niveis: Record<string, Nivel> = {};
+  const obs: Record<string, string> = {};
+  const set = (id: string, nv: Nivel, o?: string) => { niveis[id] = nv; if (o) obs[id] = o; };
+
+  set("nome", /[|]| - .* - /.test(info.titulo ?? "") || (info.titulo?.length ?? 0) > 60 ? 1 : 2, info.titulo ? `No Google: "${info.titulo}"` : undefined);
+  if (info.categoria) set("categoria", 2, `Categoria: ${info.categoria}`);
+  set("categorias_sec", cats.length >= 3 ? 2 : cats.length >= 1 ? 1 : 0, cats.length ? `${cats.length} adicionais: ${cats.slice(0, 4).join(", ")}` : "Nenhuma categoria adicional");
+  set("descricao", desc >= 400 ? 2 : desc >= 100 ? 1 : 0, desc ? `${desc} caracteres` : "Sem descrição");
+  set("horario", info.tem_horario ? 2 : 0, info.tem_horario ? "Horário preenchido" : "Sem horário");
+  set("contato", info.telefone && info.site ? 2 : info.telefone || info.site ? 1 : 0, [info.telefone ? "telefone" : null, info.site ? "site" : null].filter(Boolean).join(" e ") || "Sem telefone e site");
+  if (info.servicos > 0) set("produtos", 2, `${info.servicos} serviços cadastrados`);
+  if (info.atributos > 0) set("atributos", info.atributos >= 5 ? 2 : 1, `${info.atributos} atributos`);
+  set("fotos", fotos >= 30 ? 2 : fotos >= 10 ? 1 : 0, `${fotos} fotos no perfil`);
+  set("avaliacoes", n >= 100 ? 2 : n >= 30 ? 1 : 0, `${n} avaliações`);
+  set("nota", r >= 4.7 ? 2 : r >= 4.3 ? 1 : 0, `Nota ${String(r).replace(".", ",")}`);
+  if (info.perguntas) set("perguntas", 1, `${info.perguntas} perguntas no perfil`);
+
+  let respostas_pct: number | null = null;
+  const lidas = avaliacoes ?? [];
+  if (lidas.length) {
+    const resp = lidas.filter((a) => a.respondida).length;
+    respostas_pct = Math.round((resp / lidas.length) * 100);
+    set("respostas", respostas_pct >= 90 ? 2 : respostas_pct >= 50 ? 1 : 0, `${respostas_pct}% das últimas ${lidas.length} respondidas`);
+  }
+  const datasPost = (postagens ?? []).map((p) => diasDesde(p.data)).filter((d): d is number => d !== null).sort((a, b) => a - b);
+  if (postagens) {
+    const ult = datasPost[0];
+    set("postagens", ult !== undefined && ult <= 7 ? 2 : ult !== undefined && ult <= 30 ? 1 : 0, ult !== undefined ? `Última postagem há ${ult} dia${ult === 1 ? "" : "s"}` : "Nenhuma postagem encontrada");
+  }
+
+  const completo: DadosCompletos = {
+    categorias: [info.categoria, ...cats].filter(Boolean) as string[],
+    descricao_tamanho: desc,
+    reivindicado: info.reivindicado,
+    perguntas: info.perguntas,
+    distribuicao: info.distribuicao,
+    temas: Object.entries(info.temas ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 10),
+    fotos: info.fotos,
+    atributos: info.atributos,
+    servicos: info.servicos,
+    respostas_pct,
+    avaliacoes_lidas: lidas.length,
+    avaliacoes_sem_resposta: lidas.filter((a) => !a.respondida).slice(0, 5),
+    ultima_avaliacao: lidas[0]?.data ?? null,
+    avaliacoes_30d: lidas.filter((a) => (diasDesde(a.data) ?? 999) <= 30).length,
+    ultima_postagem: (postagens ?? []).find((p) => p.data)?.data ?? null,
+    postagens_90d: datasPost.filter((d) => d <= 90).length,
+    postagens_recentes: (postagens ?? []).slice(0, 3),
+    custo,
+  };
+  const dados: DadosGoogle = {
+    nota_media: info.nota,
+    avaliacoes: info.avaliacoes,
+    fotos: info.fotos,
+    site: info.site,
+    telefone: info.telefone,
+    categoria: info.categoria,
+    categorias: cats.length + (info.categoria ? 1 : 0),
+    tem_horario: info.tem_horario,
+    tem_descricao: desc > 0,
+    respostas_dono: lidas.filter((a) => a.respondida).length,
+    avaliacoes_lidas: lidas.length,
+    completo,
+  };
+  return { dados, niveis, obs };
 }
 
 export const NIVEIS: { nivel: Nivel; nome: string; cor: string }[] = [

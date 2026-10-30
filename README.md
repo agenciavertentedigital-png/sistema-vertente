@@ -134,3 +134,11 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - **Link para o cliente responder**: `cadastro_links.tipo = 'briefing'` → `#briefing-publico-<token>`; a função `cadastro-publico` só lê/grava as perguntas marcadas `cliente: true` e avisa o time.
 - **Anotações** (`notas`): etiquetas, fixar, busca e @menções; por cliente (aba "Anotações") ou gerais em "Anotações e briefings", que também mostra o preenchimento dos briefings de todos os clientes.
 - O Assistente IA lê `briefings` e `notas`.
+
+## GBP Check com DataForSEO
+
+- Credenciais `dataforseo_login` / `dataforseo_senha` no Vault (tela Integrações). Função `gbp-check`:
+  - `completo`: `my_business_info/live` (perfil completo) + tarefas de avaliações (50 mais recentes) e postagens (prioridade alta); `completo_resultado` busca as tarefas (o sistema consulta a cada 6 s, até 2 min). Custo medido: ~US$ 0,013 por análise.
+  - `grade` com `fonte: "maps"`: `serp/google/maps/live/advanced` por ponto (US$ 0,002 cada, ~US$ 0,05 a grade 5x5). `fonte: "places"` continua grátis (aproximada).
+  - `saldo`: saldo da conta (grátis).
+- A análise completa preenche os critérios automaticamente (com observações) e salva o "Raio-X" em `gmn_analises.dados.completo`.

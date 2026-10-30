@@ -10,6 +10,12 @@ import {
   calcularNota,
   faixa,
   sugerirPeloGoogle,
+  sugerirCompleto,
+  diasDesde,
+  type AvaliacaoDfs,
+  type DadosCompletos,
+  type InfoDfs,
+  type PostagemDfs,
   type AnaliseGmn,
   type CriterioAvaliado,
   type DadosGoogle,
@@ -326,6 +332,8 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
         </div>
       </section>
 
+      {a?.dados?.completo && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
+
       {!a ? (
         <Vazio>Este perfil ainda não tem análise. Clique em Nova análise{perfil.place_id ? " e use os dados do Google para começar" : ""}.</Vazio>
       ) : (
@@ -411,6 +419,114 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
   );
 }
 
+const dataBR = (iso: string | null) => (iso ? new Date(iso.replace(" +00:00", "Z").replace(" ", "T")).toLocaleDateString("pt-BR") : "—");
+const haDias = (iso: string | null) => {
+  const d = diasDesde(iso);
+  return d === null ? "nunca" : d === 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`;
+};
+
+/** Raio-X da análise completa (DataForSEO): reputação, atividade e o que os clientes comentam. */
+function RaioX({ c, esconderCusto }: { c: DadosCompletos; esconderCusto: boolean }) {
+  const dist = c.distribuicao ?? {};
+  const totalDist = Object.values(dist).reduce((s, v) => s + Number(v || 0), 0);
+  const dPost = diasDesde(c.ultima_postagem);
+  const cards = [
+    { rotulo: "Avaliações respondidas", valor: c.respostas_pct === null ? "—" : `${c.respostas_pct}%`, detalhe: `das últimas ${c.avaliacoes_lidas}`, tom: c.respostas_pct === null ? "" : c.respostas_pct >= 90 ? "text-ok" : c.respostas_pct >= 50 ? "text-warn" : "text-bad" },
+    { rotulo: "Avaliações em 30 dias", valor: String(c.avaliacoes_30d), detalhe: `última ${haDias(c.ultima_avaliacao)}`, tom: c.avaliacoes_30d >= 8 ? "text-ok" : c.avaliacoes_30d >= 3 ? "text-warn" : "text-bad" },
+    { rotulo: "Postagens em 90 dias", valor: String(c.postagens_90d), detalhe: `última ${haDias(c.ultima_postagem)}`, tom: dPost !== null && dPost <= 7 ? "text-ok" : dPost !== null && dPost <= 30 ? "text-warn" : "text-bad" },
+    { rotulo: "Fotos no perfil", valor: String(c.fotos ?? "—"), detalhe: c.fotos && c.fotos >= 30 ? "boa quantidade" : "abaixo de 30", tom: (c.fotos ?? 0) >= 30 ? "text-ok" : (c.fotos ?? 0) >= 10 ? "text-warn" : "text-bad" },
+  ];
+  return (
+    <section className="flex flex-col gap-4 print:break-inside-avoid">
+      <div className="flex items-end justify-between">
+        <div>
+          <h2 className="text-[17px] font-semibold">Raio-X do perfil</h2>
+          <p className="text-[12px] text-muted">Dados completos lidos do Google: reputação, atividade e o que os clientes comentam.</p>
+        </div>
+        {!esconderCusto && <span className="text-[11.5px] text-muted print:hidden">custo da análise: US$ {c.custo.toFixed(3)}</span>}
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {cards.map((k) => (
+          <div key={k.rotulo} className="rounded-2xl border border-line bg-surface p-4">
+            <div className="text-[12px] text-muted">{k.rotulo}</div>
+            <div className={`num mt-1 text-[26px] font-semibold ${k.tom}`}>{k.valor}</div>
+            <div className="text-[11.5px] text-muted">{k.detalhe}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <h3 className="text-[14px] font-semibold">Distribuição das notas</h3>
+          <div className="mt-3 flex flex-col gap-1.5">
+            {[5, 4, 3, 2, 1].map((n) => {
+              const v = Number(dist[String(n)] ?? 0);
+              return (
+                <div key={n} className="flex items-center gap-2 text-[12px]">
+                  <span className="w-6 text-muted">{n}★</span>
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-raised">
+                    <div className="h-full rounded-full" style={{ width: `${totalDist ? (v / totalDist) * 100 : 0}%`, background: n >= 4 ? "var(--ok)" : n === 3 ? "var(--warn)" : "var(--bad)" }} />
+                  </div>
+                  <span className="num w-9 text-right">{v}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <h3 className="text-[14px] font-semibold">O que os clientes mais citam</h3>
+          {c.temas.length ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {c.temas.map(([t, v]) => (
+                <span key={t} className="rounded-full bg-accent-soft px-2.5 py-1 text-[12px] text-accent">{t} <span className="num opacity-70">{v}</span></span>
+              ))}
+            </div>
+          ) : <p className="mt-3 text-[12.5px] text-muted">O Google ainda não agrupou temas para este perfil.</p>}
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <h3 className="text-[14px] font-semibold">Ficha do perfil</h3>
+          <ul className="mt-2 flex flex-col gap-1 text-[12.5px]">
+            <li><span className="text-muted">Reivindicado:</span> {c.reivindicado === null ? "—" : c.reivindicado ? "sim" : "não (qualquer um pode reivindicar)"}</li>
+            <li><span className="text-muted">Categorias:</span> {c.categorias.join(", ") || "—"}</li>
+            <li><span className="text-muted">Descrição:</span> {c.descricao_tamanho ? `${c.descricao_tamanho} de 750 caracteres` : "sem descrição"}</li>
+            <li><span className="text-muted">Atributos:</span> {c.atributos || "nenhum"} · <span className="text-muted">Serviços:</span> {c.servicos || "nenhum"}</li>
+            <li><span className="text-muted">Perguntas e respostas:</span> {c.perguntas ?? "—"}</li>
+          </ul>
+        </div>
+      </div>
+      {(c.avaliacoes_sem_resposta.length > 0 || c.postagens_recentes.length > 0) && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <h3 className="text-[14px] font-semibold">Avaliações recentes sem resposta</h3>
+            {c.avaliacoes_sem_resposta.length === 0 ? <p className="mt-2 text-[12.5px] text-ok">Todas as recentes estão respondidas.</p> : (
+              <ul className="mt-2 flex flex-col divide-y divide-line">
+                {c.avaliacoes_sem_resposta.map((r, i) => (
+                  <li key={i} className="py-2 text-[12.5px]">
+                    <div className="flex justify-between"><b>{r.autor ?? "Cliente"} · {"★".repeat(Number(r.nota ?? 0))}</b><span className="text-muted">{dataBR(r.data)}</span></div>
+                    {r.texto && <p className="line-clamp-2 text-muted">{r.texto}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <h3 className="text-[14px] font-semibold">Últimas postagens</h3>
+            {c.postagens_recentes.length === 0 ? <p className="mt-2 text-[12.5px] text-bad">Nenhuma postagem encontrada no perfil.</p> : (
+              <ul className="mt-2 flex flex-col divide-y divide-line">
+                {c.postagens_recentes.map((p, i) => (
+                  <li key={i} className="flex gap-3 py-2 text-[12.5px]">
+                    {p.imagem && <img src={p.imagem} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" loading="lazy" />}
+                    <div className="min-w-0"><div className="text-muted">{dataBR(p.data)}</div><p className="line-clamp-2">{p.texto ?? ""}</p></div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Info({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div>
@@ -492,6 +608,38 @@ function EditorAnalise({ perfil, base, editando, gmn, fechar }: { perfil: Perfil
     }
   }
 
+  const [completando, setCompletando] = useState(false);
+  async function analisarCompleto() {
+    setCompletando(true);
+    setMsg("Lendo o perfil completo no Google (DataForSEO)…");
+    try {
+      const r = await chamarFuncao<{ info: InfoDfs; tarefas: { avaliacoes: string; postagens: string }; custo: number }>("gbp-check", { acao: "completo", place_id: perfil.place_id });
+      const aplicar = (av: AvaliacaoDfs[] | null, po: PostagemDfs[] | null, custo: number) => {
+        const s = sugerirCompleto(r.info, av, po, custo);
+        setDados(s.dados);
+        setOrigem("google");
+        setCriterios((cs) => cs.map((c) => (s.niveis[c.id] !== undefined ? { ...c, nivel: s.niveis[c.id], obs: s.obs[c.id] ?? c.obs } : c)));
+      };
+      aplicar(null, null, r.custo);
+      setMsg("Perfil lido. Buscando avaliações e postagens (leva até 2 minutos)…");
+      for (let i = 0; i < 24; i++) {
+        await new Promise((ok) => setTimeout(ok, 6000));
+        const t = await chamarFuncao<{ pronto: boolean; avaliacoes?: AvaliacaoDfs[]; postagens?: PostagemDfs[]; custo?: number }>("gbp-check", { acao: "completo_resultado", ...r.tarefas });
+        if (t.pronto) {
+          const total = r.custo + (t.custo ?? 0);
+          aplicar(t.avaliacoes ?? [], t.postagens ?? [], total);
+          setMsg(`Análise completa pronta · custo US$ ${total.toFixed(3)}. Confira fotos recentes e o que for manual.`);
+          return;
+        }
+      }
+      setMsg("Avaliações e postagens demoraram demais; os dados do perfil já foram preenchidos. Tente de novo em alguns minutos.");
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setCompletando(false);
+    }
+  }
+
   async function salvar() {
     try {
       await gmn.analises.salvar(editando ? base!.id : null, { perfil_id: perfil.id, data, nota, criterios, dados, origem, observacoes: obs || null });
@@ -515,7 +663,8 @@ function EditorAnalise({ perfil, base, editando, gmn, fechar }: { perfil: Perfil
         </div>
         {perfil.place_id ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Botao onClick={lerGoogle}><Sparkles size={14} /> Preencher com dados do Google</Botao>
+            <Botao variante="primario" onClick={analisarCompleto} disabled={completando}><Sparkles size={14} /> {completando ? "Analisando…" : "Análise completa"}</Botao>
+            <Botao onClick={lerGoogle} disabled={completando}>Leitura rápida (grátis)</Botao>
             {msg && <span className="text-[12px] text-muted">{msg}</span>}
           </div>
         ) : (
@@ -577,14 +726,15 @@ function GradeRanking({ perfil }: { perfil: PerfilGmn }) {
   const [pontos, setPontos] = useState<PontoGrade[] | null>(null);
   const [msg, setMsg] = useState("");
   const [rodando, setRodando] = useState(false);
+  const [fonte, setFonte] = useState<"maps" | "places">("maps");
 
   async function gerar() {
     setRodando(true);
-    setMsg("Consultando 25 pontos no Google… leva alguns segundos.");
+    setMsg(fonte === "maps" ? "Buscando a palavra no Google Maps de 25 pontos… leva uns 20 segundos." : "Consultando 25 pontos no Google… leva alguns segundos.");
     try {
-      const r = await chamarFuncao<{ pontos: PontoGrade[] }>("gbp-check", { acao: "grade", place_id: perfil.place_id, palavra, passo_km: passo, tamanho: 5 });
+      const r = await chamarFuncao<{ pontos: PontoGrade[]; custo?: number }>("gbp-check", { acao: "grade", place_id: perfil.place_id, palavra, passo_km: passo, tamanho: 5, fonte });
       setPontos(r.pontos);
-      setMsg("");
+      setMsg(r.custo ? `Grade do Google Maps real · custo US$ ${r.custo.toFixed(3)}` : "Grade aproximada pela Places API (grátis).");
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -615,6 +765,12 @@ function GradeRanking({ perfil }: { perfil: PerfilGmn }) {
           <Rotulo texto="Distância entre pontos">
             <Selecao value={passo} onChange={(e) => setPasso(Number(e.target.value))} className="!w-auto">
               {[0.5, 1, 2, 3].map((p) => <option key={p} value={p}>{String(p).replace(".", ",")} km</option>)}
+            </Selecao>
+          </Rotulo>
+          <Rotulo texto="Fonte">
+            <Selecao value={fonte} onChange={(e) => setFonte(e.target.value as "maps" | "places")} className="!w-auto">
+              <option value="maps">Google Maps real (~US$ 0,05)</option>
+              <option value="places">Aproximada (grátis)</option>
             </Selecao>
           </Rotulo>
           <Botao variante="primario" onClick={gerar} disabled={rodando || !perfil.place_id || !palavra.trim()}>Gerar grade</Botao>

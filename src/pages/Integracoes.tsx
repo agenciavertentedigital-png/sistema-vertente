@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
-import { Bot, CheckCircle2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Smartphone, XCircle } from "lucide-react";
+import { Bot, CheckCircle2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Search, Smartphone, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { chamarFuncao } from "../lib/tabela";
 
 type Status = Record<string, boolean>;
 interface Grupo { grupo: string; grupo_nome: string | null; ultima: string }
 interface MembroTel { id: string; nome: string; telefone: string | null }
 
-const DEMO_STATUS: Status = { meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false };
+const DEMO_STATUS: Status = { dataforseo_login: true, dataforseo_senha: true, meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false };
 
 /** Situação das integrações e configuração do WhatsApp (só administradores). Os valores ficam no cofre do Supabase e nunca voltam para a tela. */
 export function Integracoes() {
@@ -17,6 +18,7 @@ export function Integracoes() {
   const [time, setTime] = useState<MembroTel[]>([]);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
+  const [saldo, setSaldo] = useState<number | null>(null);
 
   async function carregar() {
     if (!supabase) return;
@@ -38,6 +40,7 @@ export function Integracoes() {
     for (const r of (g.data ?? []) as { grupo: string; grupo_nome: string | null; criado_em: string }[]) if (!vistos.has(r.grupo)) vistos.set(r.grupo, { grupo: r.grupo, grupo_nome: r.grupo_nome, ultima: r.criado_em });
     setGrupos([...vistos.values()]);
     setTime((m.data ?? []) as MembroTel[]);
+    if ((s.data as Status).dataforseo_login) chamarFuncao<{ saldo: number | null }>("gbp-check", { acao: "saldo" }).then((r) => setSaldo(r.saldo), () => setSaldo(null));
   }
   useEffect(() => {
     carregar();
@@ -67,6 +70,7 @@ export function Integracoes() {
     { icone: Plug, nome: "Meta Ads", ok: status.meta_access_token, texto: "Sincroniza as contas de anúncio 3x ao dia." },
     { icone: Bot, nome: "IA do Assistente", ok: status.openai_api_key || status.anthropic_api_key, texto: status.anthropic_api_key ? "Usando Claude (Anthropic)." : "Usando ChatGPT (OpenAI)." },
     { icone: MapPin, nome: "Google Places (GBP Check)", ok: status.google_places_key, texto: "Busca nota, avaliações e fotos dos perfis do Google." },
+    { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
     { icone: MessageCircle, nome: "WhatsApp (Z-API)", ok: whatsOk, texto: "Assistente respondendo no grupo do time." },
     { icone: FolderOpen, nome: "Google Drive", ok: true, texto: "Pasta de cada cliente aparece na ficha (aba Pasta no Drive)." },
   ];
@@ -79,7 +83,7 @@ export function Integracoes() {
       </header>
       {aviso && <div className="rounded-lg bg-accent/10 px-3 py-2 text-[13px] text-accent">{aviso}</div>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {cartoes.map((c) => (
           <div key={c.nome} className="rounded-xl bg-surface p-4" style={{ boxShadow: "var(--sombra)" }}>
             <div className="flex items-center justify-between">
@@ -136,6 +140,8 @@ export function Integracoes() {
         <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-3">
           <Campo rotulo="Google Places API (GBP Check)" ok={status.google_places_key} onSalvar={(v) => salvar("google_places_key", v)} />
           <Campo rotulo="OpenAI (ChatGPT)" ok={status.openai_api_key} onSalvar={(v) => salvar("openai_api_key", v)} />
+          <Campo rotulo="DataForSEO · API Login" ok={status.dataforseo_login} onSalvar={(v) => salvar("dataforseo_login", v)} />
+          <Campo rotulo="DataForSEO · API Password" ok={status.dataforseo_senha} onSalvar={(v) => salvar("dataforseo_senha", v)} />
           <Campo rotulo="Anthropic (Claude) — opcional" ok={status.anthropic_api_key} onSalvar={(v) => salvar("anthropic_api_key", v)} />
         </div>
       </section>
