@@ -1,6 +1,7 @@
 // Dados de exemplo dos módulos novos (usados só na prévia, sem banco conectado).
 import { DEMO_IDS } from "../lib/repo";
 import { hoje, somarDias } from "../lib/tipos";
+import { avaliarFicha, coletaDemo, notaFicha } from "../lib/fichaGoogle";
 import { CRITERIOS, calcularNota, type AnaliseGmn, type CriterioAvaliado, type Nivel, type PerfilGmn } from "../lib/gmn";
 import type { Post } from "../lib/social";
 import type { Lancamento, ServicoCliente } from "../lib/financeiro";
@@ -17,7 +18,7 @@ export function demoPerfis(): PerfilGmn[] {
     ["Clínica Nobre Fio", "Clínica de transplante capilar", "Ipatinga"],
     ["Óticas Carol SVA", "Ótica", "Ipatinga"],
     ["Espaço Larissa Lemos", "Salão de beleza", "Ipatinga"],
-    ["Madalena Brandão", "Loja de roupas", "Coronel Fabriciano"],
+    ["Madalena Brandão", "Instituição educacional", "Ipatinga"],
     ["Essenza Planejados", "Loja de móveis planejados", "Ipatinga"],
   ].map(([nome, categoria, cidade], i) => ({
     id: `gp-${i + 1}`,
@@ -84,6 +85,19 @@ export function demoAnalises(): AnaliseGmn[] {
       });
     }
   });
+  // Madalena: última análise no modelo novo (análise da ficha)
+  const k = out.findIndex((a) => a.id === "ga-3-0");
+  if (k >= 0) {
+    const coleta = coletaDemo("Instituto de Educação Madalena Brandão");
+    const itens = avaliarFicha(coleta);
+    out[k] = {
+      ...out[k],
+      nota: notaFicha(itens),
+      criterios: itens.map((i) => ({ id: i.id, nivel: (i.pct === null ? 0 : i.pct >= 80 ? 2 : i.pct >= 40 ? 1 : 0) as Nivel, obs: i.texto, pct: i.pct, manual: i.manual })),
+      dados: { versao: 2, coleta, respostas: {}, nota_media: 5, avaliacoes: 123, fotos: 90 },
+      origem: "google",
+    };
+  }
   return out;
 }
 

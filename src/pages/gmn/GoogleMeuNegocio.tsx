@@ -26,6 +26,8 @@ import {
 import { demoAnalises, demoPerfis } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
+import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
+import { CRITERIOS_FICHA } from "../../lib/fichaGoogle";
 
 const CAMPOS_PERFIL = "id, cliente_id, nome, place_id, endereco, cidade, categoria, url_maps, palavras, ativo";
 const CAMPOS_ANALISE = "id, perfil_id, data, nota, criterios, dados, origem, observacoes, criado_em";
@@ -50,6 +52,7 @@ type Aba = "gmn" | "gmn-prospeccao";
 export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const gmn = useGmn();
   const [novo, setNovo] = useState(false);
+  const [analisar, setAnalisar] = useState(false);
   if (rota.startsWith("gmn-perfil-")) return <TelaPerfil key={rota} id={rota.slice(11)} gmn={gmn} ir={ir} />;
   const aba: Aba = rota === "gmn-prospeccao" ? "gmn-prospeccao" : "gmn";
   const lista = gmn.perfis.linhas.filter((p) => p.ativo && (aba === "gmn" ? p.cliente_id : !p.cliente_id));
@@ -61,7 +64,12 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
         rotulo="Fase 3 · Operacional"
         titulo="Google Meu Negócio"
         descricao="GBP Check da Vertente: nota de saúde de cada perfil, plano de ação, histórico mensal e grade de ranking no Maps."
-        acoes={<Botao variante="primario" onClick={() => setNovo(true)}><Plus size={15} /> Novo perfil</Botao>}
+        acoes={
+          <div className="flex gap-2">
+            <Botao onClick={() => setNovo(true)}><Plus size={15} /> Cadastrar perfil</Botao>
+            <Botao variante="primario" onClick={() => setAnalisar(true)}><Sparkles size={15} /> Analisar ficha</Botao>
+          </div>
+        }
       />
       <Abas<Aba>
         abas={[
@@ -89,6 +97,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
             ))}
         </div>
       )}
+      <NovaAnaliseFicha aberto={analisar} fechar={() => setAnalisar(false)} gmn={gmn} prospeccao={aba === "gmn-prospeccao"} ir={ir} />
       <NovoPerfil aberto={novo} fechar={() => setNovo(false)} gmn={gmn} prospeccao={aba === "gmn-prospeccao"} abrir={(id) => ir(`gmn-perfil-${id}`)} />
     </div>
   );
@@ -138,7 +147,11 @@ function CartaoPerfil({ perfil, historico, abrir }: { perfil: PerfilGmn; histori
   const a = historico[0];
   const anterior = historico[1];
   const delta = a && anterior ? a.nota - anterior.nota : null;
-  const fracos = a ? CRITERIOS.filter((c) => (a.criterios.find((x) => x.id === c.id)?.nivel ?? 0) === 0).sort((x, y) => y.peso - x.peso).slice(0, 3) : [];
+  const fracos = !a
+    ? []
+    : a.dados?.versao === 2
+      ? CRITERIOS_FICHA.filter((c) => { const p = a.criterios.find((x) => x.id === c.id)?.pct; return p !== null && p !== undefined && p < 40; }).sort((x, y) => y.peso - x.peso).slice(0, 3)
+      : CRITERIOS.filter((c) => (a.criterios.find((x) => x.id === c.id)?.nivel ?? 0) === 0).sort((x, y) => y.peso - x.peso).slice(0, 3);
   return (
     <button onClick={abrir} className="group flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent" style={{ boxShadow: "var(--sombra)" }}>
       <div className="flex items-start gap-3">
@@ -283,6 +296,7 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
   const historico = gmn.historico(id);
   const [editor, setEditor] = useState<AnaliseGmn | "nova" | null>(null);
   const [ocultarRecomendacoes, setOcultar] = useState(false);
+  const [rodando, setRodando] = useState("");
   if (gmn.perfis.carregando) return <Vazio>Carregando…</Vazio>;
   if (!perfil) return <Vazio>Perfil não encontrado.</Vazio>;
   const a = historico[0];
@@ -303,7 +317,26 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
             </label>
           )}
           <Botao onClick={() => window.print()} disabled={!a}><Printer size={14} /> Relatório em PDF</Botao>
-          <Botao variante="primario" onClick={() => setEditor("nova")}><Sparkles size={14} /> Nova análise</Botao>
+          {(perfil.place_id || !supabase) && (
+            <Botao
+              variante="primario"
+              disabled={Boolean(rodando)}
+              onClick={async () => {
+                try {
+                  const coleta = await rodarColeta(perfil.place_id ?? "demo", setRodando, perfil.nome);
+                  await salvarAnaliseFicha(gmn, perfil.id, coleta);
+                  d.avisar(`Análise atualizada · custo US$ ${coleta.custo.toFixed(3)}`);
+                } catch (e) {
+                  d.avisar((e as Error).message);
+                } finally {
+                  setRodando("");
+                }
+              }}
+            >
+              <Sparkles size={14} /> {rodando ? "Analisando…" : "Analisar ficha agora"}
+            </Botao>
+          )}
+          <Botao onClick={() => setEditor("nova")}>Análise manual</Botao>
         </div>
       </div>
 
@@ -319,6 +352,8 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
             <div className="mt-1 text-[13px] text-white/70">
               {[perfil.cliente_id ? d.cliente(perfil.cliente_id)?.nome : "Prospecção", perfil.categoria, perfil.cidade].filter(Boolean).join(" · ")}
             </div>
+            {a?.dados?.coleta?.info.endereco && <div className="text-[12.5px] text-white/60">{a.dados.coleta.info.endereco}</div>}
+            <div className="mt-1"><LinkFicha perfil={perfil} coleta={a?.dados?.coleta} /></div>
             {a && (
               <div className="mt-3 flex flex-wrap gap-5 text-[13px]">
                 <Info rotulo="Situação" valor={faixa(a.nota).nome} />
@@ -332,9 +367,15 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
         </div>
       </section>
 
-      {a?.dados?.completo && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
+      {rodando && <div className="rounded-xl bg-accent-soft px-4 py-3 text-[13px] text-accent print:hidden">{rodando}</div>}
+      {a?.dados?.completo && a.dados.versao !== 2 && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
 
-      {!a ? (
+      {a?.dados?.versao === 2 && a.dados.coleta ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <RelatorioFicha perfil={perfil} analise={a} gmn={gmn} ocultarRecomendacoes={ocultarRecomendacoes} />
+          <aside className="flex flex-col gap-4 print:hidden"><Historico historico={historico} editar={(x) => setEditor(x)} /></aside>
+        </div>
+      ) : !a ? (
         <Vazio>Este perfil ainda não tem análise. Clique em Nova análise{perfil.place_id ? " e use os dados do Google para começar" : ""}.</Vazio>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">

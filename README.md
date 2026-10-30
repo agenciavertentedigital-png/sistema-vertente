@@ -142,3 +142,10 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
   - `grade` com `fonte: "maps"`: `serp/google/maps/live/advanced` por ponto (US$ 0,002 cada, ~US$ 0,05 a grade 5x5). `fonte: "places"` continua grátis (aproximada).
   - `saldo`: saldo da conta (grátis).
 - A análise completa preenche os critérios automaticamente (com observações) e salva o "Raio-X" em `gmn_analises.dados.completo`.
+
+## Análise da Ficha do Google (v2)
+
+- "Analisar ficha" (Google Meu Negócio): nome + link da ficha → `gbp-check` `localizar` (segue o link curto, lê o cid/coordenadas, confirma pelo Places) → `ficha` (perfil DataForSEO + Places, 100 avaliações, 30 postagens, concorrentes pela categoria) → `completo_resultado`. Custo ~US$ 0,03–0,04 por análise.
+- Critérios em `src/lib/fichaGoogle.ts` (`CRITERIOS_FICHA`, 28 itens em Informações, Mídia, Avaliações e Atividade), nota ponderada 0–100; itens sem dado público (horário especial, fundação, serviços, vídeos…) ficam "Verificar" com Sim/Não no relatório.
+- Análise salva em `gmn_analises` com `dados.versao = 2`, `dados.coleta` e `dados.respostas`.
+- A função aceita chamada interna com `x-chave-cron` (testes e automações).

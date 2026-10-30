@@ -18,6 +18,9 @@ export interface CriterioAvaliado {
   id: string;
   nivel: Nivel;
   obs?: string;
+  /** Análise da ficha (v2): 0–100, ou null quando falta verificar à mão */
+  pct?: number | null;
+  manual?: boolean;
 }
 export interface AnaliseGmn {
   id: string;
@@ -45,6 +48,10 @@ export interface DadosGoogle {
   avaliacoes_lidas?: number | null;
   /** Análise completa (DataForSEO) */
   completo?: DadosCompletos;
+  /** Análise da ficha v2: dados coletados e respostas das verificações manuais */
+  versao?: 2;
+  coleta?: import("./fichaGoogle").ColetaFicha;
+  respostas?: Record<string, boolean>;
 }
 
 export interface InfoDfs {
@@ -66,7 +73,7 @@ export interface InfoDfs {
   temas: Record<string, number> | null;
   imagem: string | null;
 }
-export interface AvaliacaoDfs { nota: number | null; texto: string | null; autor: string | null; data: string | null; respondida: boolean; resposta_data: string | null }
+export interface AvaliacaoDfs { nota: number | null; texto: string | null; autor: string | null; data: string | null; respondida: boolean; resposta_data: string | null; fotos?: number }
 export interface PostagemDfs { data: string | null; texto: string | null; imagem: string | null; link: string | null }
 
 export interface DadosCompletos {

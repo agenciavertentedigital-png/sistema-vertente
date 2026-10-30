@@ -13,7 +13,7 @@ type Json = Record<string, unknown>;
 const CAMPOS_DETALHE = [
   "id", "displayName", "formattedAddress", "location", "primaryType", "primaryTypeDisplayName", "types",
   "rating", "userRatingCount", "nationalPhoneNumber", "websiteUri", "googleMapsUri", "regularOpeningHours",
-  "editorialSummary", "photos", "reviews", "businessStatus",
+  "editorialSummary", "photos", "reviews", "businessStatus", "currentOpeningHours",
 ].join(",");
 
 async function places(caminho: string, chave: string, campos: string, corpo?: Json): Promise<Json> {
@@ -69,6 +69,30 @@ function resumoInfo(i: Json) {
   };
 }
 
+/** Segue os redirecionamentos de um link do Google Maps (maps.app.goo.gl, share.google, g.co…) e lê o que der da URL final. */
+async function lerLink(link: string) {
+  let url = link.trim();
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  const visitadas: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    visitadas.push(url);
+    if (/google\.[a-z.]+\/maps|[?&](cid|ludocid)=|!1s0x[0-9a-f]+:0x[0-9a-f]+/i.test(url) && !/goo\.gl|share\.google|g\.co\//i.test(new URL(url).hostname)) break;
+    const r = await fetch(url, { redirect: "manual", headers: { "User-Agent": "Mozilla/5.0", "Accept-Language": "pt-BR" } }).catch(() => null);
+    const prox = r?.headers.get("location");
+    await r?.body?.cancel().catch(() => {});
+    if (!prox) break;
+    url = new URL(prox, url).toString();
+  }
+  const tudo = decodeURIComponent(visitadas.join(" "));
+  const feat = tudo.match(/0x[0-9a-f]+:(0x[0-9a-f]+)/i);
+  const cidParam = tudo.match(/[?&](?:cid|ludocid)=(\d+)/i);
+  const cid = feat ? BigInt(feat[1]).toString() : cidParam?.[1] ?? null;
+  const placeId = tudo.match(/place_id[:=](ChIJ[\w-]+)/)?.[1] ?? null;
+  const coord = tudo.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) ?? tudo.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  const nome = tudo.match(/\/maps\/place\/([^/@?]+)/)?.[1]?.replace(/\+/g, " ") ?? null;
+  return { url_final: url, cid, place_id: placeId, lat: coord ? Number(coord[1]) : null, lng: coord ? Number(coord[2]) : null, nome };
+}
+
 /** Desloca um ponto em km (norte/leste). */
 function deslocar(lat: number, lng: number, norteKm: number, lesteKm: number) {
   return { lat: lat + norteKm / 111.32, lng: lng + lesteKm / (111.32 * Math.cos((lat * Math.PI) / 180)) };
@@ -80,11 +104,16 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(corpo), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: u } = await admin.auth.getUser(jwt);
-  if (!u.user) return responder({ erro: "Sua sessão expirou. Saia e entre de novo no sistema." }, 401);
-  const { data: m } = await admin.from("membros").select("id").or(`user_id.eq.${u.user.id},email.eq.${(u.user.email ?? "").toLowerCase()}`).eq("ativo", true).eq("acesso", true).limit(1).maybeSingle();
-  if (!m) return responder({ erro: "Sem acesso." }, 403);
+  // Acesso: login do time ou chamada interna do servidor (chave do cron)
+  const chaveCron = req.headers.get("x-chave-cron");
+  const interno = chaveCron ? (await admin.rpc("validar_chave_cron", { chave: chaveCron })).data === true : false;
+  if (!interno) {
+    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: u } = await admin.auth.getUser(jwt);
+    if (!u.user) return responder({ erro: "Sua sessão expirou. Saia e entre de novo no sistema." }, 401);
+    const { data: m } = await admin.from("membros").select("id").or(`user_id.eq.${u.user.id},email.eq.${(u.user.email ?? "").toLowerCase()}`).eq("ativo", true).eq("acesso", true).limit(1).maybeSingle();
+    if (!m) return responder({ erro: "Sem acesso." }, 403);
+  }
 
   const chave = Deno.env.get("GOOGLE_PLACES_KEY") || ((await admin.rpc("ler_segredo", { nome: "google_places_key" })).data as string | null);
   if (!chave) return responder({ erro: "Falta conectar a API do Google (chave google_places_key no Vault do Supabase)." }, 412);
@@ -104,6 +133,88 @@ Deno.serve(async (req) => {
       const { tarefa } = await dfs(c, "appendix/user_data");
       const money = (((tarefa.result as Json[]) ?? [])[0]?.money as Json) ?? {};
       return responder({ ok: true, saldo: money.balance ?? null });
+    }
+
+    if (corpo.acao === "localizar") {
+      // Recebe o nome e/ou o link da ficha e devolve o perfil encontrado (para confirmar antes de analisar)
+      const nome = String(corpo.nome ?? "").trim();
+      const link = String(corpo.link ?? "").trim();
+      const pistas = link ? await lerLink(link) : { url_final: null, cid: null, place_id: null, lat: null, lng: null, nome: null };
+      let placeId = pistas.place_id;
+      // Pelo cid do link (mais preciso): a DataForSEO devolve o place_id
+      if (!placeId && pistas.cid && dfsCred) {
+        const r = await dfs(dfsCred, "business_data/google/my_business_info/live", [{ keyword: `cid:${pistas.cid}`, location_name: "Brazil", language_code: "pt" }]).catch(() => null);
+        placeId = (itens(r?.tarefa ?? {})[0]?.place_id as string) ?? null;
+      }
+      // Pelo nome, perto das coordenadas do link quando houver
+      const texto = nome || pistas.nome || "";
+      let candidatos: Json[] = [];
+      if (!placeId && texto) {
+        const j = await places("places:searchText", chave, "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.primaryTypeDisplayName", {
+          textQuery: texto,
+          languageCode: "pt-BR",
+          regionCode: "BR",
+          pageSize: 5,
+          ...(pistas.lat !== null ? { locationBias: { circle: { center: { latitude: pistas.lat, longitude: pistas.lng }, radius: 2000 } } } : {}),
+        });
+        candidatos = (j.places as Json[]) ?? [];
+        placeId = (candidatos[0]?.id as string) ?? null;
+      }
+      if (!placeId) return responder({ erro: "Não encontrei a ficha. Confira o link ou escreva o nome com a cidade." }, 404);
+      const perfil = await places(`places/${encodeURIComponent(placeId)}`, chave, "id,displayName,formattedAddress,rating,userRatingCount,primaryTypeDisplayName,googleMapsUri,location");
+      return responder({ ok: true, perfil, outros: candidatos.slice(1), pistas });
+    }
+
+    if (corpo.acao === "ficha") {
+      // Análise completa da ficha: perfil (DataForSEO + Places), avaliações e postagens (tarefas) e concorrentes no Maps
+      const c = exigirDfs();
+      const placeId = String(corpo.place_id ?? "");
+      if (!placeId) return responder({ erro: "Ficha sem identificação do Google." }, 400);
+      const base = { location_name: "Brazil", language_code: "pt" };
+      const [info, rev, upd, det] = await Promise.all([
+        dfs(c, "business_data/google/my_business_info/live", [{ keyword: `place_id:${placeId}`, ...base }]),
+        dfs(c, "business_data/google/reviews/task_post", [{ place_id: placeId, ...base, depth: 100, sort_by: "newest", priority: 2 }]),
+        dfs(c, "business_data/google/my_business_updates/task_post", [{ keyword: `place_id:${placeId}`, ...base, depth: 30, priority: 2 }]),
+        places(`places/${encodeURIComponent(placeId)}`, chave, "id,displayName,photos,currentOpeningHours,googleMapsUri,location").catch(() => ({} as Json)),
+      ]);
+      const item = itens(info.tarefa)[0];
+      if (!item) return responder({ erro: "A DataForSEO não encontrou esta ficha." }, 404);
+      const resumo = resumoInfo(item);
+      // Fotos em destaque: quem publicou (dono x clientes)
+      const titulo = String(item.title ?? "").toLowerCase();
+      const fotos = ((det.photos as { authorAttributions?: { displayName?: string }[] }[]) ?? []).map((f) => f.authorAttributions?.[0]?.displayName ?? "");
+      const doDono = fotos.filter((n) => n && (n.toLowerCase() === titulo || titulo.includes(n.toLowerCase()) || n.toLowerCase().includes(titulo))).length;
+      const especiais = ((det.currentOpeningHours as { specialDays?: unknown[] } | undefined)?.specialDays ?? []).length;
+      // Concorrentes: a busca pela categoria principal no ponto da empresa
+      let concorrentes: Json[] = [];
+      let posicaoCategoria: number | null = null;
+      let custoExtra = 0;
+      if (item.category && item.latitude && item.longitude) {
+        const r = await dfs(c, "serp/google/maps/live/advanced", [{ keyword: String(item.category), location_coordinate: `${item.latitude},${item.longitude},15z`, language_code: "pt", depth: 20 }]).catch(() => null);
+        if (r) {
+          custoExtra += r.custo;
+          const lista = itens(r.tarefa).filter((x) => x.type === "maps_search");
+          posicaoCategoria = Number(lista.find((x) => x.place_id === placeId)?.rank_group ?? 0) || null;
+          concorrentes = lista.filter((x) => x.place_id !== placeId).slice(0, 5).map((x) => ({
+            nome: x.title,
+            posicao: x.rank_group,
+            nota: (x.rating as Json | null)?.value ?? null,
+            avaliacoes: (x.rating as Json | null)?.votes_count ?? null,
+            categoria: x.category ?? null,
+            reivindicado: x.is_claimed ?? null,
+          }));
+        }
+      }
+      return responder({
+        ok: true,
+        info: { ...resumo, logo: item.logo ?? null, place_id: placeId, cid: item.cid ?? null, endereco: item.address ?? null, cidade: (item.address_info as Json | null)?.city ?? null, maps: det.googleMapsUri ?? null },
+        fotos_destaque: { total: fotos.length, do_dono: doDono },
+        horario_especial_proximos_dias: especiais,
+        concorrentes,
+        posicao_categoria: posicaoCategoria,
+        tarefas: { avaliacoes: rev.tarefa.id, postagens: upd.tarefa.id },
+        custo: info.custo + rev.custo + upd.custo + custoExtra,
+      });
     }
 
     if (corpo.acao === "completo") {
@@ -140,6 +251,7 @@ Deno.serve(async (req) => {
         data: x.timestamp ?? null,
         respondida: Boolean(x.owner_answer),
         resposta_data: x.owner_timestamp ?? null,
+        fotos: Array.isArray(x.images) ? (x.images as unknown[]).length : 0,
       }));
       const postagens = itens(upd.tarefa).map((x) => ({ data: x.timestamp ?? null, texto: (x.post_text ?? x.snippet ?? null) as string | null, imagem: x.images_url ?? null, link: x.url ?? null }));
       return responder({ ok: true, pronto: true, avaliacoes, postagens, custo: rev.custo + upd.custo });
