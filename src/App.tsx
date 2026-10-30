@@ -96,8 +96,9 @@ export default function App() {
       : { nome: "Modo demonstração", papel: "Sem login" };
 
   const modulo = MODULOS.find((m) => m.id === rota);
-  let pagina = <Central ir={navegar} />;
-  if (rota === "base") pagina = <BaseClientes />;
+  const naCentral = rota === "inicio" || (!modulo && !rotaConhecida(rota));
+  let pagina = <Central ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} />;
+  if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
   else if (rota === "trafego" || rota.startsWith("trafego-")) pagina = <GestaoTrafego rota={rota} ir={navegar} />;
@@ -110,8 +111,8 @@ export default function App() {
   else if (rota === "assistente") pagina = <Assistente />;
   else if (rota === "integracoes") pagina = <Integracoes />;
   else if (rota === "anotacoes" || rota.startsWith("anotacoes-")) pagina = <CentralAnotacoes rota={rota} ir={navegar} />;
-  else if (rota === "cadastro") pagina = <Cadastro ir={navegar} />;
-  else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <Contratos rota={rota} ir={navegar} />;
+  else if (rota === "cadastro") pagina = <><AbasCadastro rota={rota} ir={navegar} /><Cadastro ir={navegar} /></>;
+  else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <><AbasCadastro rota={rota} ir={navegar} /><Contratos rota={rota} ir={navegar} /></>;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
   const menu = <Menu
@@ -126,7 +127,7 @@ export default function App() {
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <div className="flex h-full">
-      <aside className={`menu-marinho hidden shrink-0 transition-[width] duration-200 lg:block ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
+      <aside className={`menu-marinho hidden shrink-0 transition-[width] duration-200 ${naCentral ? "" : "lg:block"} ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
         <Menu
           rota={rota}
           ir={navegar}
@@ -164,7 +165,7 @@ export default function App() {
             Prévia com dados de exemplo: nada aqui é salvo. O sistema real fica em <b>sistema.agenciavertente.com.br</b>.
           </div>
         )}
-        <div className="flex items-center justify-between border-b border-line bg-surface px-[max(16px,env(safe-area-inset-left,0px))] py-2.5 lg:hidden">
+        <div className={`flex items-center justify-between border-b border-line bg-surface px-[max(16px,env(safe-area-inset-left,0px))] py-2.5 lg:hidden ${naCentral ? "!hidden" : ""}`}>
           <Marca />
           <div className="flex items-center gap-1">
           <Sininho ir={navegar} compacto />
@@ -175,15 +176,17 @@ export default function App() {
         </div>
         <main
           id="area-principal"
-          className={`min-h-0 flex-1 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))] ${
-            rota === "crm" || rota === "assistente"
+          className={`min-h-0 flex-1 ${naCentral ? "overflow-y-auto" : "pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))]"} ${
+            naCentral
+              ? ""
+              : rota === "crm" || rota === "assistente"
               ? "overflow-hidden pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 sm:pb-5 sm:pt-5"
               : "overflow-y-auto py-6 sm:py-8"
           }`}
         >
           {pagina}
         </main>
-        {rota !== "assistente" && rota !== "crm" && (
+        {rota !== "assistente" && rota !== "crm" && !naCentral && (
           <button
             onClick={() => navegar("assistente")}
             className="fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex items-center gap-2 rounded-full bg-gradient-to-br from-[#1d34a0] to-[#0b1450] px-4 py-3 text-[13px] font-medium text-white shadow-xl transition-transform hover:-translate-y-0.5"
@@ -197,6 +200,31 @@ export default function App() {
       <Aviso />
     </div>
     </ProvedorDados>
+  );
+}
+
+/** Rotas que têm página própria (o resto cai na Central). */
+function rotaConhecida(r: string) {
+  return /^(base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
+}
+
+/** Abas que unem Fichas, Contratos e Base num tópico só. */
+function AbasCadastro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
+  const abas = [
+    { id: "cadastro", nome: "Fichas dos clientes", ativo: rota === "cadastro" },
+    { id: "contratos", nome: "Contratos", ativo: rota.startsWith("contratos") },
+    { id: "base", nome: "Base de clientes", ativo: rota === "base" },
+  ];
+  return (
+    <div className="mx-auto mb-5 max-w-[1240px]">
+    <div className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 sm:w-max">
+      {abas.map((a) => (
+        <button key={a.id} onClick={() => ir(a.id)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${a.ativo ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
+          {a.nome}
+        </button>
+      ))}
+    </div>
+    </div>
   );
 }
 

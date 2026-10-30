@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck, Home, LogOut, Moon, PanelLeftClose, NotebookPen, PanelLeftOpen, Plug, Sparkles, Sun } from "lucide-react";
+import { LayoutGrid, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plug, Sun } from "lucide-react";
 import { Sininho } from "./Sininho";
-import { BASE_CLIENTES, GRUPOS, MODULOS } from "../data/modulos";
+import { ASSISTENTE, SECOES, ativo } from "../data/navegacao";
 import { Marca } from "./Marca";
 
 interface Props {
@@ -53,9 +53,11 @@ function Item({
 
 export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido = false, alternarRecolhido }: Props) {
   return (
-    <nav className={`flex h-full flex-col gap-5 overflow-y-auto overflow-x-hidden pb-3 pt-4 ${recolhido ? "px-2" : "px-3"}`} aria-label="Menu principal">
+    <nav className={`flex h-full flex-col gap-4 overflow-y-auto overflow-x-hidden pb-3 pt-4 ${recolhido ? "px-2" : "px-3"}`} aria-label="Menu principal">
       <div className={`flex items-center ${recolhido ? "flex-col gap-3" : "justify-between gap-2 px-1.5"}`}>
-        <Marca sobreEscuro compacta={recolhido} />
+        <button onClick={() => ir("inicio")} title="Ir para a Central" aria-label="Ir para a Central" className="rounded-lg">
+          <Marca sobreEscuro compacta={recolhido} />
+        </button>
         {alternarRecolhido && (
           <button
             onClick={alternarRecolhido}
@@ -69,34 +71,16 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
       </div>
 
       <div className="flex flex-col gap-0.5">
-        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={Home} rotulo="Central" recolhido={recolhido} />
-        <Item ativo={rota === "assistente"} onClick={() => ir("assistente")} icone={Sparkles} rotulo="Assistente IA" recolhido={recolhido} />
-        <Item
-          ativo={rota === BASE_CLIENTES.id}
-          onClick={() => ir(BASE_CLIENTES.id)}
-          icone={BASE_CLIENTES.icone}
-          rotulo={BASE_CLIENTES.nome}
-          recolhido={recolhido}
-        />
-        <Item ativo={rota.startsWith("reuniao")} onClick={() => ir("reuniao-daily")} icone={CalendarCheck} rotulo="Daily e Weekly" recolhido={recolhido} />
-        <Item ativo={rota.startsWith("anotacoes")} onClick={() => ir("anotacoes")} icone={NotebookPen} rotulo="Anotações e briefings" recolhido={recolhido} />
-        <Item ativo={rota === "integracoes"} onClick={() => ir("integracoes")} icone={Plug} rotulo="Integrações" recolhido={recolhido} />
+        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={LayoutGrid} rotulo="Central" recolhido={recolhido} />
+        <Item ativo={ativo(ASSISTENTE, rota)} onClick={() => ir(ASSISTENTE.rota)} icone={ASSISTENTE.icone} rotulo={ASSISTENTE.nome} recolhido={recolhido} />
         {recolhido ? <div className="flex justify-center"><Sininho ir={ir} compacto /></div> : <Sininho ir={ir} />}
       </div>
 
-      {GRUPOS.map((g) => (
-        <div key={g.id} className="flex flex-col gap-0.5">
-          {recolhido ? <div className="mx-2 mb-1 border-t border-line" /> : <div className="eyebrow px-2.5 pb-1">{g.nome}</div>}
-          {MODULOS.filter((m) => m.grupo === g.id).map((m) => (
-            <Item
-              key={m.id}
-              ativo={rota === m.id || rota.startsWith(m.id + "-") || (m.id === "clientes" && rota.startsWith("cliente"))}
-              onClick={() => ir(m.id)}
-              icone={m.icone}
-              rotulo={m.nome}
-              apagado={g.id === "futuro"}
-              recolhido={recolhido}
-            />
+      {SECOES.map((s) => (
+        <div key={s.id} className="flex flex-col gap-0.5">
+          {recolhido ? <div className="mx-2 mb-1 border-t border-line" /> : <div className="eyebrow px-2.5 pb-1">{s.nome}</div>}
+          {s.topicos.map((t) => (
+            <Item key={t.id} ativo={ativo(t, rota)} onClick={() => ir(t.rota)} icone={t.icone} rotulo={t.nome} recolhido={recolhido} />
           ))}
         </div>
       ))}
@@ -109,18 +93,21 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
           </div>
         )}
         <div className={`flex ${recolhido ? "flex-col" : ""}`}>
-        {onSair && (
-          <button onClick={onSair} className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg" aria-label="Sair">
-            <LogOut size={16} />
+          <button onClick={() => ir("integracoes")} className={`rounded-lg p-2 hover:bg-raised hover:text-fg ${rota === "integracoes" ? "text-accent" : "text-muted"}`} aria-label="Integrações" title="Integrações">
+            <Plug size={16} />
           </button>
-        )}
-        <button
-          onClick={alternarTema}
-          className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg"
-          aria-label={tema === "dark" ? "Usar tema claro" : "Usar tema escuro"}
-        >
-          {tema === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+          <button
+            onClick={alternarTema}
+            className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg"
+            aria-label={tema === "dark" ? "Usar tema claro" : "Usar tema escuro"}
+          >
+            {tema === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          {onSair && (
+            <button onClick={onSair} className="rounded-lg p-2 text-muted hover:bg-raised hover:text-fg" aria-label="Sair" title="Sair">
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
     </nav>

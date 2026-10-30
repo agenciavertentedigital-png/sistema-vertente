@@ -83,6 +83,23 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
     setTimeout(() => campo.current?.focus(), 50);
   }
 
+  // Pergunta feita na Central: já envia ao abrir
+  const inicial = useRef(false);
+  useEffect(() => {
+    if (inicial.current) return;
+    inicial.current = true;
+    try {
+      const q = sessionStorage.getItem("vertente.pergunta");
+      if (q) {
+        sessionStorage.removeItem("vertente.pergunta");
+        enviar(q);
+      }
+    } catch {
+      /* sem armazenamento */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function enviar(pergunta?: string) {
     const q = (pergunta ?? texto).trim();
     if (!q || pensando) return;
