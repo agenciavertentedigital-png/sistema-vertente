@@ -29,6 +29,7 @@ export const SERVICOS: Record<string, string> = {
   gmn: "Google Meu Negócio",
   social_media: "Social Media",
   consultoria: "Assessoria Estratégica",
+  crm: "CRM Vertente",
 };
 
 // Mesmas categorias da planilha "Controle Financeiro" da agência
