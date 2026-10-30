@@ -23,7 +23,7 @@ export function PaginaModulo({ modulo, ir }: { modulo: Modulo; ir: (r: string) =
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-[26px] font-semibold leading-tight">{modulo.nome}</h1>
+            <h1 className="text-[22px] font-semibold leading-tight">{modulo.nome}</h1>
             <FaseChip fase={modulo.fase} />
           </div>
           <p className="mt-1.5 max-w-[68ch] text-muted">{modulo.resumo}</p>

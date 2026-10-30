@@ -78,7 +78,7 @@ export function Reunioes({ rota, ir }: { rota: string; ir: (r: string) => void }
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="eyebrow">Ritual do time · {tipo === "daily" ? new Date(`${hj}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", timeZone: "UTC" }) : `semana de ${new Date(`${segunda(hj)}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", timeZone: "UTC" })}`}</div>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight">{tipo === "daily" ? "Daily" : "Weekly"}</h1>
+          <h1 className="text-[22px] font-semibold leading-tight">{tipo === "daily" ? "Daily" : "Weekly"}</h1>
         </div>
         <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
           {(["daily", "weekly"] as const).map((v) => (

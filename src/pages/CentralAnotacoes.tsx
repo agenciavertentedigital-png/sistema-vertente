@@ -11,8 +11,7 @@ export function CentralAnotacoes({ rota, ir }: { rota: string; ir: (r: string) =
     <div className="mx-auto flex max-w-[1280px] flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Conhecimento da agência</div>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight">Anotações e briefings</h1>
+          <h1 className="text-[22px] font-semibold leading-tight">Briefings e notas</h1>
         </div>
         <div role="tablist" className="flex gap-1 rounded-xl border border-line bg-surface p-1">
           {([["notas", "Anotações", NotebookPen, "anotacoes"], ["briefings", "Briefings dos clientes", Target, "anotacoes-briefings"]] as const).map(([v, n, I, r]) => (

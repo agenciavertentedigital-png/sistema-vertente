@@ -401,7 +401,7 @@ export function LinkFicha({ perfil, coleta }: { perfil: PerfilGmn; coleta?: Cole
   const url = coleta?.info.maps ?? perfil.url_maps;
   if (!url) return null;
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12.5px] text-white/80 hover:text-white">
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-accent hover:underline">
       <Link2 size={13} /> Abrir a ficha no Google
     </a>
   );

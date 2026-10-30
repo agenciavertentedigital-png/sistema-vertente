@@ -2,19 +2,18 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 /** Cabeçalho padrão das áreas: rótulo pequeno, título e ações à direita. */
-export function Cabecalho({ rotulo, titulo, descricao, acoes, icone: Icone }: { rotulo: string; titulo: string; descricao?: string; acoes?: ReactNode; icone?: LucideIcon }) {
+export function Cabecalho({ titulo, descricao, acoes, icone: Icone }: { rotulo?: string; titulo: string; descricao?: string; acoes?: ReactNode; icone?: LucideIcon }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3.5">
+      <div className="flex min-w-0 items-center gap-3">
         {Icone && (
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#1d34a0] to-[#0b1450] text-white shadow-md">
-            <Icone size={22} />
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-surface text-accent">
+            <Icone size={18} strokeWidth={1.8} />
           </span>
         )}
         <div className="min-w-0">
-          <div className="eyebrow">{rotulo}</div>
-          <h1 className="mt-0.5 text-[26px] font-semibold leading-tight">{titulo}</h1>
-          {descricao && <p className="mt-1 max-w-[70ch] text-[13px] text-muted">{descricao}</p>}
+          <h1 className="text-[22px] font-semibold leading-tight">{titulo}</h1>
+          {descricao && <p className="mt-0.5 max-w-[72ch] text-[13px] text-muted">{descricao}</p>}
         </div>
       </div>
       {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}
@@ -25,18 +24,18 @@ export function Cabecalho({ rotulo, titulo, descricao, acoes, icone: Icone }: { 
 export function Abas<T extends string>({ abas, ativa, mudar }: { abas: { id: T; nome: string; contador?: number }[]; ativa: T; mudar: (id: T) => void }) {
   return (
     <div className="-mx-1 overflow-x-auto px-1">
-      <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
+      <div role="tablist" className="flex w-max gap-0.5 rounded-xl bg-raised p-0.5">
         {abas.map((a) => (
           <button
             key={a.id}
             role="tab"
             aria-selected={ativa === a.id}
             onClick={() => mudar(a.id)}
-            className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium ${ativa === a.id ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}
+            className={`flex items-center gap-1.5 whitespace-nowrap rounded-[9px] px-3 py-1.5 text-[13px] font-medium ${ativa === a.id ? "bg-surface text-fg shadow-[0_0_0_1px_var(--line),0_1px_2px_rgb(0_0_0/0.05)]" : "text-muted hover:text-fg"}`}
           >
             {a.nome}
             {a.contador ? (
-              <span className={`num rounded-full px-1.5 text-[10.5px] ${ativa === a.id ? "bg-white/25" : "bg-raised"}`}>{a.contador}</span>
+              <span className={`num rounded-full px-1.5 text-[10.5px] ${ativa === a.id ? "bg-accent-soft text-accent" : "bg-surface/70"}`}>{a.contador}</span>
             ) : null}
           </button>
         ))}
@@ -60,14 +59,13 @@ export function Kpi({ rotulo, valor, detalhe, tom = "neutro", icone: Icone, onCl
   return (
     <Tag
       onClick={onClick}
-      className={`flex min-w-0 flex-col gap-1 rounded-2xl border bg-surface px-4 py-3.5 text-left ${ativo ? "border-accent ring-2 ring-accent-soft" : "border-line"} ${onClick ? "transition-colors hover:border-accent" : ""}`}
-      style={{ boxShadow: "var(--sombra)" }}
+      className={`flex min-w-0 flex-col gap-0.5 rounded-2xl border bg-surface px-4 py-3 text-left ${ativo ? "border-accent ring-[3px] ring-accent/10" : "border-line"} ${onClick ? "hover:border-line-forte hover:bg-raised/40" : ""}`}
     >
       <div className="flex items-center gap-1.5 text-[12px] text-muted">
-        {Icone && <Icone size={13} />}
+        {Icone && <Icone size={13} strokeWidth={1.8} />}
         {rotulo}
       </div>
-      <div className={`num truncate text-[22px] font-semibold leading-tight ${TOM[tom]}`}>{valor}</div>
+      <div className={`num truncate text-[21px] font-semibold leading-tight ${TOM[tom]}`}>{valor}</div>
       {detalhe && <div className="truncate text-[11.5px] text-muted">{detalhe}</div>}
     </Tag>
   );

@@ -53,7 +53,7 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
-      <Cabecalho icone={Activity} rotulo="Fase 6 · Gerencial" titulo="Gestor de Projetos" descricao="Saúde de cada cliente calculada com entregas, tráfego, relacionamento, financeiro, GMN e social media." />
+      <Cabecalho icone={Activity} rotulo="Fase 6 · Gerencial" titulo="Saúde e CS" descricao="Saúde de cada cliente calculada com entregas, tráfego, relacionamento, financeiro, GMN e social media." />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-line bg-surface px-4 py-3 lg:col-span-1" style={{ boxShadow: "var(--sombra)" }}>
           <Anel nota={media} tamanho={64} />

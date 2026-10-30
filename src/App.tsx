@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Menu as MenuIcone, X } from "lucide-react";
 import { Menu } from "./components/Menu";
 import { Marca } from "./components/Marca";
@@ -24,6 +24,7 @@ import { Cadastro } from "./pages/cadastro/Cadastro";
 import { Contratos } from "./pages/cadastro/Contratos";
 import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 import { Crm } from "./pages/Crm";
+import { Comando, useAtalhoComando } from "./components/Comando";
 import { Assistente } from "./pages/Assistente";
 import { Integracoes } from "./pages/Integracoes";
 import { CentralAnotacoes } from "./pages/CentralAnotacoes";
@@ -45,6 +46,9 @@ export default function App() {
   const [rota, ir] = useRota();
   const [tema, setTema] = useState<Tema>(temaInicial);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [comando, setComando] = useState(false);
+  const abrirComando = useCallback(() => setComando(true), []);
+  useAtalhoComando(abrirComando);
   const [recolhido, setRecolhido] = useState(() => {
     try {
       return localStorage.getItem("vertente.menu-recolhido") === "1";
@@ -97,7 +101,7 @@ export default function App() {
 
   const modulo = MODULOS.find((m) => m.id === rota);
   const naCentral = rota === "inicio" || (!modulo && !rotaConhecida(rota));
-  let pagina = <Central ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} />;
+  let pagina = <Central ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
   if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
@@ -122,12 +126,13 @@ export default function App() {
       alternarTema={alternarTema}
       usuario={usuario}
       onSair={sessao.tipo === "logado" ? sair : undefined}
+      abrirComando={() => { setMenuAberto(false); abrirComando(); }}
     />;
 
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <div className="flex h-full">
-      <aside className={`menu-marinho hidden shrink-0 transition-[width] duration-200 ${naCentral ? "" : "lg:block"} ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
+      <aside className={`menu-lateral hidden shrink-0 transition-[width] duration-200 ${naCentral ? "" : "lg:block"} ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
         <Menu
           rota={rota}
           ir={navegar}
@@ -137,6 +142,7 @@ export default function App() {
           onSair={sessao.tipo === "logado" ? sair : undefined}
           recolhido={recolhido}
           alternarRecolhido={alternarRecolhido}
+          abrirComando={abrirComando}
         />
       </aside>
 
@@ -144,7 +150,7 @@ export default function App() {
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuAberto(false)} />
           <aside
-            className="menu-marinho absolute inset-y-0 left-0 w-[272px] max-w-[85vw] shadow-xl"
+            className="menu-lateral anim-deslizar absolute inset-y-0 left-0 w-[272px] max-w-[85vw] shadow-xl"
             style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingLeft: "env(safe-area-inset-left, 0px)" }}
           >
             <button
@@ -184,20 +190,21 @@ export default function App() {
               : "overflow-y-auto py-6 sm:py-8"
           }`}
         >
-          {pagina}
+          <div key={rota.split("-")[0]} className={`anim-entrar ${rota === "crm" || rota === "assistente" ? "h-full" : ""}`}>{pagina}</div>
         </main>
         {rota !== "assistente" && rota !== "crm" && !naCentral && (
           <button
             onClick={() => navegar("assistente")}
-            className="fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex items-center gap-2 rounded-full bg-gradient-to-br from-[#1d34a0] to-[#0b1450] px-4 py-3 text-[13px] font-medium text-white shadow-xl transition-transform hover:-translate-y-0.5"
-            style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))" }}
+            className="fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-2.5 text-[13px] font-medium text-fg hover:-translate-y-0.5 hover:border-line-forte"
+            style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "var(--sombra-flutuante)" }}
             aria-label="Abrir o Assistente de IA"
           >
-            <Sparkles size={16} /> <span className="hidden sm:inline">Perguntar à IA</span>
+            <Sparkles size={15} className="text-accent" /> <span className="hidden sm:inline">Perguntar à IA</span>
           </button>
         )}
       </div>
       <Aviso />
+      <Comando aberto={comando} fechar={() => setComando(false)} ir={navegar} alternarTema={alternarTema} />
     </div>
     </ProvedorDados>
   );
@@ -217,9 +224,9 @@ function AbasCadastro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   ];
   return (
     <div className="mx-auto mb-5 max-w-[1240px]">
-    <div className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 sm:w-max">
+    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 sm:w-max">
       {abas.map((a) => (
-        <button key={a.id} onClick={() => ir(a.id)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${a.ativo ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
+        <button key={a.id} role="tab" aria-selected={a.ativo} onClick={() => ir(a.id)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${a.ativo ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
           {a.nome}
         </button>
       ))}

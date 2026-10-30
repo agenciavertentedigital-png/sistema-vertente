@@ -340,19 +340,19 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
         </div>
       </div>
 
-      <section className="relative overflow-hidden rounded-3xl p-6 text-white" style={{ background: "linear-gradient(135deg,#1d34a0 0%,#0b1450 60%,#060b2c 100%)" }}>
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/5" />
+      <section className="relative overflow-hidden rounded-3xl border border-line bg-surface p-6">
+        
         <div className="relative flex flex-wrap items-center gap-6">
-          <div className="rounded-full bg-white/95 p-1.5 text-fg" style={{ color: "#0e1533" }}>
+          <div>
             <Anel nota={a?.nota ?? null} tamanho={112} espessura={10} rotulo="de 100" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">GBP Check · Vertente</div>
+            <div className="text-[12px] font-medium text-muted">Análise da ficha do Google</div>
             <h1 className="mt-1 text-[28px] font-semibold leading-tight">{perfil.nome}</h1>
-            <div className="mt-1 text-[13px] text-white/70">
+            <div className="mt-1 text-[13px] text-muted">
               {[perfil.cliente_id ? d.cliente(perfil.cliente_id)?.nome : "Prospecção", perfil.categoria, perfil.cidade].filter(Boolean).join(" · ")}
             </div>
-            {a?.dados?.coleta?.info.endereco && <div className="text-[12.5px] text-white/60">{a.dados.coleta.info.endereco}</div>}
+            {a?.dados?.coleta?.info.endereco && <div className="text-[12.5px] text-muted">{a.dados.coleta.info.endereco}</div>}
             <div className="mt-1"><LinkFicha perfil={perfil} coleta={a?.dados?.coleta} /></div>
             {a && (
               <div className="mt-3 flex flex-wrap gap-5 text-[13px]">
@@ -571,7 +571,7 @@ function RaioX({ c, esconderCusto }: { c: DadosCompletos; esconderCusto: boolean
 function Info({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div>
-      <div className="text-[11px] text-white/55">{rotulo}</div>
+      <div className="text-[11.5px] text-muted">{rotulo}</div>
       <div className="font-semibold">{valor}</div>
     </div>
   );

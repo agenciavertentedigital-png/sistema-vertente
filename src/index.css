@@ -5,69 +5,70 @@
 /* Layout: menu lateral fixo + área de trabalho; central inicial em blocos Operacional / Gerencial.
    Neutros com leve viés azul-petróleo; acento petróleo ("vertente" = água descendo). */
 /* Identidade Vertente: azul-marinho do logo + prata. Fonte Poppins (objetiva e clara). */
+/* ============================================================
+   Vertente — design system
+   Papel frio, grafite, azul Vertente (interação) e marinho (marca).
+   Uma fonte só (Manrope, geométrica e clara), números tabulares.
+   Bordas finas em vez de sombras; sombra só no que flutua.
+   ============================================================ */
 :root {
-  --bg: #f3f5fa;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --raised: #eceff7;
-  --line: #dfe4ef;
-  --fg: #0e1533;
-  --muted: #5d6784;
-  --accent: #1d34a0;
-  --accent-soft: #e5eafb;
+  --raised: #eef0f4;
+  --line: #e3e6ec;
+  --line-forte: #d3d8e1;
+  --fg: #121624;
+  --muted: #697086;
+  --accent: #2747d6;
+  --accent-soft: #edf0fd;
   --accent-fg: #ffffff;
-  --warn: #b26a06;
-  --warn-soft: #fdf0dc;
-  --ok: #18804a;
-  --ok-soft: #dcf3e5;
-  --bad: #cc3a32;
-  --bad-soft: #fbe3e1;
-  --sombra: 0 1px 2px rgb(14 21 51 / 0.04), 0 6px 18px -10px rgb(14 21 51 / 0.12);
-  --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
-  --font-body: "Poppins", "Segoe UI", system-ui, sans-serif;
+  --marinho: #0e1a52;
+  --warn: #b4690e;
+  --warn-soft: #fbf1e2;
+  --ok: #157f4b;
+  --ok-soft: #e3f4ea;
+  --bad: #c8382e;
+  --bad-soft: #fbe8e6;
+  --lateral: #f0f2f5;
+  /* canais para opacidade no Tailwind (bg-accent/40…) */
+  --bg-c: 246 247 249; --surface-c: 255 255 255; --raised-c: 238 240 244; --line-c: 227 230 236; --line-forte-c: 211 216 225;
+  --fg-c: 18 22 36; --muted-c: 105 112 134; --accent-c: 39 71 214; --accent-soft-c: 237 240 253; --accent-fg-c: 255 255 255;
+  --warn-c: 180 105 14; --warn-soft-c: 251 241 226; --ok-c: 21 127 75; --ok-soft-c: 227 244 234; --bad-c: 200 56 46; --bad-soft-c: 251 232 230;
+  --sombra: 0 0 0 0 transparent;
+  --sombra-flutuante: 0 1px 2px rgb(18 22 36 / 0.06), 0 12px 32px -8px rgb(18 22 36 / 0.18);
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #070a18;
-    --surface: #0f1429;
-    --raised: #171d36;
-    --line: #242b48;
-    --fg: #e9ecf6;
-    --muted: #8f97b5;
-    --accent: #8ea3ff;
-    --accent-soft: #1a2350;
-    --accent-fg: #070a18;
-    --warn: #f0ae52;
-    --warn-soft: #36270e;
-    --ok: #5fd193;
-    --ok-soft: #10301f;
-    --bad: #ff7468;
-    --bad-soft: #3d1613;
-    --sombra: 0 1px 2px rgb(0 0 0 / 0.3);
+    --bg: #0c0e14; --surface: #13161e; --raised: #1a1e28; --line: #252a36; --line-forte: #323847;
+    --fg: #e8eaf0; --muted: #8c92a4; --accent: #8098ff; --accent-soft: #19203f; --accent-fg: #0c0e14;
+    --marinho: #c9d2ff;
+    --warn: #eaa64b; --warn-soft: #2e2311; --ok: #5ccb8f; --ok-soft: #0f2a1c; --bad: #f2756a; --bad-soft: #351714;
+    --lateral: #0f1118;
+    --bg-c: 12 14 20; --surface-c: 19 22 30; --raised-c: 26 30 40; --line-c: 37 42 54; --line-forte-c: 50 56 71;
+    --fg-c: 232 234 240; --muted-c: 140 146 164; --accent-c: 128 152 255; --accent-soft-c: 25 32 63; --accent-fg-c: 12 14 20;
+    --warn-c: 234 166 75; --warn-soft-c: 46 35 17; --ok-c: 92 203 143; --ok-soft-c: 15 42 28; --bad-c: 242 117 106; --bad-soft-c: 53 23 20;
+    --sombra-flutuante: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #070a18;
-  --surface: #0f1429;
-  --raised: #171d36;
-  --line: #242b48;
-  --fg: #e9ecf6;
-  --muted: #8f97b5;
-  --accent: #8ea3ff;
-  --accent-soft: #1a2350;
-  --accent-fg: #070a18;
-  --warn: #f0ae52;
-  --warn-soft: #36270e;
-  --ok: #5fd193;
-  --ok-soft: #10301f;
-  --bad: #ff7468;
-  --bad-soft: #3d1613;
-  --sombra: 0 1px 2px rgb(0 0 0 / 0.3);
+  --bg: #0c0e14; --surface: #13161e; --raised: #1a1e28; --line: #252a36; --line-forte: #323847;
+  --fg: #e8eaf0; --muted: #8c92a4; --accent: #8098ff; --accent-soft: #19203f; --accent-fg: #0c0e14;
+  --marinho: #c9d2ff;
+  --warn: #eaa64b; --warn-soft: #2e2311; --ok: #5ccb8f; --ok-soft: #0f2a1c; --bad: #f2756a; --bad-soft: #351714;
+  --lateral: #0f1118;
+  --bg-c: 12 14 20; --surface-c: 19 22 30; --raised-c: 26 30 40; --line-c: 37 42 54; --line-forte-c: 50 56 71;
+  --fg-c: 232 234 240; --muted-c: 140 146 164; --accent-c: 128 152 255; --accent-soft-c: 25 32 63; --accent-fg-c: 12 14 20;
+  --warn-c: 234 166 75; --warn-soft-c: 46 35 17; --ok-c: 92 203 143; --ok-soft-c: 15 42 28; --bad-c: 242 117 106; --bad-soft-c: 53 23 20;
+  --sombra-flutuante: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
-/* Menu lateral sempre em azul-marinho, como o logo */
+/* Faixa de marca (páginas públicas e login): marinho do logo */
 .menu-marinho {
   --surface: transparent;
   --raised: rgb(255 255 255 / 0.07);
@@ -77,9 +78,14 @@
   --accent: #ffffff;
   --accent-soft: rgb(255 255 255 / 0.13);
   --accent-fg: #0b1442;
-  --bad: #ff8a80;
-  background: linear-gradient(180deg, #0d1850 0%, #08103a 55%, #050a26 100%);
+  background: #0e1a52;
   color: var(--fg);
+}
+
+/* Menu lateral: painel neutro, a marca fica no traço "vertente" do item ativo */
+.menu-lateral {
+  background: var(--lateral);
+  border-right: 1px solid var(--line);
 }
 
 html,
@@ -103,15 +109,15 @@ h3 {
 }
 .eyebrow {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 10.5px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0;
   color: var(--muted);
 }
 .num {
   font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -125,13 +131,42 @@ h3 {
   }
 }
 
-/* Cartões com leve profundidade */
-.rounded-2xl.border.bg-surface,
-.rounded-xl.border.bg-surface {
-  box-shadow: var(--sombra);
-}
 h1 {
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+}
+h2, h3 { letter-spacing: -0.015em; }
+button, a, input, select, textarea {
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease), color 120ms var(--ease), opacity 120ms var(--ease), transform 160ms var(--ease);
+}
+::selection { background: rgb(var(--accent-c) / 0.18); }
+
+/* Movimento que responde à ação: troca de página, painéis e menus */
+@keyframes entrar { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes surgir { from { opacity: 0; transform: scale(0.98) translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes deslizar { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes brilho { 0% { background-position: -320px 0; } 100% { background-position: 320px 0; } }
+@keyframes pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.anim-entrar { animation: entrar 200ms var(--ease) both; }
+.anim-surgir { animation: surgir 140ms var(--ease) both; }
+.anim-deslizar { animation: deslizar 200ms var(--ease) both; }
+.esqueleto {
+  background: linear-gradient(90deg, var(--raised) 0px, var(--line) 80px, var(--raised) 160px);
+  background-size: 640px 100%;
+  animation: brilho 1.3s linear infinite;
+  border-radius: 6px;
+}
+.ponto-vivo { animation: pulso 2.4s ease-in-out infinite; }
+kbd {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line-forte);
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
 }
 /* Troca de logo conforme o tema */
 .claro-oculto { display: none; }
@@ -158,3 +193,22 @@ h1 {
 .md th, .md td { border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; white-space: nowrap; }
 .md th { font-weight: 600; color: var(--muted); font-size: 12px; }
 .md hr { border: 0; border-top: 1px solid var(--line); }
+
+/* Abas: um só controle segmentado em todo o sistema */
+[role="tablist"] {
+  background: var(--raised) !important;
+  border-color: transparent !important;
+  padding: 2px !important;
+  gap: 2px !important;
+  border-radius: 10px;
+}
+[role="tab"] {
+  border-radius: 8px !important;
+  font-weight: 500;
+}
+[role="tab"][aria-selected="true"] {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(18 22 36 / 0.06);
+}
+[role="tab"][aria-selected="false"]:hover { color: var(--fg); }

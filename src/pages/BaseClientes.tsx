@@ -24,8 +24,7 @@ export function BaseClientes() {
   return (
     <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
       <header>
-        <div className="eyebrow">Fase 0 · Fundação</div>
-        <h1 className="mt-1 text-[26px] font-semibold">Base de clientes</h1>
+        <h1 className="text-[22px] font-semibold">Base de clientes</h1>
         <p className="mt-1.5 max-w-[68ch] text-muted">
           A carteira atual. Todas as áreas do sistema se ligam a esta lista de clientes.
         </p>

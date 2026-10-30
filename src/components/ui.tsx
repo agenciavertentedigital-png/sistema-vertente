@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import type { Pilar, Prioridade, Status } from "../lib/tipos";
 
 export const campo =
-  "w-full min-w-0 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg outline-none focus:border-accent";
+  "w-full min-w-0 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg outline-none placeholder:text-muted/70 hover:border-line-forte focus:border-accent focus:ring-[3px] focus:ring-accent/15";
 
 export function Rotulo({ texto, children }: { texto: string; children: ReactNode }) {
   return (
@@ -29,14 +29,14 @@ export function Botao({
   ...props
 }: { variante?: "primario" | "secundario" | "fantasma" } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const estilos = {
-    primario: "bg-accent text-accent-fg hover:opacity-90",
-    secundario: "border border-line bg-surface text-fg hover:bg-raised",
+    primario: "bg-accent text-accent-fg shadow-[inset_0_1px_0_rgb(255_255_255/0.14)] hover:bg-accent/90",
+    secundario: "border border-line bg-surface text-fg hover:border-line-forte hover:bg-raised/60",
     fantasma: "text-muted hover:bg-raised hover:text-fg",
   };
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium disabled:opacity-50 ${estilos[variante]} ${props.className ?? ""}`}
+      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-medium active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 ${estilos[variante]} ${props.className ?? ""}`}
     >
       {children}
     </button>
@@ -55,12 +55,12 @@ export function Painel({ aberto, fechar, titulo, children, largura = 520 }: { ab
   // Portal: o painel não herda as cores do menu lateral
   return createPortal(
     <div className="fixed inset-0 z-50 text-fg">
-      <div className="absolute inset-0 bg-black/40" onClick={fechar} />
+      <div className="anim-entrar absolute inset-0 bg-[rgb(12_14_20/0.32)] backdrop-blur-[1px]" onClick={fechar} />
       <section
         role="dialog"
         aria-label={titulo}
-        className="absolute inset-y-0 right-0 flex w-full flex-col bg-bg shadow-2xl"
-        style={{ maxWidth: largura, paddingTop: "env(safe-area-inset-top, 0px)", paddingRight: "env(safe-area-inset-right, 0px)" }}
+        className="anim-deslizar absolute inset-y-0 right-0 flex w-full flex-col border-l border-line bg-bg"
+        style={{ maxWidth: largura, boxShadow: "var(--sombra-flutuante)", paddingTop: "env(safe-area-inset-top, 0px)", paddingRight: "env(safe-area-inset-right, 0px)" }}
       >
         <header className="flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
           <h2 className="truncate text-[15px] font-semibold">{titulo}</h2>
@@ -123,7 +123,18 @@ export function Iniciais({ nome }: { nome?: string }) {
 }
 
 export function Vazio({ children }: { children: ReactNode }) {
-  return <div className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-[13px] text-muted">{children}</div>;
+  // "Carregando…" vira esqueleto, para a tela não piscar texto
+  if (typeof children === "string" && children.startsWith("Carregando")) {
+    return (
+      <div className="flex flex-col gap-2.5 py-2" aria-busy="true" aria-label={children}>
+        <div className="esqueleto h-4 w-1/3" />
+        <div className="esqueleto h-16 w-full" />
+        <div className="esqueleto h-16 w-full" />
+        <div className="esqueleto h-16 w-2/3" />
+      </div>
+    );
+  }
+  return <div className="rounded-2xl border border-dashed border-line-forte px-4 py-10 text-center text-[13px] text-muted">{children}</div>;
 }
 
 export const COR_SITUACAO = {

@@ -15,8 +15,8 @@ export function Marca({ compacta = false, sobreEscuro = false }: { compacta?: bo
       )}
       {!compacta && (
         <div className="leading-none">
-          <div className="font-display text-[16px] font-bold tracking-[0.14em]">VERTENTE</div>
-          <div className="mt-1 text-[9.5px] font-medium uppercase tracking-[0.32em] text-muted">Digital · Sistema</div>
+          <div className="whitespace-nowrap font-display text-[15px] font-bold tracking-[0.14em]">VERTENTE</div>
+          <div className="mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.26em] text-muted">Digital · Sistema</div>
         </div>
       )}
     </div>

@@ -179,7 +179,7 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-line bg-surface" style={{ boxShadow: "var(--sombra)" }}>
         <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#1d34a0] to-[#0b1450] text-white">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-surface text-accent">
               <Sparkles size={17} />
             </span>
             <div className="min-w-0">
@@ -195,7 +195,7 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           {mensagens.length === 0 ? (
             <div className="mx-auto flex max-w-[680px] flex-col items-center gap-5 pt-6 text-center sm:pt-12">
-              <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-[#1d34a0] to-[#0b1450] text-white shadow-lg">
+              <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-surface text-accent">
                 <Sparkles size={26} />
               </span>
               <div>

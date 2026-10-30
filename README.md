@@ -149,3 +149,11 @@ npm run build:preview && node scripts/preparar-previa.mjs   # prévia em arquivo
 - Critérios em `src/lib/fichaGoogle.ts` (`CRITERIOS_FICHA`, 28 itens em Informações, Mídia, Avaliações e Atividade), nota ponderada 0–100; itens sem dado público (horário especial, fundação, serviços, vídeos…) ficam "Verificar" com Sim/Não no relatório.
 - Análise salva em `gmn_analises` com `dados.versao = 2`, `dados.coleta` e `dados.respostas`.
 - A função aceita chamada interna com `x-chave-cron` (testes e automações).
+
+## Design system (out/2026)
+
+- Tokens em `src/index.css` (claro e escuro) com canais RGB para opacidade no Tailwind (`bg-accent/40`). Fonte única Manrope; bordas finas no lugar de sombras (sombra só em painel, menu e paleta: `--sombra-flutuante`).
+- Menu lateral neutro (`.menu-lateral`) com o traço de destaque no item ativo; `.menu-marinho` fica só nas páginas públicas e no login.
+- Abas: um controle segmentado único, aplicado por CSS a todo `[role="tablist"]`.
+- Movimento: `.anim-entrar` (troca de página), `.anim-surgir` (paleta), `.anim-deslizar` (painéis), `.esqueleto` (carregando). Respeita "reduzir movimento".
+- Paleta de comandos (`Ctrl/⌘ K`, `src/components/Comando.tsx`): ir para qualquer área, aba ou cliente e perguntar à IA.

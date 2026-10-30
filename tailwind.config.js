@@ -3,23 +3,13 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      colors: {
-        bg: "var(--bg)",
-        surface: "var(--surface)",
-        raised: "var(--raised)",
-        line: "var(--line)",
-        fg: "var(--fg)",
-        muted: "var(--muted)",
-        accent: "var(--accent)",
-        "accent-soft": "var(--accent-soft)",
-        "accent-fg": "var(--accent-fg)",
-        warn: "var(--warn)",
-        "warn-soft": "var(--warn-soft)",
-        ok: "var(--ok)",
-        "ok-soft": "var(--ok-soft)",
-        bad: "var(--bad)",
-        "bad-soft": "var(--bad-soft)",
-      },
+      colors: Object.fromEntries(
+        ["bg", "surface", "raised", "line", "line-forte", "fg", "muted", "accent", "accent-soft", "accent-fg", "warn", "warn-soft", "ok", "ok-soft", "bad", "bad-soft"].map((n) => [
+          n,
+          `rgb(var(--${n}-c) / <alpha-value>)`,
+        ]),
+      ),
+      borderRadius: { lg: "8px", xl: "10px", "2xl": "12px", "3xl": "16px" },
       fontFamily: {
         display: ["var(--font-display)"],
         sans: ["var(--font-body)"],

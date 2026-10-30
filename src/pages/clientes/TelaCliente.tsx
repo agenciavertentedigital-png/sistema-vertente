@@ -414,7 +414,7 @@ function ResumoEstrategico({ b, fixadas, ir }: { b?: import("../../lib/briefing"
         <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
           {itens.map((i) => (
             <div key={i.rotulo} className="min-w-0">
-              <div className="text-[11px] uppercase tracking-wide text-muted">{i.rotulo}</div>
+              <div className="text-[11.5px] text-muted">{i.rotulo}</div>
               <div className={`truncate text-[13px] ${i.texto ? "font-medium" : "text-muted"}`}>{i.texto || "Definir no briefing"}</div>
             </div>
           ))}

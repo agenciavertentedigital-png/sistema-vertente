@@ -70,7 +70,7 @@ export function Crm() {
         ) : (
           <>
             <div className="flex min-w-0 items-center gap-3">
-              <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#1d34a0] to-[#0b1450] text-white sm:grid">
+              <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-accent sm:grid">
                 <MessagesSquare size={19} />
               </span>
               <div className="min-w-0">

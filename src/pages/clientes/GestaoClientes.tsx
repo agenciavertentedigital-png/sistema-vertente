@@ -42,8 +42,7 @@ export function GestaoClientes({ rota, ir }: { rota: string; ir: (r: string) => 
     <div className="mx-auto flex max-w-[1320px] flex-col gap-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="eyebrow">Fase 1 · Operacional</div>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight">Gestão de Clientes</h1>
+          <h1 className="text-[22px] font-semibold leading-tight">Clientes</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Botao variante="fantasma" onClick={() => d.recarregar()} aria-label="Atualizar">

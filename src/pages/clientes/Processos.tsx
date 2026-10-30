@@ -64,7 +64,7 @@ export function Processos() {
             <section key={p.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4" style={{ boxShadow: "var(--sombra)" }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#1d34a0] to-[#0b1450] text-white">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-surface text-accent">
                     <ListChecks size={18} />
                   </span>
                   <div className="min-w-0">
