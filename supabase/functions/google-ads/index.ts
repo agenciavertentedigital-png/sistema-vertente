@@ -1,5 +1,6 @@
 // Google Ads: conexão OAuth, lista de contas da MCC e sincronização das métricas diárias por campanha.
-// Chaves no Vault (tela Integrações): google_ads_mcc, google_ads_dev_token, google_ads_client_id, google_ads_client_secret.
+// Chaves no Vault (tela Integrações): google_ads_mcc, google_ads_client_id, google_ads_client_secret (google_ads_dev_token é opcional:
+// desde 09/09/2026 o nível de acesso fica no projeto do Google Cloud dono do OAuth).
 // O refresh token (google_ads_refresh_token) é gravado aqui mesmo, quando o admin autoriza no Google.
 // Chamadas: GET com ?code (volta do Google) | POST {acao: "conectar" | "contas" | "sincronizar", conta_id?, dias?}
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -88,7 +89,7 @@ Deno.serve(async (req) => {
   }
 
   const corpo = (await req.json().catch(() => ({}))) as { acao?: string; conta_id?: string; dias?: number };
-  const faltando = [!mcc && "ID da MCC", !devToken && "token de desenvolvedor", !clientId && "ID do cliente OAuth", !clientSecret && "chave secreta OAuth"].filter(Boolean);
+  const faltando = [!mcc && "ID da MCC", !clientId && "ID do cliente OAuth", !clientSecret && "chave secreta OAuth"].filter(Boolean);
 
   // ---------------- Conectar: devolve o link de autorização ----------------
   if (corpo.acao === "conectar") {
@@ -124,13 +125,14 @@ Deno.serve(async (req) => {
   async function gaql(customerId: string, query: string): Promise<Json[]> {
     const r = await fetch(`https://googleads.googleapis.com/${VERSAO}/customers/${soDigitos(customerId)}/googleAds:searchStream`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tk.access_token}`, "developer-token": devToken, "login-customer-id": loginId, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${tk.access_token}`, "login-customer-id": loginId, "Content-Type": "application/json", ...(devToken ? { "developer-token": devToken } : {}) },
       body: JSON.stringify({ query }),
     });
     const j = (await r.json().catch(() => null)) as Json[] | Json | null;
     if (!r.ok) {
       const e = (Array.isArray(j) ? j[0] : j) as { error?: { message?: string; details?: { errors?: { message?: string }[] }[] } } | null;
-      const msg = e?.error?.details?.[0]?.errors?.[0]?.message ?? e?.error?.message ?? `HTTP ${r.status}`;
+      let msg = e?.error?.details?.[0]?.errors?.[0]?.message ?? e?.error?.message ?? `HTTP ${r.status}`;
+      if (/NOT_APPROVED_FOR_PRODUCTION|test accounts|DEVELOPER_TOKEN_NOT_APPROVED/i.test(JSON.stringify(j))) msg = "O projeto do Google Cloud ainda está no nível Teste. Peça o nível Explorer na página da Google Ads API no Cloud Console.";
       throw new Error(msg);
     }
     return (Array.isArray(j) ? j : [j]).flatMap((lote) => ((lote as Json)?.results as Json[]) ?? []);

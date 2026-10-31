@@ -109,7 +109,7 @@ export function Integracoes() {
   const whatsOk = status.zapi_instancia && status.zapi_token && status.whatsapp_grupo;
   const cartoes = [
     { icone: Plug, nome: "Meta Ads", ok: status.meta_access_token, texto: "Sincroniza as contas de anúncio 3x ao dia." },
-    { icone: BarChart3, nome: "Google Ads", ok: !!(status.google_ads_refresh_token && status.google_ads_dev_token && status.google_ads_mcc), texto: "Sincroniza as campanhas 3x ao dia." },
+    { icone: BarChart3, nome: "Google Ads", ok: !!(status.google_ads_refresh_token && status.google_ads_mcc), texto: "Sincroniza as campanhas 3x ao dia." },
     { icone: Bot, nome: "IA do Assistente", ok: status.openai_api_key || status.anthropic_api_key, texto: status.anthropic_api_key ? "Usando Claude (Anthropic)." : "Usando ChatGPT (OpenAI)." },
     { icone: MapPin, nome: "Google Places (GBP Check)", ok: status.google_places_key, texto: "Busca nota, avaliações e fotos dos perfis do Google." },
     { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
@@ -140,10 +140,10 @@ export function Integracoes() {
 
       <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
         <h2 className="flex items-center gap-2 text-[16px] font-semibold"><BarChart3 size={17} className="text-accent" /> Google Ads</h2>
-        <p className="mt-1 text-[12.5px] text-muted">Pegue os dados na Central de API da MCC e no Google Cloud (credencial OAuth do tipo Aplicativo da Web, com o endereço de redirecionamento abaixo).</p>
+        <p className="mt-1 text-[12.5px] text-muted">O acesso à API agora fica no projeto do Google Cloud: ative a Google Ads API, peça o nível Explorer na página dela e crie a credencial OAuth (Aplicativo da Web) com o endereço abaixo.</p>
         <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
           <Campo rotulo="ID da MCC (ex.: 123-456-7890)" ok={!!status.google_ads_mcc} onSalvar={(v) => salvar("google_ads_mcc", v)} />
-          <Campo rotulo="Token de desenvolvedor" ok={!!status.google_ads_dev_token} onSalvar={(v) => salvar("google_ads_dev_token", v)} />
+          <Campo rotulo="Token de desenvolvedor (opcional desde set/2026)" ok={!!status.google_ads_dev_token} onSalvar={(v) => salvar("google_ads_dev_token", v)} />
           <Campo rotulo="ID do cliente OAuth" ok={!!status.google_ads_client_id} onSalvar={(v) => salvar("google_ads_client_id", v)} />
           <Campo rotulo="Chave secreta do cliente OAuth" ok={!!status.google_ads_client_secret} onSalvar={(v) => salvar("google_ads_client_secret", v)} />
         </div>
@@ -161,7 +161,7 @@ export function Integracoes() {
           {status.google_ads_refresh_token && (
             <button onClick={testarGoogle} disabled={conectando} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-raised disabled:opacity-40">Testar conexão</button>
           )}
-          <span className="text-[12px] text-muted">{status.google_ads_refresh_token ? "Conectado." : "Depois de salvar as 4 chaves, conecte com o Google que acessa a MCC."}</span>
+          <span className="text-[12px] text-muted">{status.google_ads_refresh_token ? "Conectado." : "Depois de salvar a MCC e as chaves OAuth, conecte com o Google que acessa a MCC."}</span>
         </div>
         {contasGoogle && (
           <ul className="mt-3 grid gap-1 text-[12.5px] sm:grid-cols-2">
