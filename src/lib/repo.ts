@@ -41,6 +41,8 @@ export interface Repo {
   salvarClienteRotina(id: string | null, campos: Partial<Omit<ClienteRotina, "id" | "ultima_data">>): Promise<void>;
   registrar(r: NovoRegistro): Promise<void>;
   linhaDoTempo(clienteId: string): Promise<ItemLinha[]>;
+  /** Tudo o que aconteceu com o cliente entre duas datas (AAAA-MM-DD, inclusivas): base do Diário de Bordo */
+  diario(clienteId: string, de: string, ate: string): Promise<ItemLinha[]>;
   marcarLidas(ids: string[]): Promise<void>;
 }
 
@@ -175,6 +177,45 @@ const repoSupabase = (): Repo => {
         ...(fe.data as unknown as F[]).map((f) => ({ id: f.id, quando: f.concluida_em, tipo: "concluida" as const, tarefa: f.titulo, autor: f.responsavel?.nome })),
       ];
       return itens.sort((a, b) => b.quando.localeCompare(a.quando));
+    },
+    async diario(clienteId, de, ate) {
+      const ini = `${de}T00:00:00-03:00`;
+      const fim = `${somarDias(ate, 1)}T00:00:00-03:00`;
+      const [rg, co, fe] = await Promise.all([
+        sb.from("registros").select(`${CAMPOS_REGISTRO}, autor:membros(nome)`).eq("cliente_id", clienteId).gte("data", de).lte("data", ate).order("criado_em"),
+        sb
+          .from("tarefa_comentarios")
+          .select("id, texto, criado_em, autor:membros(nome), tarefa:tarefas!inner(titulo, cliente_id)")
+          .eq("tarefa.cliente_id", clienteId)
+          .gte("criado_em", ini)
+          .lt("criado_em", fim)
+          .order("criado_em"),
+        sb
+          .from("tarefas")
+          .select("id, titulo, concluida_em, responsavel:membros!tarefas_responsavel_id_fkey(nome)")
+          .eq("cliente_id", clienteId)
+          .eq("status", "feita")
+          .gte("concluida_em", ini)
+          .lt("concluida_em", fim)
+          .order("concluida_em"),
+      ]);
+      [rg, co, fe].forEach((r) => erro(r.error));
+      type R = Registro & { autor: { nome: string } | null };
+      type C = { id: string; texto: string; criado_em: string; autor: { nome: string } | null; tarefa: { titulo: string } };
+      type F = { id: string; titulo: string; concluida_em: string; responsavel: { nome: string } | null };
+      // Comentários copiados de rotinas anteriores aparecem uma vez só (mesmo texto e horário)
+      const vistos = new Set<string>();
+      const coments = (co.data as unknown as C[]).filter((c) => {
+        const k = `${c.criado_em}|${c.texto}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+      return [
+        ...(rg.data as unknown as R[]).map((r) => ({ id: r.id, quando: r.data === r.criado_em.slice(0, 10) ? r.criado_em : `${r.data}T12:00:00-03:00`, tipo: "registro" as const, registro: r, autor: r.autor?.nome })),
+        ...coments.map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: c.tarefa.titulo, autor: c.autor?.nome })),
+        ...(fe.data as unknown as F[]).map((f) => ({ id: f.id, quando: f.concluida_em, tipo: "concluida" as const, tarefa: f.titulo, autor: f.responsavel?.nome })),
+      ];
     },
     async marcarLidas(ids) {
       if (ids.length) erro((await sb.from("notificacoes").update({ lida: true }).in("id", ids)).error);
@@ -336,6 +377,22 @@ const repoMemoria = (): Repo => {
           .filter((t) => t.cliente_id === clienteId)
           .flatMap((t) => t.coments.map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: t.titulo, autor: c.autor }))),
       ].sort((a, b) => b.quando.localeCompare(a.quando));
+    },
+    async diario(clienteId, de, ate) {
+      const nome = (id: string | null) => membros.find((m) => m.id === id)?.nome;
+      const dentro = (iso: string) => {
+        const d = new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+        return d >= de && d <= ate;
+      };
+      return [
+        ...registros.filter((r) => r.cliente_id === clienteId && r.data >= de && r.data <= ate).map((r) => ({ id: r.id, quando: r.criado_em, tipo: "registro" as const, registro: r, autor: nome(r.autor_id) })),
+        ...tarefas
+          .filter((t) => t.cliente_id === clienteId)
+          .flatMap((t) => t.coments.filter((c) => dentro(c.criado_em)).map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: t.titulo, autor: c.autor }))),
+        ...tarefas
+          .filter((t) => t.cliente_id === clienteId && t.status === "feita" && t.concluida_em && dentro(t.concluida_em))
+          .map((t) => ({ id: `f-${t.id}`, quando: t.concluida_em!, tipo: "concluida" as const, tarefa: t.titulo, autor: nome(t.responsavel_id) })),
+      ];
     },
     async marcarLidas(ids) {
       notificacoes.forEach((n) => ids.includes(n.id) && (n.lida = true));

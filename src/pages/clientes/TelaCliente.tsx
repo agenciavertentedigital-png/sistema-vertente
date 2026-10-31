@@ -26,15 +26,18 @@ import { LinhaDoTempo } from "../../components/LinhaDoTempo";
 import { NumerosDaConta } from "../../components/NumerosDaConta";
 import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
+import { RoteirosIA } from "../../components/RoteirosIA";
+import { DiarioBordo } from "../../components/DiarioBordo";
 import { PastaDrive } from "../../components/PastaDrive";
 import { AplicarProcesso, ProgressoProcessos, useProcessos } from "./Processos";
 import { AtSign, FileText, FolderOpen, ListChecks, MapPin, MessageCircle, Pin, Target } from "lucide-react";
 import { BriefingCliente } from "../../components/BriefingCliente";
+import { MarcarTemperatura } from "../../components/Temperatura";
 import { Anotacoes } from "../../components/Anotacoes";
 import { completudeBriefing, useBriefings, useNotas } from "../../lib/briefing";
 import { useFichas } from "../../lib/cadastro";
 
-type Aba = "tarefas" | "briefing" | "notas" | "linha" | "drive";
+type Aba = "tarefas" | "briefing" | "notas" | "roteiros" | "diario" | "linha" | "drive";
 
 export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
@@ -111,13 +114,17 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         ir={setAba}
       />
 
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <MarcarTemperatura clienteId={c.id} />
+      </section>
+
       <ProgressoProcessos clienteId={c.id} aplicados={proc.aplicados.linhas} />
 
       <NumerosDaConta clienteId={c.id} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1">
-          {([["tarefas", "Tarefas e rotinas"], ["briefing", "Briefing"], ["notas", "Anotações"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
+          {([["tarefas", "Tarefas e rotinas"], ["briefing", "Briefing"], ["notas", "Anotações"], ["roteiros", "Roteiros"], ["diario", "Diário de Bordo"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
             <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
               {n}
             </button>
@@ -130,6 +137,10 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <BriefingCliente clienteId={c.id} />
       ) : aba === "notas" ? (
         <Anotacoes clienteId={c.id} />
+      ) : aba === "roteiros" ? (
+        <RoteirosIA clienteId={c.id} />
+      ) : aba === "diario" ? (
+        <DiarioBordo clienteId={c.id} />
       ) : aba === "linha" ? (
         <LinhaDoTempo clienteId={c.id} />
       ) : aba === "drive" ? (

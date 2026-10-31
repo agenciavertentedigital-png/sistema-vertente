@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
 import { repo } from "../../lib/repo";
+import { MarcarTemperatura } from "../Temperatura";
 import { useDados } from "../../lib/dados";
 import {
   CANAL,
@@ -256,6 +257,11 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
             <Plus size={14} />
           </Botao>
         </form>
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-3">
+        <h3 className="text-[13px] font-semibold">Como está o cliente?</h3>
+        <MarcarTemperatura clienteId={t.cliente_id} tarefaId={t.id} compacto />
       </section>
 
       <section className="flex flex-col gap-2">

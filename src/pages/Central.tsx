@@ -13,6 +13,8 @@ import { demoLancamentos, demoPosts } from "../data/modulosDemo";
 import { SECOES, type Topico } from "../data/navegacao";
 import { Marca } from "../components/Marca";
 import { Sininho } from "../components/Sininho";
+import { SeloTemperatura } from "../components/Temperatura";
+import { useSaude } from "./projetos/GestorProjetos";
 
 interface Props {
   ir: (r: string) => void;
@@ -42,7 +44,6 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
   const atrasadas = abertas.filter(atrasada);
   const ontem = somarDias(h, -1);
   const gastoOntem = trafego.dias.filter((x) => x.data === ontem).reduce((s, x) => s + x.gasto, 0);
-  const contatosOntem = trafego.dias.filter((x) => x.data === ontem).reduce((s, x) => s + x.conversas + x.leads, 0);
   const contasProblema = trafego.contas.filter((c) => c.ativa && c.status && c.status !== "ativa").length;
   const ultimaSync = trafego.contas.map((c) => c.ultimo_sync).filter(Boolean).sort().pop() ?? null;
   const notasGmn = gmn.perfis.linhas.filter((p) => p.cliente_id).map((p) => gmn.historico(p.id)[0]?.nota).filter((n): n is number => n !== undefined);
@@ -74,12 +75,15 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
         ? `${graves === 1 ? "Uma coisa pede" : `${graves} coisas pedem`} atenção agora${atencao.length > graves ? `, e ${atencao.length - graves} podem esperar um pouco` : ""}.`
         : `Nada urgente. ${plural(atencao.length, "item pode", "itens podem")} ser resolvido${atencao.length > 1 ? "s" : ""} hoje.`;
 
+  const saude = useSaude();
+  const emRisco = saude.filter((x) => x.nota < 50).length;
+  const piores = saude.filter((x) => x.nota < 75).slice(0, 6);
+
   const numeros = [
-    { rotulo: "Suas tarefas hoje", valor: String(minhasHoje.length), rota: "clientes" },
-    { rotulo: "Investido ontem", valor: moedaBR(gastoOntem, 0), rota: "trafego" },
-    { rotulo: "Contatos ontem", valor: String(Math.round(contatosOntem)), rota: "trafego" },
-    { rotulo: "Custo por contato", valor: contatosOntem ? moedaBR(gastoOntem / contatosOntem) : "—", rota: "trafego" },
-    { rotulo: "Clientes ativos", valor: String(ativos.length), rota: "clientes-carteira" },
+    { rotulo: "suas tarefas hoje", valor: String(minhasHoje.length), rota: "clientes" },
+    { rotulo: "atrasadas no time", valor: String(atrasadas.length), rota: "clientes", alerta: atrasadas.length > 0 },
+    { rotulo: "clientes ativos", valor: String(ativos.length), rota: "clientes-carteira" },
+    { rotulo: "em risco", valor: String(emRisco), rota: "projetos", alerta: emRisco > 0 },
     { rotulo: "MRR", valor: mrr ? moedaBR(mrr, 0) : "—", rota: "financeiro" },
   ];
 
@@ -126,33 +130,55 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-[1120px] flex-col gap-10 px-[max(16px,env(safe-area-inset-left,0px))] pb-20 pt-10 sm:px-8">
-        {/* Abertura: data, frase do dia e estado da sincronização */}
-        <section>
-          <p className="text-[13px] font-medium text-muted">{data}</p>
-          <h1 className="mt-2 max-w-[24ch] text-[30px] font-semibold leading-[1.15] sm:text-[38px]">{frase}</h1>
-          <p className="mt-3 flex items-center gap-2 text-[12.5px] text-muted">
-            <span className={`ponto-vivo inline-block h-1.5 w-1.5 rounded-full ${contasProblema ? "bg-warn" : "bg-ok"}`} />
-            {horaSync ? `Meta sincronizado às ${horaSync}` : "Aguardando a primeira sincronização da Meta"}
-          </p>
+      <div className="mx-auto flex max-w-[1120px] flex-col gap-8 px-[max(16px,env(safe-area-inset-left,0px))] pb-20 pt-8 sm:px-8">
+        {/* Abertura: data e frase do dia, discretas; o destaque fica nas áreas */}
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
+            <span className="font-medium">{data}</span>
+            <span className="flex items-center gap-1.5">
+              <span className={`ponto-vivo inline-block h-1.5 w-1.5 rounded-full ${contasProblema ? "bg-warn" : "bg-ok"}`} />
+              {horaSync ? `Meta sincronizado às ${horaSync}` : "Aguardando a sincronização da Meta"}
+            </span>
+          </div>
+          <h1 className="max-w-[40ch] text-[22px] font-semibold leading-snug sm:text-[24px]">{frase}</h1>
+          <div className="flex flex-wrap gap-1.5">
+            {numeros.map((n) => (
+              <button key={n.rotulo} onClick={() => ir(n.rota)} className="inline-flex items-baseline gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12.5px] text-muted hover:border-line-forte hover:text-fg">
+                <b className={`num text-[13.5px] ${n.alerta ? "text-bad" : "text-fg"}`}>{n.valor}</b> {n.rotulo}
+              </button>
+            ))}
+          </div>
         </section>
 
-        {/* Números do dia: uma régua só */}
-        <section className="grid grid-cols-2 border-y border-line sm:grid-cols-3 lg:grid-cols-6">
-          {numeros.map((n, i) => (
-            <button
-              key={n.rotulo}
-              onClick={() => ir(n.rota)}
-              className={`group flex flex-col gap-1 py-4 text-left hover:bg-surface sm:px-4 ${i % 2 ? "pl-4" : ""} ${i ? "lg:border-l lg:border-line" : "lg:pl-0"} ${i >= 2 ? "border-t border-line sm:border-t-0" : ""} ${i >= 3 ? "sm:border-t lg:border-t-0" : ""}`}
-            >
-              <span className="text-[12px] text-muted">{n.rotulo}</span>
-              <span className="num text-[22px] font-semibold leading-none">{n.valor}</span>
-            </button>
+        {/* Áreas: o centro da tela */}
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {SECOES.map((s) => (
+            <div key={s.id} className="rounded-2xl border border-line bg-surface p-3">
+              <h2 className="px-2 pb-1 pt-1 text-[12.5px] font-semibold text-muted">{s.nome}</h2>
+              <div className="flex flex-col">
+                {s.topicos.map((t) => <Area key={t.id} t={t} linha={linha[t.id] ?? ""} ir={ir} />)}
+              </div>
+            </div>
           ))}
         </section>
 
-        {/* Atenção e o seu dia */}
-        <section className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* Saúde, atenção e o seu dia */}
+        <section className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+          <Bloco titulo="Saúde dos clientes" contador={piores.length} acao={{ texto: "Ver todos", onClick: () => ir("projetos") }}>
+            {piores.length === 0 ? (
+              <p className="py-3 text-[13px] text-muted">Todos os clientes com saúde boa.</p>
+            ) : (
+              piores.map((x) => (
+                <Linha key={x.clienteId} onClick={() => ir(`cliente-${x.clienteId}`)}>
+                  <span className="num w-7 shrink-0 text-[13px] font-semibold" style={{ color: x.nota < 50 ? "var(--bad)" : "var(--warn)" }}>{x.nota}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2"><span className="truncate font-medium">{d.cliente(x.clienteId)?.nome}</span><SeloTemperatura clienteId={x.clienteId} vazio="—" /></span>
+                    {x.pior && <span className="block truncate text-[12px] text-muted">{x.pior.motivo}</span>}
+                  </span>
+                </Linha>
+              ))
+            )}
+          </Bloco>
           <Bloco titulo="Pede atenção" contador={atencao.length}>
             {atencao.length === 0 ? (
               <p className="py-3 text-[13px] text-muted">Nada pendente. Bom momento para revisar as estratégias.</p>
@@ -172,25 +198,15 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
               minhasHoje.slice(0, 6).map((t) => (
                 <Linha key={t.id} onClick={() => ir(`cliente-${t.cliente_id}`)}>
                   <span className="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-line-forte" />
-                  <span className="min-w-0 flex-1 truncate">{t.titulo}</span>
-                  <span className="hidden max-w-[40%] truncate text-[12px] text-muted sm:inline">{d.cliente(t.cliente_id)?.nome}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{t.titulo}</span>
+                    <span className="block truncate text-[12px] text-muted">{d.cliente(t.cliente_id)?.nome}</span>
+                  </span>
                 </Linha>
               ))
             )}
             {minhasHoje.length > 6 && <button onClick={() => ir("clientes")} className="mt-1 text-[12.5px] font-medium text-accent hover:underline">Ver todas as {minhasHoje.length}</button>}
           </Bloco>
-        </section>
-
-        {/* Áreas */}
-        <section className="grid grid-cols-1 gap-8 md:grid-cols-3">
-          {SECOES.map((s) => (
-            <div key={s.id}>
-              <h2 className="mb-1.5 text-[13px] font-semibold text-muted">{s.nome}</h2>
-              <div className="flex flex-col">
-                {s.topicos.map((t) => <Area key={t.id} t={t} linha={linha[t.id] ?? ""} ir={ir} />)}
-              </div>
-            </div>
-          ))}
         </section>
       </div>
     </div>
@@ -205,12 +221,13 @@ function Icone({ rotulo, onClick, children }: { rotulo: string; onClick: () => v
   );
 }
 
-function Bloco({ titulo, contador, children }: { titulo: string; contador: number; children: ReactNode }) {
+function Bloco({ titulo, contador, acao, children }: { titulo: string; contador: number; acao?: { texto: string; onClick: () => void }; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <h2 className="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-muted">
         {titulo}
         {contador > 0 && <span className="num rounded-full bg-raised px-1.5 text-[11px] text-fg">{contador}</span>}
+        {acao && <button onClick={acao.onClick} className="ml-auto text-[12px] font-medium text-accent hover:underline">{acao.texto}</button>}
       </h2>
       <div className="flex flex-col border-t border-line">{children}</div>
     </div>

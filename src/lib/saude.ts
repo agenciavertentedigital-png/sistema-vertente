@@ -7,7 +7,7 @@ import type { AnaliseGmn, PerfilGmn } from "./gmn";
 import type { Post } from "./social";
 
 export interface Fator {
-  id: "entregas" | "trafego" | "relacionamento" | "financeiro" | "gmn" | "social";
+  id: "temperatura" | "entregas" | "trafego" | "relacionamento" | "financeiro" | "gmn" | "social";
   nome: string;
   peso: number;
   nota: number | null; // null = não se aplica a este cliente
@@ -22,6 +22,7 @@ export interface SaudeCliente {
 }
 
 export const PESOS: Record<Fator["id"], { nome: string; peso: number }> = {
+  temperatura: { nome: "Temperatura", peso: 30 },
   entregas: { nome: "Entregas no prazo", peso: 25 },
   trafego: { nome: "Tráfego", peso: 25 },
   relacionamento: { nome: "Relacionamento", peso: 20 },
@@ -41,12 +42,21 @@ export interface Fontes {
   perfis: PerfilGmn[];
   analises: (perfilId: string) => AnaliseGmn[];
   posts: Post[];
+  /** Última temperatura marcada pelo time */
+  temperatura?: (clienteId: string) => { nivel: number; dias: number; motivo: string | null; vencida: boolean } | null;
 }
 
 export function calcularSaude(clienteId: string, f: Fontes): SaudeCliente {
   const h = hoje();
   const fatores: Fator[] = [];
   const add = (id: Fator["id"], nota: number | null, motivo: string) => fatores.push({ id, ...PESOS[id], nota: nota === null ? null : Math.max(0, Math.min(100, Math.round(nota))), motivo });
+
+  // Temperatura (leitura do time): pesa mais que tudo
+  const temp = f.temperatura?.(clienteId);
+  if (temp && !temp.vencida) {
+    const nomes = ["", "Crítica", "Fria", "Morna", "Boa", "Ótima"];
+    add("temperatura", (temp.nivel - 1) * 25, `${nomes[temp.nivel]}${temp.motivo ? `: ${temp.motivo}` : ""}`);
+  } else add("temperatura", null, temp ? "Leitura vencida (mais de 45 dias)" : "Ainda sem leitura");
 
   // Entregas
   const abertas = f.tarefas.filter((t) => t.cliente_id === clienteId && ["a_fazer", "fazendo", "aguardando"].includes(t.status));
@@ -122,7 +132,9 @@ export function calcularSaude(clienteId: string, f: Fontes): SaudeCliente {
 
   const validos = fatores.filter((x) => x.nota !== null);
   const peso = validos.reduce((s, x) => s + x.peso, 0);
-  const nota = peso ? Math.round(validos.reduce((s, x) => s + x.peso * (x.nota ?? 0), 0) / peso) : 0;
+  let nota = peso ? Math.round(validos.reduce((s, x) => s + x.peso * (x.nota ?? 0), 0) / peso) : 0;
+  // Leitura do time manda: cliente marcado como crítico ou frio não pode aparecer saudável
+  if (temp && !temp.vencida && temp.nivel <= 2) nota = Math.min(nota, temp.nivel === 1 ? 35 : 55);
   const pior = validos.filter((x) => (x.nota ?? 100) < 75).sort((a, b) => a.peso * (100 - (a.nota ?? 0)) > b.peso * (100 - (b.nota ?? 0)) ? -1 : 1)[0] ?? null;
   return { clienteId, nota, fatores, pior };
 }

@@ -7,6 +7,8 @@ import { hoje, somarDias, TIPO_REGISTRO } from "../../lib/tipos";
 import { CAMPOS_LANCAMENTO, type Lancamento } from "../../lib/financeiro";
 import { CAMPOS_POST, type Post } from "../../lib/social";
 import { calcularSaude, PESOS, type Fator, type SaudeCliente } from "../../lib/saude";
+import { useTemperaturas } from "../../lib/temperatura";
+import { MarcarTemperatura, SeloTemperatura } from "../../components/Temperatura";
 import { useGmn } from "../gmn/GoogleMeuNegocio";
 import { demoLancamentos, demoPosts } from "../../data/modulosDemo";
 import { Vazio } from "../../components/ui";
@@ -15,16 +17,15 @@ import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 type Aba = "projetos" | "projetos-pilares" | "projetos-cs";
 const corNota = (n: number | null) => (n === null ? "var(--muted)" : n >= 75 ? "var(--ok)" : n >= 50 ? "var(--warn)" : "var(--bad)");
 
-export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => void }) {
+/** Saúde de todos os clientes (usada aqui e na Central). */
+export function useSaude() {
   const d = useDados();
-  const aba = (["projetos-pilares", "projetos-cs"].includes(rota) ? rota : "projetos") as Aba;
   const trafego = useTrafego();
   const gmn = useGmn();
+  const temp = useTemperaturas();
   const lanc = useTabela<Lancamento>("lancamentos", CAMPOS_LANCAMENTO, demoLancamentos, { desde: { coluna: "competencia", valor: somarDias(hoje(), -120) } });
   const posts = useTabela<Post>("posts", CAMPOS_POST, demoPosts, { desde: { coluna: "data", valor: somarDias(hoje(), -120) }, ordem: { coluna: "data" } });
-  const [filtro, setFiltro] = useState<"todos" | "risco" | "atencao" | "bem">("todos");
-
-  const saude = useMemo<SaudeCliente[]>(
+  return useMemo<SaudeCliente[]>(
     () =>
       d.clientes
         .filter((c) => c.nome !== "Agência Vertente Digital")
@@ -38,22 +39,31 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
             perfis: gmn.perfis.linhas,
             analises: gmn.historico,
             posts: posts.linhas,
+            temperatura: temp.atual,
           }),
         )
         .sort((a, b) => a.nota - b.nota),
-    [d.clientes, d.tarefas, d.registros, trafego.contas, trafego.dias, lanc.linhas, lanc.erro, gmn.perfis.linhas, gmn.historico, posts.linhas],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [d.clientes, d.tarefas, d.registros, trafego.contas, trafego.dias, lanc.linhas, lanc.erro, gmn.perfis.linhas, gmn.historico, posts.linhas, temp.linhas],
   );
+}
+
+export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => void }) {
+  const d = useDados();
+  const aba = (["projetos-pilares", "projetos-cs"].includes(rota) ? rota : "projetos") as Aba;
+  const [filtro, setFiltro] = useState<"todos" | "risco" | "atencao" | "bem">("todos");
+  const saude = useSaude();
 
   const media = saude.length ? Math.round(saude.reduce((s, x) => s + x.nota, 0) / saude.length) : null;
   const risco = saude.filter((s) => s.nota < 50);
   const atencao = saude.filter((s) => s.nota >= 50 && s.nota < 75);
   const bem = saude.filter((s) => s.nota >= 75);
   const vis = filtro === "risco" ? risco : filtro === "atencao" ? atencao : filtro === "bem" ? bem : saude;
-  const carregando = d.carregando || trafego.carregando || gmn.perfis.carregando;
+  const carregando = d.carregando;
 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-5">
-      <Cabecalho icone={Activity} rotulo="Fase 6 · Gerencial" titulo="Saúde e CS" descricao="Saúde de cada cliente calculada com entregas, tráfego, relacionamento, financeiro, GMN e social media." />
+      <Cabecalho icone={Activity} rotulo="Fase 6 · Gerencial" titulo="Saúde e CS" descricao="A temperatura marcada pelo time pesa mais; entregas, tráfego, relacionamento, financeiro, GMN e social completam a nota." />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2 flex items-center gap-4 rounded-2xl border border-line bg-surface px-4 py-3 lg:col-span-1" style={{ boxShadow: "var(--sombra)" }}>
           <Anel nota={media} tamanho={64} />
@@ -85,11 +95,11 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
 function CartaoSaude({ s, abrir }: { s: SaudeCliente; abrir: () => void }) {
   const d = useDados();
   return (
-    <button onClick={abrir} className="group flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left transition-colors hover:border-accent" style={{ boxShadow: "var(--sombra)" }}>
+    <div role="link" tabIndex={0} onClick={abrir} onKeyDown={(e) => e.key === "Enter" && abrir()} className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-line bg-surface p-4 text-left hover:border-line-forte">
       <div className="flex items-center gap-3">
         <Anel nota={s.nota} tamanho={54} espessura={6} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold">{d.cliente(s.clienteId)?.nome}</div>
+          <div className="flex items-center gap-2"><span className="truncate text-[15px] font-semibold">{d.cliente(s.clienteId)?.nome}</span><SeloTemperatura clienteId={s.clienteId} /></div>
           {s.pior ? (
             <div className="text-[12.5px]" style={{ color: corNota(s.pior.nota) }}>
               O que mais pesa: <b>{s.pior.nome}</b> · {s.pior.motivo}
@@ -100,10 +110,13 @@ function CartaoSaude({ s, abrir }: { s: SaudeCliente; abrir: () => void }) {
         </div>
         <ArrowRight size={16} className="text-muted transition-transform group-hover:translate-x-0.5" />
       </div>
-      <div className="grid grid-cols-3 gap-x-4 gap-y-2 sm:grid-cols-6">
+      <div className="grid grid-cols-4 gap-x-4 gap-y-2 sm:grid-cols-7">
         {s.fatores.map((f) => <BarraFator key={f.id} f={f} />)}
       </div>
-    </button>
+      <div onClick={(e) => e.stopPropagation()} className="border-t border-line pt-3">
+        <MarcarTemperatura clienteId={s.clienteId} compacto />
+      </div>
+    </div>
   );
 }
 
@@ -171,6 +184,7 @@ function FluxoCS({ saude, ir }: { saude: SaudeCliente[]; ir: (r: string) => void
             <tr className="text-left text-[11.5px] text-muted">
               <th className="py-2 font-medium">Cliente</th>
               <th className="py-2 font-medium">Saúde</th>
+              <th className="py-2 font-medium">Temperatura</th>
               <th className="py-2 font-medium">Último registro</th>
               <th className="py-2 font-medium">Última reunião</th>
               <th />
@@ -181,6 +195,7 @@ function FluxoCS({ saude, ir }: { saude: SaudeCliente[]; ir: (r: string) => void
               <tr key={s.clienteId}>
                 <td className="py-2.5 font-medium">{d.cliente(s.clienteId)?.nome}</td>
                 <td className="py-2.5"><Selo cor={corNota(s.nota)}>{s.nota}</Selo></td>
+                <td className="py-2.5"><SeloTemperatura clienteId={s.clienteId} /></td>
                 <td className="py-2.5">
                   <span style={{ color: corNota(rel.nota) }}>{rel.motivo}</span>
                   {ultimo && <span className="text-muted"> · {TIPO_REGISTRO[ultimo.tipo]}</span>}

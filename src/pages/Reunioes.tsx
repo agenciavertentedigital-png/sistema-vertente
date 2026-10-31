@@ -5,6 +5,7 @@ import { repo } from "../lib/repo";
 import { CANAL, SITUACAO, STATUS_ABERTOS, atrasada, dataCurta, diasUteis, hoje, somarDias, type Registro } from "../lib/tipos";
 import { Botao, Entrada, Iniciais, PontoSituacao, Rotulo, Vazio } from "../components/ui";
 import { CampoMencao, TextoComMencoes } from "../components/LinhaDoTempo";
+import { DailyRespostas, WeeklyRespostas } from "../components/RespostasRitual";
 import { PainelTarefa } from "../components/tarefas/PainelTarefa";
 
 type Tipo = "daily" | "weekly";
@@ -94,6 +95,8 @@ export function Reunioes({ rota, ir }: { rota: string; ir: (r: string) => void }
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="flex min-w-0 flex-col gap-5">
+            {tipo === "daily" ? <DailyRespostas data={hj} /> : <WeeklyRespostas semana={segunda(hj)} />}
+
             {semanaPassada && (
               <section className="flex flex-col gap-2">
                 <h2 className="text-[14px] font-semibold">Semana passada <span className="font-normal text-muted">({dataCurta(semanaPassada.ini)} a {dataCurta(semanaPassada.fim)})</span></h2>

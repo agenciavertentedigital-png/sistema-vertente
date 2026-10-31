@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ClipboardCopy, Compass, Link2, Lock, Target, Users, Wallet } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { SISTEMA_URL, supabase } from "../lib/supabase";
+import { useEstrategiaIA } from "./EstrategiaIA";
 import { CAMPOS_BRIEFING, SECOES_BRIEFING, briefingEmTexto, completudeBriefing, useBriefings, type CampoBriefing } from "../lib/briefing";
 import { Botao } from "./ui";
 
@@ -39,6 +40,17 @@ export function BriefingCliente({ clienteId }: { clienteId: string }) {
     setSalvando(null);
   }
 
+  async function aplicarEstrategia(novos: Record<string, string>) {
+    const campos = { ...(b?.campos ?? {}), ...valores, ...novos };
+    setValores(campos);
+    try {
+      await tb.salvar(b?.id ?? null, { cliente_id: clienteId, campos, atualizado_por: d.eu });
+      setAviso("Estratégia aplicada no briefing.");
+    } catch (e) {
+      setAviso(`Não salvou: ${(e as Error).message}`);
+    }
+  }
+
   async function gerarLink() {
     if (!supabase) return setAviso("Na prévia não dá para gerar o link. Use o sistema em sistema.agenciavertente.com.br.");
     const { data, error } = await supabase.from("cadastro_links").insert({ cliente_id: clienteId, tipo: "briefing" }).select("token").single();
@@ -62,6 +74,9 @@ export function BriefingCliente({ clienteId }: { clienteId: string }) {
     { icone: Users, rotulo: "Cliente ideal", texto: v("persona"), chave: "persona" },
   ];
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const ia = useEstrategiaIA({ cliente: cliente?.nome ?? "", clienteId, briefingTexto: briefingEmTexto(cliente?.nome ?? "", base), aplicar: aplicarEstrategia });
+
   if (tb.carregando) return <p className="p-4 text-[13px] text-muted">Carregando briefing…</p>;
 
   return (
@@ -80,10 +95,13 @@ export function BriefingCliente({ clienteId }: { clienteId: string }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {ia.botao}
           <Botao onClick={() => copiar(briefingEmTexto(cliente?.nome ?? "", base), "Briefing copiado. Dá para colar no ChatGPT, num documento ou no WhatsApp.")}><ClipboardCopy size={14} /> Copiar briefing</Botao>
           <Botao variante="primario" onClick={gerarLink}><Link2 size={14} /> Enviar para o cliente preencher</Botao>
         </div>
       </div>
+
+      {ia.painel}
 
       {link && (
         <div className="flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3 text-[13px]">

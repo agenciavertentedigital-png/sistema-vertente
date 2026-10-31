@@ -7,7 +7,11 @@ import { supabase } from "./supabase";
  */
 const memoria = new Map<string, Record<string, unknown>[]>();
 const ouvintes = new Map<string, Set<() => void>>();
+/** Leituras iguais feitas ao mesmo tempo (vários componentes na tela) viram uma só ida ao banco */
+const emVoo = new Map<string, { em: number; promessa: Promise<{ linhas: unknown[]; falha: string }> }>();
+const REUSO_MS = 4000;
 function avisarMudanca(nome: string) {
+  for (const k of emVoo.keys()) if (k.startsWith(`${nome}|`)) emVoo.delete(k);
   ouvintes.get(nome)?.forEach((f) => f());
 }
 
@@ -31,28 +35,39 @@ export function useTabela<T extends { id: string }>(nome: string, colunas: strin
       setCarregando(false);
       return;
     }
-    const o = JSON.parse(chaveOpcoes) as OpcoesTabela;
-    // O Supabase devolve no máximo 1000 linhas por vez: busca em páginas
-    const todas: T[] = [];
-    let falha = "";
-    for (let de = 0; ; de += 1000) {
-      let q = supabase.from(nome).select(colunas);
-      if (o.desde) q = q.gte(o.desde.coluna, o.desde.valor);
-      if (o.ordem) q = q.order(o.ordem.coluna, { ascending: o.ordem.asc ?? true });
-      q = q.order("id");
-      const ate = o.limite ? Math.min(de + 999, o.limite - 1) : de + 999;
-      const { data, error } = await q.range(de, ate);
-      if (error) {
-        falha = error.message;
-        break;
-      }
-      todas.push(...((data ?? []) as unknown as T[]));
-      if (!data || data.length < ate - de + 1 || (o.limite && todas.length >= o.limite)) break;
+    const chave = `${nome}|${colunas}|${chaveOpcoes}`;
+    let voo = emVoo.get(chave);
+    if (!voo || Date.now() - voo.em > REUSO_MS) {
+      const o = JSON.parse(chaveOpcoes) as OpcoesTabela;
+      const sb = supabase;
+      const promessa = (async () => {
+        // O Supabase devolve no máximo 1000 linhas por vez: busca em páginas
+        const todas: unknown[] = [];
+        let falha = "";
+        for (let de = 0; ; de += 1000) {
+          let q = sb.from(nome).select(colunas);
+          if (o.desde) q = q.gte(o.desde.coluna, o.desde.valor);
+          if (o.ordem) q = q.order(o.ordem.coluna, { ascending: o.ordem.asc ?? true });
+          q = q.order("id");
+          const ate = o.limite ? Math.min(de + 999, o.limite - 1) : de + 999;
+          const { data, error } = await q.range(de, ate);
+          if (error) {
+            falha = error.message;
+            break;
+          }
+          todas.push(...(data ?? []));
+          if (!data || data.length < ate - de + 1 || (o.limite && todas.length >= o.limite)) break;
+        }
+        return { linhas: todas, falha };
+      })();
+      voo = { em: Date.now(), promessa };
+      emVoo.set(chave, voo);
     }
+    const { linhas: todas, falha } = await voo.promessa;
     if (falha) setErro(falha);
     else {
       setErro("");
-      setLinhas(todas);
+      setLinhas(todas as T[]);
     }
     setCarregando(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

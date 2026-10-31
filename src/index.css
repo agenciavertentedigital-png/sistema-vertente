@@ -231,3 +231,15 @@ kbd {
 #area-principal table td { font-variant-numeric: tabular-nums; }
 #area-principal table tbody tr:last-child > td { border-bottom: 0; }
 #area-principal table input[type="number"] { font-variant-numeric: tabular-nums; }
+
+/* Diário de Bordo: ao exportar, imprime só o documento, sempre no tema claro */
+@media print {
+  body.imprimindo-diario { background: #fff !important; }
+  body.imprimindo-diario * { visibility: hidden; }
+  body.imprimindo-diario #diario-impressao, body.imprimindo-diario #diario-impressao * { visibility: visible; }
+  body.imprimindo-diario #diario-impressao { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; }
+  body.imprimindo-diario .nao-imprimir { display: none !important; }
+  body.imprimindo-diario #diario-impressao section, body.imprimindo-diario #diario-impressao header { break-inside: avoid; box-shadow: none !important; }
+  body.imprimindo-diario { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 14mm; }
+}
