@@ -143,6 +143,11 @@ const repoSupabase = (): RepoTrafego => {
       return (r.data as LinhaCampanha[]).map((l) => ({ ...l, gasto: num(l.gasto), resultados: num(l.resultados) }));
     },
     async sincronizar(contaId) {
+      // Google Ads em paralelo (se não estiver configurado, só ignora)
+      const google = sb.functions.invoke("google-ads", { body: contaId ? { acao: "sincronizar", conta_id: contaId } : { acao: "sincronizar" } }).then(
+        (r) => ((r.data?.contas ?? []) as { erro?: string }[]),
+        () => [] as { erro?: string }[],
+      );
       const { data, error } = await sb.functions.invoke("sincronizar-meta", { body: contaId ? { conta_id: contaId } : {} });
       if (error) {
         // A função devolve { erro } no corpo; tenta ler a mensagem
@@ -150,7 +155,7 @@ const repoSupabase = (): RepoTrafego => {
         const corpo = ctx ? await ctx.json().catch(() => null) : null;
         throw new Error(corpo?.erro ?? error.message);
       }
-      const contas = (data?.contas ?? []) as { erro?: string }[];
+      const contas = [...((data?.contas ?? []) as { erro?: string }[]), ...(await google)];
       const falhas = contas.filter((c) => c.erro).length;
       return falhas ? `Atualizado, mas ${falhas} conta(s) deram erro. Veja na aba Contas.` : `${contas.length} conta(s) atualizadas`;
     },

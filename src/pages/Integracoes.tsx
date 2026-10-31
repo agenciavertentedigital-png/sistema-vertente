@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, CheckCircle2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Search, Smartphone, XCircle } from "lucide-react";
+import { BarChart3, Bot, CheckCircle2, Link2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Search, Smartphone, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { chamarFuncao } from "../lib/tabela";
 
@@ -19,6 +19,47 @@ export function Integracoes() {
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [saldo, setSaldo] = useState<number | null>(null);
+  const [conectando, setConectando] = useState(false);
+  const [contasGoogle, setContasGoogle] = useState<{ id: string; nome: string; status: string }[] | null>(null);
+
+  // Volta da autorização do Google (#integracoes?google=ok)
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("google");
+    if (!r) return;
+    const msg: Record<string, string> = {
+      ok: "Google Ads conectado. Agora vincule as contas aos clientes em Tráfego > Contas.",
+      recusado: "A autorização no Google foi cancelada.",
+      expirado: "O link de autorização expirou. Clique em Conectar Google Ads de novo.",
+      sem_refresh: "O Google não devolveu a permissão permanente. Remova o acesso do app em myaccount.google.com/permissions e conecte de novo.",
+      erro: "Não deu para concluir a conexão com o Google. Tente de novo.",
+    };
+    setAviso(msg[r] ?? msg.erro);
+    try { history.replaceState(null, "", "#integracoes"); } catch { /* ignora */ }
+  }, []);
+
+  async function conectarGoogle() {
+    setConectando(true);
+    try {
+      const r = await chamarFuncao<{ url: string }>("google-ads", { acao: "conectar" });
+      window.location.href = r.url;
+    } catch (e) {
+      setAviso((e as Error).message);
+      setConectando(false);
+    }
+  }
+
+  async function testarGoogle() {
+    setConectando(true);
+    try {
+      const r = await chamarFuncao<{ contas: { id: string; nome: string; status: string }[] }>("google-ads", { acao: "contas" });
+      setContasGoogle(r.contas);
+      setAviso(`Conexão funcionando: ${r.contas.length} conta${r.contas.length === 1 ? "" : "s"} na MCC.`);
+    } catch (e) {
+      setAviso(`Google Ads: ${(e as Error).message}`);
+    } finally {
+      setConectando(false);
+    }
+  }
 
   async function carregar() {
     if (!supabase) return;
@@ -68,6 +109,7 @@ export function Integracoes() {
   const whatsOk = status.zapi_instancia && status.zapi_token && status.whatsapp_grupo;
   const cartoes = [
     { icone: Plug, nome: "Meta Ads", ok: status.meta_access_token, texto: "Sincroniza as contas de anúncio 3x ao dia." },
+    { icone: BarChart3, nome: "Google Ads", ok: !!(status.google_ads_refresh_token && status.google_ads_dev_token && status.google_ads_mcc), texto: "Sincroniza as campanhas 3x ao dia." },
     { icone: Bot, nome: "IA do Assistente", ok: status.openai_api_key || status.anthropic_api_key, texto: status.anthropic_api_key ? "Usando Claude (Anthropic)." : "Usando ChatGPT (OpenAI)." },
     { icone: MapPin, nome: "Google Places (GBP Check)", ok: status.google_places_key, texto: "Busca nota, avaliações e fotos dos perfis do Google." },
     { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
@@ -83,7 +125,7 @@ export function Integracoes() {
       </header>
       {aviso && <div className="rounded-lg bg-accent/10 px-3 py-2 text-[13px] text-accent">{aviso}</div>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {cartoes.map((c) => (
           <div key={c.nome} className="rounded-xl bg-surface p-4" style={{ boxShadow: "var(--sombra)" }}>
             <div className="flex items-center justify-between">
@@ -95,6 +137,38 @@ export function Integracoes() {
           </div>
         ))}
       </div>
+
+      <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold"><BarChart3 size={17} className="text-accent" /> Google Ads</h2>
+        <p className="mt-1 text-[12.5px] text-muted">Pegue os dados na Central de API da MCC e no Google Cloud (credencial OAuth do tipo Aplicativo da Web, com o endereço de redirecionamento abaixo).</p>
+        <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
+          <Campo rotulo="ID da MCC (ex.: 123-456-7890)" ok={!!status.google_ads_mcc} onSalvar={(v) => salvar("google_ads_mcc", v)} />
+          <Campo rotulo="Token de desenvolvedor" ok={!!status.google_ads_dev_token} onSalvar={(v) => salvar("google_ads_dev_token", v)} />
+          <Campo rotulo="ID do cliente OAuth" ok={!!status.google_ads_client_id} onSalvar={(v) => salvar("google_ads_client_id", v)} />
+          <Campo rotulo="Chave secreta do cliente OAuth" ok={!!status.google_ads_client_secret} onSalvar={(v) => salvar("google_ads_client_secret", v)} />
+        </div>
+        <div className="mt-3 flex flex-col gap-1 text-[12.5px]">
+          <span className="text-muted">URI de redirecionamento autorizado (cole no Google Cloud):</span>
+          <div className="flex gap-2">
+            <input readOnly value="https://phtbhawdzewrzaiegheo.supabase.co/functions/v1/google-ads" className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px]" />
+            <button onClick={() => { navigator.clipboard?.writeText("https://phtbhawdzewrzaiegheo.supabase.co/functions/v1/google-ads"); setAviso("Endereço copiado."); }} className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 text-[12.5px] hover:bg-raised"><Copy size={14} /> Copiar</button>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button onClick={conectarGoogle} disabled={conectando || !status.google_ads_client_id || !status.google_ads_client_secret} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-fg disabled:opacity-40">
+            <Link2 size={14} /> {status.google_ads_refresh_token ? "Reconectar Google Ads" : "Conectar Google Ads"}
+          </button>
+          {status.google_ads_refresh_token && (
+            <button onClick={testarGoogle} disabled={conectando} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-raised disabled:opacity-40">Testar conexão</button>
+          )}
+          <span className="text-[12px] text-muted">{status.google_ads_refresh_token ? "Conectado." : "Depois de salvar as 4 chaves, conecte com o Google que acessa a MCC."}</span>
+        </div>
+        {contasGoogle && (
+          <ul className="mt-3 grid gap-1 text-[12.5px] sm:grid-cols-2">
+            {contasGoogle.map((c) => <li key={c.id} className="rounded-lg border border-line px-3 py-1.5"><b>{c.nome}</b> <span className="font-mono text-muted">{c.id}</span> · {c.status}</li>)}
+          </ul>
+        )}
+      </section>
 
       <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
         <h2 className="flex items-center gap-2 text-[16px] font-semibold"><MessageCircle size={17} className="text-accent" /> WhatsApp do time</h2>
