@@ -15,6 +15,7 @@ import {
   type RelatorioMeta,
 } from "../../lib/relatorio";
 import { Botao, Entrada, Vazio } from "../../components/ui";
+import { FunilComercial } from "./FunilComercial";
 
 // ------------------------------------------------------------------
 // Formatação
@@ -157,6 +158,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
               <GraficoDiario dias={r.dias} />
             </Cartao>
           </section>
+          <FunilComercial clienteId={clienteId} ini={per.ini} fim={per.fim} contatos={contatosDe(r)} gasto={r.total.gasto} />
           <PorObjetivo grupos={r.grupos} total={r.total.gasto} />
           <Criativos anuncios={r.anuncios} />
           <Campanhas grupos={r.grupos} />
