@@ -70,6 +70,10 @@ export interface Tarefa {
   clickup_id: string | null;
   processo_aplicado_id?: string | null;
   concluida_em: string | null;
+  /** Controle de tempo (minutos). O banco soma sozinho o tempo em "Fazendo". */
+  estimativa_min?: number | null;
+  tempo_min?: number;
+  fazendo_desde?: string | null;
   checklist_total: number;
   checklist_feitos: number;
 }
@@ -116,7 +120,7 @@ export interface ClienteRotina {
 export type CamposTarefa = Partial<
   Pick<
     Tarefa,
-    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem"
+    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem" | "estimativa_min" | "tempo_min"
   >
 >;
 
@@ -231,4 +235,18 @@ export function diasUteis(n: number): string[] {
     d = somarDias(d, -1);
   }
   return out;
+}
+
+/** 95 → "1h 35min"; 0 → "0min" */
+export function formatarMin(m: number | null | undefined) {
+  const v = Math.max(0, Math.round(m ?? 0));
+  const h = Math.floor(v / 60);
+  const r = v % 60;
+  return h ? (r ? `${h}h ${r}min` : `${h}h`) : `${r}min`;
+}
+
+/** Tempo total da tarefa, contando o trecho em andamento se estiver em "Fazendo". */
+export function tempoAtual(t: Pick<Tarefa, "tempo_min" | "fazendo_desde" | "status">, agora = Date.now()) {
+  const extra = t.status === "fazendo" && t.fazendo_desde ? Math.min(480, Math.max(0, (agora - new Date(t.fazendo_desde).getTime()) / 60000)) : 0;
+  return Math.round((t.tempo_min ?? 0) + extra);
 }

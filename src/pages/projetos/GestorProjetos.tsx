@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { HorasClientes } from "./HorasClientes";
 import { Activity, ArrowRight, MessageCircle } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { useTrafego } from "../../lib/trafego";
@@ -14,7 +15,7 @@ import { demoLancamentos, demoPosts } from "../../data/modulosDemo";
 import { Vazio } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 
-type Aba = "projetos" | "projetos-pilares" | "projetos-cs";
+type Aba = "projetos" | "projetos-pilares" | "projetos-cs" | "projetos-horas";
 const corNota = (n: number | null) => (n === null ? "var(--muted)" : n >= 75 ? "var(--ok)" : n >= 50 ? "var(--warn)" : "var(--bad)");
 
 /** Saúde de todos os clientes (usada aqui e na Central). */
@@ -50,7 +51,7 @@ export function useSaude() {
 
 export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const d = useDados();
-  const aba = (["projetos-pilares", "projetos-cs"].includes(rota) ? rota : "projetos") as Aba;
+  const aba = (["projetos-pilares", "projetos-cs", "projetos-horas"].includes(rota) ? rota : "projetos") as Aba;
   const [filtro, setFiltro] = useState<"todos" | "risco" | "atencao" | "bem">("todos");
   const saude = useSaude();
 
@@ -76,7 +77,7 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
         <Kpi rotulo="Pedem atenção" valor={atencao.length} tom={atencao.length ? "warn" : "ok"} detalhe="entre 50 e 74" onClick={() => setFiltro(filtro === "atencao" ? "todos" : "atencao")} ativo={filtro === "atencao"} />
         <Kpi rotulo="Saudáveis" valor={bem.length} tom="ok" detalhe="75 ou mais" onClick={() => setFiltro(filtro === "bem" ? "todos" : "bem")} ativo={filtro === "bem"} />
       </div>
-      <Abas<Aba> abas={[{ id: "projetos", nome: "Saúde dos clientes" }, { id: "projetos-pilares", nome: "Visão por pilar" }, { id: "projetos-cs", nome: "Fluxo de CS" }]} ativa={aba} mudar={ir} />
+      <Abas<Aba> abas={[{ id: "projetos", nome: "Saúde dos clientes" }, { id: "projetos-pilares", nome: "Visão por pilar" }, { id: "projetos-cs", nome: "Fluxo de CS" }, { id: "projetos-horas", nome: "Horas e rentabilidade" }]} ativa={aba} mudar={ir} />
       {carregando ? (
         <Vazio>Carregando…</Vazio>
       ) : aba === "projetos" ? (
@@ -85,6 +86,8 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
         </div>
       ) : aba === "projetos-pilares" ? (
         <Pilares saude={saude} />
+      ) : aba === "projetos-horas" ? (
+        <HorasClientes ir={ir} />
       ) : (
         <FluxoCS saude={saude} ir={ir} />
       )}

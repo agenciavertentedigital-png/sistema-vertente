@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
 import { repo } from "../../lib/repo";
 import { MarcarTemperatura } from "../Temperatura";
+import { TempoTarefa } from "./TempoTarefa";
 import { useDados } from "../../lib/dados";
 import {
   CANAL,
@@ -181,6 +182,8 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
           </Rotulo>
         </div>
       </div>
+
+      <TempoTarefa t={t} salvar={salvar} />
 
       <section className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

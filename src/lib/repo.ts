@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 import {
   hoje,
   somarDias,
+  tempoAtual,
   type CamposTarefa,
   type Cliente,
   type ClienteRotina,
@@ -56,7 +57,7 @@ function erro(e: { message: string } | null) {
 // Supabase
 // ------------------------------------------------------------------
 const CAMPOS_TAREFA =
-  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, tarefa_checklist(feito)";
+  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, estimativa_min, tempo_min, fazendo_desde, tarefa_checklist(feito)";
 
 type LinhaTarefa = Omit<Tarefa, "checklist_total" | "checklist_feitos"> & { tarefa_checklist: { feito: boolean }[] };
 
@@ -267,6 +268,8 @@ const repoMemoria = (): Repo => {
       responsavel_id: c.responsavel_id ?? null, prazo: c.prazo ?? null, prioridade: c.prioridade ?? "normal", status: c.status ?? "a_fazer",
       triagem: c.triagem ?? false, cliente_rotina_id: crId, origem: crId ? "rotina" : "manual", clickup_id: null, concluida_em: null,
       checklist_total: itens.length, checklist_feitos: 0, itens, coments: [],
+      // tempo de exemplo para a prévia mostrar a rentabilidade
+      estimativa_min: c.estimativa_min ?? [30, 45, 60, null][tarefas.length % 4], tempo_min: c.tempo_min ?? [25, 70, 40, 15, 0][tarefas.length % 5], fazendo_desde: null,
     });
     return id;
   };
@@ -332,6 +335,10 @@ const repoMemoria = (): Repo => {
     async salvarTarefa(id, campos) {
       if (id) {
         const t = achar(id);
+        if (campos.status && campos.status !== t.status) {
+          if (t.status === "fazendo" && t.fazendo_desde) t.tempo_min = tempoAtual(t);
+          t.fazendo_desde = campos.status === "fazendo" ? new Date().toISOString() : null;
+        }
         Object.assign(t, campos);
         if (campos.status) t.concluida_em = ["feita", "nao_feita"].includes(campos.status) ? new Date().toISOString() : null;
         return id;
