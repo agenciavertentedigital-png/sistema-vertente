@@ -30,6 +30,8 @@ import { Integracoes } from "./pages/Integracoes";
 import { CentralAnotacoes } from "./pages/CentralAnotacoes";
 import { BriefingPublico } from "./pages/cadastro/BriefingPublico";
 import { Sparkles } from "lucide-react";
+import { DiagnosticoPublico } from "./pages/diagnostico/DiagnosticoPublico";
+import { Diagnosticos } from "./pages/diagnostico/Diagnosticos";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
 
@@ -93,6 +95,8 @@ export default function App() {
   // Link público de cadastro: abre sem login
   if (rota.startsWith("cadastro-publico-")) return <CadastroPublico token={rota.slice(17)} />;
   if (rota.startsWith("briefing-publico-")) return <BriefingPublico token={rota.slice(17)} />;
+  // Diagnóstico Digital: página pública para anúncios (/diagnostico), sem login
+  if (rota === "diagnostico") return <DiagnosticoPublico />;
 
   if (sessao.tipo === "carregando") {
     return <div className="grid h-full place-items-center text-muted">Carregando…</div>;
@@ -118,6 +122,7 @@ export default function App() {
   else if (rota === "financeiro" || rota.startsWith("financeiro-")) pagina = <Financeiro rota={rota} ir={navegar} />;
   else if (rota === "projetos" || rota.startsWith("projetos-")) pagina = <GestorProjetos rota={rota} ir={navegar} />;
   else if (rota === "crm") pagina = <Crm />;
+  else if (rota === "diagnosticos") pagina = <Diagnosticos />;
   else if (rota === "assistente") pagina = <Assistente />;
   else if (rota === "integracoes") pagina = <Integracoes />;
   else if (rota === "anotacoes" || rota.startsWith("anotacoes-")) pagina = <CentralAnotacoes rota={rota} ir={navegar} />;
@@ -219,7 +224,7 @@ export default function App() {
 
 /** Rotas que têm página própria (o resto cai na Central). */
 function rotaConhecida(r: string) {
-  return /^(base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
+  return /^(base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
 }
 
 /** Abas que unem Fichas, Contratos e Base num tópico só. */
