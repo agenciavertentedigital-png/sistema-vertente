@@ -243,3 +243,19 @@ kbd {
   body.imprimindo-diario { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { margin: 14mm; }
 }
+
+/* Diagnóstico Digital (página pública /diagnostico): tema marinho fixo, independente do claro/escuro do sistema */
+.tema-diagnostico {
+  --bg: #0b1442; --surface: #121e5c; --raised: #1a2766; --line: #26357a; --line-forte: #34449a;
+  --fg: #f2f4fc; --muted: #a3aed6; --accent: #5b7bff; --accent-soft: #1d2a6e; --accent-fg: #ffffff;
+  --ok: #4ade80; --ok-soft: #12362a; --warn: #fbbf24; --warn-soft: #3a2f12; --bad: #f87171; --bad-soft: #3d1a22;
+  --bg-c: 11 20 66; --surface-c: 18 30 92; --raised-c: 26 39 102; --line-c: 38 53 122; --line-forte-c: 52 68 154;
+  --fg-c: 242 244 252; --muted-c: 163 174 214; --accent-c: 91 123 255; --accent-soft-c: 29 42 110; --accent-fg-c: 255 255 255;
+  --ok-c: 74 222 128; --ok-soft-c: 18 54 42; --warn-c: 251 191 36; --warn-soft-c: 58 47 18; --bad-c: 248 113 113; --bad-soft-c: 61 26 34;
+  color-scheme: dark;
+  background: radial-gradient(1200px 600px at 85% -10%, rgb(91 123 255 / 0.22), transparent 60%), #0b1442;
+  color: var(--fg);
+  min-height: 100%;
+}
+.tema-diagnostico .diag-pergunta { animation: diag-subir 320ms var(--ease) both; }
+@keyframes diag-subir { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }

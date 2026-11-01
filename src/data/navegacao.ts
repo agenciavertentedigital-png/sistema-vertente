@@ -8,6 +8,7 @@ import {
   MapPin,
   MessagesSquare,
   NotebookPen,
+  ClipboardCheck,
   Sparkles,
   TrendingUp,
   Users,
@@ -73,6 +74,11 @@ export const SECOES: Secao[] = [
       {
         id: "crm", nome: "CRM", icone: MessagesSquare, rota: "crm", prefixos: ["crm"], cor: "#0f766e",
         descricao: "Atendimento e funil dos clientes",
+        atalhos: [],
+      },
+      {
+        id: "diagnosticos", nome: "Diagnóstico Digital", icone: ClipboardCheck, rota: "diagnosticos", prefixos: ["diagnosticos"], cor: "#0e1a52",
+        descricao: "Leads da página pública de diagnóstico",
         atalhos: [],
       },
     ],

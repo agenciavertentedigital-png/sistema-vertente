@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
  * sem mudar as páginas.
  */
 /** Áreas com endereço próprio (/crm) além da âncora. Só no sistema publicado, não na prévia em arquivo único. */
-const CAMINHOS = new Set(["crm"]);
+const CAMINHOS = new Set(["crm", "diagnostico"]);
 const usaCaminho = () => import.meta.env.MODE !== "preview" && /^https?:$/.test(window.location.protocol);
 
 function lerRota(): string {
