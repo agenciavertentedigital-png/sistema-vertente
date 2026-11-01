@@ -16,15 +16,17 @@ import {
 } from "../../lib/relatorio";
 import { Botao, Entrada, Vazio } from "../../components/ui";
 import { FunilComercial } from "./FunilComercial";
+import { GoogleAdsCliente } from "./GoogleAdsCliente";
+import { supabase } from "../../lib/supabase";
 
 // ------------------------------------------------------------------
 // Formatação
 // ------------------------------------------------------------------
-const brl = (v: number | null, casas = 2) =>
+export const brl = (v: number | null, casas = 2) =>
   v === null || !isFinite(v) ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: v >= 1000 ? 0 : casas, maximumFractionDigits: v >= 1000 ? 0 : casas });
-const int = (v: number | null) => (v === null || !isFinite(v) ? "—" : Math.round(v).toLocaleString("pt-BR"));
-const pct = (v: number | null, casas = 2) => (v === null || !isFinite(v) ? "—" : `${(v * 100).toFixed(casas).replace(".", ",")}%`);
-const dec = (v: number | null, casas = 2) => (v === null || !isFinite(v) ? "—" : v.toFixed(casas).replace(".", ","));
+export const int = (v: number | null) => (v === null || !isFinite(v) ? "—" : Math.round(v).toLocaleString("pt-BR"));
+export const pct = (v: number | null, casas = 2) => (v === null || !isFinite(v) ? "—" : `${(v * 100).toFixed(casas).replace(".", ",")}%`);
+export const dec = (v: number | null, casas = 2) => (v === null || !isFinite(v) ? "—" : v.toFixed(casas).replace(".", ","));
 const dataBR = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
 
 // ------------------------------------------------------------------
@@ -95,6 +97,18 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 
   const r = useMemo(() => (rel ? resumirRelatorio(rel) : null), [rel]);
 
+  // Plataformas do cliente: Meta e/ou Google Ads
+  const [temGoogle, setTemGoogle] = useState(!supabase);
+  const [plataforma, setPlataforma] = useState<"meta" | "google">("meta");
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("contas_anuncio").select("plataforma").eq("cliente_id", clienteId).eq("ativa", true).then(({ data }) => {
+      const ps = new Set((data ?? []).map((x: { plataforma: string }) => x.plataforma));
+      setTemGoogle(ps.has("google"));
+      if (ps.has("google") && !ps.has("meta")) setPlataforma("google");
+    });
+  }, [clienteId]);
+
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <button onClick={() => ir("trafego-dashboards")} className="flex w-fit items-center gap-1.5 text-[13px] text-muted hover:text-fg">
@@ -103,11 +117,12 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="eyebrow">Dashboard de tráfego · Meta Ads</div>
+          <div className="eyebrow">Dashboard de tráfego · {plataforma === "google" ? "Google Ads" : "Meta Ads"}</div>
           <h1 className="mt-1 text-[28px] font-semibold leading-tight">{cliente?.nome ?? "Cliente"}</h1>
           <p className="mt-1 text-[13px] text-muted">
             {dataBR(per.ini)} a {dataBR(per.fim)}
-            {rel && <> · comparado com {dataBR(rel.anterior.since)} a {dataBR(rel.anterior.until)}</>}
+            {rel && plataforma === "meta" && <> · comparado com {dataBR(rel.anterior.since)} a {dataBR(rel.anterior.until)}</>}
+            {plataforma === "google" && <> · comparado com o período anterior de mesmo tamanho</>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -119,6 +134,15 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
       </header>
 
       <div className="flex flex-wrap items-center gap-2">
+        {temGoogle && (
+          <div role="tablist" aria-label="Plataforma" className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+            {(["meta", "google"] as const).map((p) => (
+              <button key={p} role="tab" aria-selected={plataforma === p} onClick={() => setPlataforma(p)} className={`rounded-lg px-3 py-1 text-[12.5px] font-medium ${plataforma === p ? (p === "google" ? "bg-[#e2701c] text-white" : "bg-accent text-accent-fg") : "text-muted hover:text-fg"}`}>
+                {p === "google" ? "Google Ads" : "Meta Ads"}
+              </button>
+            ))}
+          </div>
+        )}
         <div role="tablist" aria-label="Período" className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
           {ATALHOS.map((a) => (
             <button key={a.id} role="tab" aria-selected={atalho === a.id} onClick={() => setAtalho(a.id)} className={`rounded-lg px-3 py-1 text-[12.5px] ${atalho === a.id ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"}`}>
@@ -135,6 +159,10 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
         )}
       </div>
 
+      {plataforma === "google" ? (
+        <GoogleAdsCliente clienteId={clienteId} ini={per.ini} fim={per.fim} />
+      ) : (
+      <>
       {erro && <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar na Meta: {erro}</div>}
 
       {!r && carregando ? (
@@ -164,6 +192,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
           <Campanhas grupos={r.grupos} />
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -171,7 +201,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 // ------------------------------------------------------------------
 // Blocos
 // ------------------------------------------------------------------
-function Cartao({ titulo, subtitulo, children, direita }: { titulo: string; subtitulo?: string; children: React.ReactNode; direita?: React.ReactNode }) {
+export function Cartao({ titulo, subtitulo, children, direita }: { titulo: string; subtitulo?: string; children: React.ReactNode; direita?: React.ReactNode }) {
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -227,7 +257,7 @@ function contatosDe(r: Resumo) {
   return r.total.conversas + Math.max(leadsGrupo, r.total.leads);
 }
 
-function Kpi({ rotulo, valor, v, inverso, destaque, dica }: { rotulo: string; valor: string; v: number | null; inverso?: boolean; destaque?: boolean; dica?: string }) {
+export function Kpi({ rotulo, valor, v, inverso, destaque, dica }: { rotulo: string; valor: string; v: number | null; inverso?: boolean; destaque?: boolean; dica?: string }) {
   const bom = v === null ? null : inverso ? v < 0 : v > 0;
   return (
     <div className={`flex flex-col gap-1 rounded-2xl border p-4 ${destaque ? "border-accent bg-accent-soft" : "border-line bg-surface"}`} title={dica}>
@@ -286,13 +316,13 @@ function VisaoGeral({ r }: { r: Resumo }) {
 // ------------------------------------------------------------------
 // Funil
 // ------------------------------------------------------------------
-interface Etapa {
+export interface Etapa {
   nome: string;
   valor: number;
   custo?: number | null;
 }
 
-function Funil({ etapas, cor = "var(--accent)" }: { etapas: Etapa[]; cor?: string }) {
+export function Funil({ etapas, cor = "var(--accent)" }: { etapas: Etapa[]; cor?: string }) {
   const visiveis = etapas.filter((e, i) => i === 0 || e.valor > 0);
   if (visiveis.length === 0 || visiveis[0].valor === 0) return <p className="text-[12.5px] text-muted">Sem entrega no período.</p>;
   const passo = visiveis.length > 1 ? 48 / (visiveis.length - 1) : 0;
@@ -392,7 +422,7 @@ function etapasDoGrupo(g: GrupoResumo): Etapa[] {
 // ------------------------------------------------------------------
 // Gráfico diário
 // ------------------------------------------------------------------
-function GraficoDiario({ dias }: { dias: { data: string; gasto: number; contatos: number }[] }) {
+export function GraficoDiario({ dias, rotulo = "Contatos" }: { dias: { data: string; gasto: number; contatos: number }[]; rotulo?: string }) {
   if (dias.length === 0) return <p className="text-[12.5px] text-muted">Sem dados no período.</p>;
   const L = 640;
   const A = 200;
@@ -441,7 +471,7 @@ function GraficoDiario({ dias }: { dias: { data: string; gasto: number; contatos
       </svg>
       <div className="flex gap-4 text-[12px] text-muted">
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-accent opacity-75" /> Investimento (R$)</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-ok" /> Contatos</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-ok" /> {rotulo}</span>
       </div>
     </div>
   );

@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     ehAdmin = (await userClient.rpc("integracoes_status")).error === null;
   }
 
-  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; conta_id?: string; dias?: number };
+  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; conta_id?: string; dias?: number; cliente_id?: string; inicio?: string; fim?: string };
   const faltando = [!mcc && "ID da MCC", !clientId && "ID do cliente OAuth", !clientSecret && "chave secreta OAuth"].filter(Boolean);
 
   // ---------------- Conectar: devolve o link de autorização ----------------
@@ -139,6 +139,110 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // ---------------- Relatório do cliente (ao vivo) para o dashboard ----------------
+    if (corpo.acao === "relatorio") {
+      const ini = String(corpo.inicio ?? "");
+      const fim = String(corpo.fim ?? "");
+      if (!corpo.cliente_id || !/^\d{4}-\d{2}-\d{2}$/.test(ini) || !/^\d{4}-\d{2}-\d{2}$/.test(fim)) return responder({ erro: "Período inválido." }, 400);
+      const dias = Math.round((Date.parse(fim) - Date.parse(ini)) / 86400000) + 1;
+      const antFim = new Date(Date.parse(ini) - 86400000).toISOString().slice(0, 10);
+      const antIni = new Date(Date.parse(ini) - dias * 86400000).toISOString().slice(0, 10);
+      const { data: contas } = await admin.from("contas_anuncio").select("id, conta_id, nome, status, ultimo_sync").eq("plataforma", "google").eq("ativa", true).eq("cliente_id", corpo.cliente_id);
+      const periodo = (a: string, b: string) => `segments.date BETWEEN '${a}' AND '${b}'`;
+      const micros = (v: unknown) => Number(v ?? 0) / 1_000_000;
+      const met = (m: Json | undefined) => ({
+        gasto: micros(m?.costMicros),
+        impressoes: Number(m?.impressions ?? 0),
+        cliques: Number(m?.clicks ?? 0),
+        conversoes: Number(m?.conversions ?? 0),
+        valor: Number(m?.conversionsValue ?? 0),
+      });
+      const somar = (lista: ReturnType<typeof met>[]) => lista.reduce((t, x) => ({ gasto: t.gasto + x.gasto, impressoes: t.impressoes + x.impressoes, cliques: t.cliques + x.cliques, conversoes: t.conversoes + x.conversoes, valor: t.valor + x.valor }), { gasto: 0, impressoes: 0, cliques: 0, conversoes: 0, valor: 0 });
+      const seguro = async (cid: string, q: string) => { try { return await gaql(cid, q); } catch (e) { erros.push((e as Error).message); return [] as Json[]; } };
+      const erros: string[] = [];
+      const atual: ReturnType<typeof met>[] = [];
+      const anterior: ReturnType<typeof met>[] = [];
+      let parcelaNum = 0, parcelaDen = 0;
+      const dia = new Map<string, ReturnType<typeof met>>();
+      const campanhas: Json[] = [];
+      const acoes = new Map<string, { nome: string; categoria: string; conversoes: number }>();
+      const termos: Json[] = [];
+      const palavras: Json[] = [];
+      const dispositivos = new Map<string, ReturnType<typeof met>>();
+
+      for (const c of contas ?? []) {
+        const [tot, ant, dd, camp, ac, st, kw, dv] = await Promise.all([
+          seguro(c.conta_id, `SELECT metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value, metrics.search_impression_share, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share FROM customer WHERE ${periodo(ini, fim)}`),
+          seguro(c.conta_id, `SELECT metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM customer WHERE ${periodo(antIni, antFim)}`),
+          seguro(c.conta_id, `SELECT segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM customer WHERE ${periodo(ini, fim)}`),
+          seguro(c.conta_id, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign_budget.amount_micros, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value, metrics.search_impression_share, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share FROM campaign WHERE ${periodo(ini, fim)} AND metrics.impressions > 0`),
+          seguro(c.conta_id, `SELECT segments.conversion_action_name, segments.conversion_action_category, metrics.conversions FROM customer WHERE ${periodo(ini, fim)} AND metrics.conversions > 0`),
+          seguro(c.conta_id, `SELECT search_term_view.search_term, campaign.name, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM search_term_view WHERE ${periodo(ini, fim)} AND metrics.clicks > 0 ORDER BY metrics.clicks DESC LIMIT 40`),
+          seguro(c.conta_id, `SELECT ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.quality_info.quality_score, metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions FROM keyword_view WHERE ${periodo(ini, fim)} AND metrics.impressions > 0 ORDER BY metrics.cost_micros DESC LIMIT 40`),
+          seguro(c.conta_id, `SELECT segments.device, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions, metrics.conversions_value FROM customer WHERE ${periodo(ini, fim)}`),
+        ]);
+        for (const l of tot) {
+          const m = l.metrics as Json;
+          atual.push(met(m));
+          const imp = Number(m.impressions ?? 0);
+          if (m.searchImpressionShare != null) { parcelaNum += Number(m.searchImpressionShare) * imp; parcelaDen += imp; }
+        }
+        for (const l of ant) anterior.push(met(l.metrics as Json));
+        for (const l of dd) {
+          const d = String((l.segments as Json).date);
+          dia.set(d, somar([dia.get(d) ?? met(undefined), met(l.metrics as Json)]));
+        }
+        for (const l of camp) {
+          const cp = l.campaign as Json;
+          const m = l.metrics as Json;
+          campanhas.push({
+            id: String(cp.id),
+            nome: String(cp.name ?? cp.id),
+            status: String(cp.status ?? "").toLowerCase(),
+            tipo: CANAL[String(cp.advertisingChannelType)] ?? String(cp.advertisingChannelType ?? ""),
+            orcamento_dia: micros((l.campaignBudget as Json | undefined)?.amountMicros),
+            ...met(m),
+            parcela: m.searchImpressionShare != null ? Number(m.searchImpressionShare) : null,
+            perdida_orcamento: m.searchBudgetLostImpressionShare != null ? Number(m.searchBudgetLostImpressionShare) : null,
+            perdida_ranking: m.searchRankLostImpressionShare != null ? Number(m.searchRankLostImpressionShare) : null,
+          });
+        }
+        for (const l of ac) {
+          const sg = l.segments as Json;
+          const nome = String(sg.conversionActionName ?? "Conversão");
+          const x = acoes.get(nome) ?? { nome, categoria: String(sg.conversionActionCategory ?? ""), conversoes: 0 };
+          x.conversoes += Number((l.metrics as Json).conversions ?? 0);
+          acoes.set(nome, x);
+        }
+        for (const l of st) termos.push({ termo: String((l.searchTermView as Json).searchTerm ?? ""), campanha: String((l.campaign as Json)?.name ?? ""), ...met(l.metrics as Json) });
+        for (const l of kw) {
+          const cr = l.adGroupCriterion as Json;
+          const k = (cr.keyword as Json) ?? {};
+          palavras.push({ palavra: String(k.text ?? ""), correspondencia: String(k.matchType ?? "").toLowerCase(), qualidade: (cr.qualityInfo as Json | undefined)?.qualityScore ?? null, ...met(l.metrics as Json) });
+        }
+        for (const l of dv) {
+          const d = String((l.segments as Json).device ?? "OTHER");
+          dispositivos.set(d, somar([dispositivos.get(d) ?? met(undefined), met(l.metrics as Json)]));
+        }
+      }
+
+      return responder({
+        ok: true,
+        periodo: { inicio: ini, fim, anterior_inicio: antIni, anterior_fim: antFim },
+        contas: (contas ?? []).map((c) => ({ id: c.id, conta_id: c.conta_id, nome: c.nome, status: c.status })),
+        total: somar(atual),
+        anterior: somar(anterior),
+        parcela_impressoes: parcelaDen ? parcelaNum / parcelaDen : null,
+        dias: [...dia.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([data, m]) => ({ data, ...m })),
+        campanhas: campanhas.sort((a, b) => Number(b.gasto) - Number(a.gasto)),
+        acoes: [...acoes.values()].sort((a, b) => b.conversoes - a.conversoes),
+        termos: termos.sort((a, b) => Number(b.cliques) - Number(a.cliques)).slice(0, 40),
+        palavras: palavras.sort((a, b) => Number(b.gasto) - Number(a.gasto)).slice(0, 40),
+        dispositivos: [...dispositivos.entries()].map(([d, m]) => ({ dispositivo: d, ...m })).sort((a, b) => b.gasto - a.gasto),
+        avisos: [...new Set(erros)].slice(0, 3),
+      });
+    }
+
     // ---------------- Contas da MCC (para vincular aos clientes) ----------------
     if (corpo.acao === "contas") {
       const linhas = await gaql(loginId, "SELECT customer_client.id, customer_client.descriptive_name, customer_client.currency_code, customer_client.status, customer_client.manager, customer_client.level FROM customer_client WHERE customer_client.level <= 2");
