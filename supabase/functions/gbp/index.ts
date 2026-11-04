@@ -203,5 +203,132 @@ Regras: português do Brasil, ${corpo.tom || "cordial e profissional"}, de 2 a 4
   }
 
 
+
+  // ---------------- Análise completa de uma ficha gerenciada (dados do dono, API oficial) ----------------
+  if (corpo.acao === "gbp_analise") {
+    try {
+      const todos = await locais();
+      const loc = todos.find((l) => l.place_id && l.place_id === corpo.place_id);
+      if (!loc) return responder({ ok: true, encontrado: false });
+      const localId = String(loc.local).split("/")[1];
+      const base4 = `https://mybusiness.googleapis.com/v4/${loc.conta}/locations/${localId}`;
+      const avisos: string[] = [];
+      const seguro = async (u: string) => { try { return await gapi(u); } catch (e) { avisos.push((e as Error).message.split(". ")[0]); return {} as Json; } };
+      const todasPaginas = async (u: string, campo: string, max: number) => {
+        const lista: Json[] = [];
+        let pg = "";
+        let total: unknown = null;
+        let extra: Json = {};
+        do {
+          const j = await seguro(`${u}${u.includes("?") ? "&" : "?"}pageSize=${campo === "reviews" ? 50 : 100}${pg ? `&pageToken=${pg}` : ""}`);
+          lista.push(...((j[campo] as Json[]) ?? []));
+          total = j.totalMediaItemCount ?? j.totalReviewCount ?? total;
+          if (campo === "reviews") extra = { media: j.averageRating ?? null };
+          pg = String(j.nextPageToken ?? "");
+        } while (pg && lista.length < max);
+        return { lista, total, extra };
+      };
+
+      const fimD = new Date(hojeBR(-1) + "T12:00:00Z");
+      const iniD = new Date(Date.UTC(fimD.getUTCFullYear(), fimD.getUTCMonth() - 17, 1));
+      const METRICAS = ["CALL_CLICKS", "WEBSITE_CLICKS", "BUSINESS_DIRECTION_REQUESTS", "BUSINESS_CONVERSATIONS", "BUSINESS_BOOKINGS", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_MAPS", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"];
+      const q = new URLSearchParams();
+      for (const m of METRICAS) q.append("dailyMetrics", m);
+      q.set("dailyRange.startDate.year", String(iniD.getUTCFullYear())); q.set("dailyRange.startDate.month", String(iniD.getUTCMonth() + 1)); q.set("dailyRange.startDate.day", "1");
+      q.set("dailyRange.endDate.year", String(fimD.getUTCFullYear())); q.set("dailyRange.endDate.month", String(fimD.getUTCMonth() + 1)); q.set("dailyRange.endDate.day", String(fimD.getUTCDate()));
+
+      const [det, attrs, vom, midia, midiaCli, rev, posts, perf] = await Promise.all([
+        seguro(`https://mybusinessbusinessinformation.googleapis.com/v1/locations/${localId}?readMask=name,title,phoneNumbers,categories,storefrontAddress,websiteUri,regularHours,specialHours,serviceArea,openInfo,metadata,profile,serviceItems,moreHours,latlng`),
+        seguro(`https://mybusinessbusinessinformation.googleapis.com/v1/locations/${localId}/attributes`),
+        seguro(`https://mybusinessverifications.googleapis.com/v1/locations/${localId}/VoiceOfMerchantState`),
+        todasPaginas(`${base4}/media`, "mediaItems", 300),
+        todasPaginas(`${base4}/media/customers`, "mediaItems", 300),
+        todasPaginas(`${base4}/reviews?orderBy=updateTime%20desc`, "reviews", 1000),
+        todasPaginas(`${base4}/localPosts`, "localPosts", 200),
+        seguro(`https://businessprofileperformance.googleapis.com/v1/locations/${localId}:fetchMultiDailyMetricsTimeSeries?${q}`),
+      ]);
+
+      const NOTA: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+      const m = (x: Json) => ({
+        formato: x.mediaFormat,
+        categoria: (x.locationAssociation as Json | undefined)?.category ?? null,
+        data: x.createTime,
+        largura: (x.dimensions as Json | undefined)?.widthPixels ?? null,
+        altura: (x.dimensions as Json | undefined)?.heightPixels ?? null,
+        url: x.thumbnailUrl ?? x.googleUrl ?? null,
+        visualizacoes: (x.insights as Json | undefined)?.viewCount ?? null,
+      });
+      const dias: Json[] = [];
+      const porDia = new Map<string, Record<string, number>>();
+      for (const grupo of (perf.multiDailyMetricTimeSeries as Json[]) ?? []) {
+        for (const serie of (grupo.dailyMetricTimeSeries as Json[]) ?? []) {
+          const metrica = String(serie.dailyMetric);
+          for (const v of (((serie.timeSeries as Json)?.datedValues as Json[]) ?? [])) {
+            const d = v.date as { year: number; month: number; day: number };
+            const k = `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+            const linha = porDia.get(k) ?? {};
+            linha[metrica] = Number(v.value ?? 0);
+            porDia.set(k, linha);
+          }
+        }
+      }
+      for (const [data, v] of [...porDia.entries()].sort(([a], [b]) => a.localeCompare(b))) dias.push({ data, ...v });
+
+      return responder({
+        ok: true,
+        encontrado: true,
+        coletado_em: new Date().toISOString(),
+        local: loc,
+        ficha: {
+          nome: det.title ?? loc.nome,
+          descricao: (det.profile as Json | undefined)?.description ?? null,
+          categoria: ((det.categories as Json | undefined)?.primaryCategory as Json | undefined)?.displayName ?? null,
+          categorias_extras: (((det.categories as Json | undefined)?.additionalCategories as Json[]) ?? []).map((c) => c.displayName),
+          telefone: (det.phoneNumbers as Json | undefined)?.primaryPhone ?? null,
+          site: det.websiteUri ?? null,
+          endereco: det.storefrontAddress ?? null,
+          horario: det.regularHours ?? null,
+          horario_especial: det.specialHours ?? null,
+          mais_horarios: det.moreHours ?? null,
+          servicos: ((det.serviceItems as Json[]) ?? []).map((s) => ((s.structuredServiceItem as Json | undefined)?.serviceTypeId ?? (s.freeFormServiceItem as Json | undefined)?.label ?? s)),
+          fundacao: (det.openInfo as Json | undefined)?.openingDate ?? null,
+          status: (det.openInfo as Json | undefined)?.status ?? null,
+          maps: (det.metadata as Json | undefined)?.mapsUri ?? loc.maps,
+          tem_mensagens: (det.metadata as Json | undefined)?.hasVoiceOfMerchant ?? null,
+          atributos: ((attrs.attributes as Json[]) ?? []).map((a) => ({ nome: a.name, valores: a.values ?? null, urls: a.uriValues ?? null })),
+          verificada: vom.hasVoiceOfMerchant ?? null,
+          problema: (vom.complyWithGuidelines as Json | undefined)?.recommendationReason ?? null,
+        },
+        midia_dono: midia.lista.map(m),
+        midia_dono_total: midia.total,
+        midia_clientes: midiaCli.lista.map(m),
+        midia_clientes_total: midiaCli.total,
+        avaliacoes: rev.lista.map((r) => ({
+          nota: NOTA[String(r.starRating)] ?? null,
+          texto: r.comment ?? "",
+          autor: (r.reviewer as Json | undefined)?.displayName ?? "Anônimo",
+          data: r.createTime,
+          resposta: (r.reviewReply as Json | undefined)?.comment ?? null,
+          resposta_data: (r.reviewReply as Json | undefined)?.updateTime ?? null,
+        })),
+        avaliacoes_total: rev.total,
+        avaliacoes_media: rev.extra.media ?? null,
+        postagens: posts.lista.map((p) => ({
+          data: p.createTime,
+          tipo: p.topicType,
+          texto: p.summary ?? "",
+          estado: p.state,
+          cta: (p.callToAction as Json | undefined)?.actionType ?? null,
+          midia: ((p.media as Json[]) ?? []).length,
+          url: p.searchUrl ?? null,
+        })),
+        dias,
+        avisos: [...new Set(avisos)].slice(0, 5),
+      });
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 500);
+    }
+  }
+
   return responder({ erro: "Ação desconhecida." }, 400);
 });
