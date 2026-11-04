@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     ehAdmin = (await userClient.rpc("integracoes_status")).error === null;
   }
 
-  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; conta_id?: string; dias?: number; cliente_id?: string; inicio?: string; fim?: string };
+  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; conta_id?: string; dias?: number; cliente_id?: string; inicio?: string; fim?: string; place_id?: string; avaliacao?: string; texto?: string };
   const faltando = [!mcc && "ID da MCC", !clientId && "ID do cliente OAuth", !clientSecret && "chave secreta OAuth"].filter(Boolean);
 
   // ---------------- Conectar: devolve o link de autorização ----------------
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       client_id: clientId,
       redirect_uri: FUNCAO,
       response_type: "code",
-      scope: "https://www.googleapis.com/auth/adwords",
+      scope: "https://www.googleapis.com/auth/adwords https://www.googleapis.com/auth/business.manage",
       access_type: "offline",
       prompt: "consent",
       state: `${ts}.${await assinar(ts, chaveCronGuardada)}`,
@@ -121,6 +121,138 @@ Deno.serve(async (req) => {
   })).json()) as Json;
   if (!tk.access_token) return responder({ erro: `O Google recusou a conexão (${tk.error ?? "token"}). Conecte de novo em Integrações.` }, 401);
   const loginId = soDigitos(mcc);
+
+
+  // ---------------- Perfil da Empresa no Google (Google Meu Negócio, API oficial) ----------------
+  async function gapi(u: string, init?: RequestInit): Promise<Json> {
+    const r = await fetch(u, { ...init, headers: { Authorization: `Bearer ${tk.access_token}`, "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+    const j = (await r.json().catch(() => ({}))) as Json;
+    if (!r.ok) {
+      const e = (j.error as { message?: string; status?: string } | undefined);
+      if (r.status === 403 && /scope|insufficient/i.test(e?.message ?? "")) throw new Error("Falta autorizar o Google Meu Negócio: clique em Reconectar Google em Integrações.");
+      throw new Error(e?.message ?? `HTTP ${r.status}`);
+    }
+    return j;
+  }
+  async function locais() {
+    const contas: Json[] = [];
+    let pg = "";
+    do {
+      const j = await gapi(`https://mybusinessaccountmanagement.googleapis.com/v1/accounts?pageSize=20${pg ? `&pageToken=${pg}` : ""}`);
+      contas.push(...((j.accounts as Json[]) ?? []));
+      pg = String(j.nextPageToken ?? "");
+    } while (pg);
+    const lista: Json[] = [];
+    for (const c of contas) {
+      let p2 = "";
+      do {
+        const j = await gapi(`https://mybusinessbusinessinformation.googleapis.com/v1/${c.name}/locations?pageSize=100&readMask=name,title,storefrontAddress,metadata,websiteUri,phoneNumbers${p2 ? `&pageToken=${p2}` : ""}`);
+        for (const l of (j.locations as Json[]) ?? []) {
+          const md = (l.metadata as Json) ?? {};
+          const end = (l.storefrontAddress as Json) ?? {};
+          lista.push({
+            conta: c.name,
+            conta_nome: c.accountName,
+            local: l.name,
+            nome: l.title,
+            place_id: md.placeId ?? null,
+            maps: md.mapsUri ?? null,
+            cidade: end.locality ?? null,
+            site: l.websiteUri ?? null,
+          });
+        }
+        p2 = String(j.nextPageToken ?? "");
+      } while (p2);
+    }
+    return lista;
+  }
+
+  if (corpo.acao === "gbp_locais") {
+    try {
+      return responder({ ok: true, locais: await locais() });
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 500);
+    }
+  }
+
+  if (corpo.acao === "gbp_relatorio" || corpo.acao === "gbp_responder") {
+    try {
+      const todos = await locais();
+      const loc = todos.find((l) => l.place_id && l.place_id === corpo.place_id);
+      if (!loc) return responder({ ok: true, encontrado: false, aviso: "Esta ficha não está entre as que a conta da agência gerencia no Google." });
+      const localId = String(loc.local).split("/")[1];
+
+      if (corpo.acao === "gbp_responder") {
+        if (!corpo.avaliacao || !corpo.texto?.trim()) return responder({ erro: "Informe a avaliação e o texto." }, 400);
+        if (!String(corpo.avaliacao).startsWith(`${loc.conta}/locations/${localId}/reviews/`)) return responder({ erro: "Avaliação de outra ficha." }, 400);
+        await gapi(`https://mybusiness.googleapis.com/v4/${corpo.avaliacao}/reply`, { method: "PUT", body: JSON.stringify({ comment: corpo.texto.trim().slice(0, 4000) }) });
+        return responder({ ok: true });
+      }
+
+      const ini = String(corpo.inicio ?? hojeBR(-30));
+      const fim = String(corpo.fim ?? hojeBR(-1));
+      const [ai, mi, di] = ini.split("-").map(Number);
+      const [af, mf, df] = fim.split("-").map(Number);
+      const METRICAS = ["CALL_CLICKS", "WEBSITE_CLICKS", "BUSINESS_DIRECTION_REQUESTS", "BUSINESS_CONVERSATIONS", "BUSINESS_BOOKINGS", "BUSINESS_IMPRESSIONS_MOBILE_SEARCH", "BUSINESS_IMPRESSIONS_DESKTOP_SEARCH", "BUSINESS_IMPRESSIONS_MOBILE_MAPS", "BUSINESS_IMPRESSIONS_DESKTOP_MAPS"];
+      const q = new URLSearchParams();
+      for (const m of METRICAS) q.append("dailyMetrics", m);
+      q.set("dailyRange.startDate.year", String(ai)); q.set("dailyRange.startDate.month", String(mi)); q.set("dailyRange.startDate.day", String(di));
+      q.set("dailyRange.endDate.year", String(af)); q.set("dailyRange.endDate.month", String(mf)); q.set("dailyRange.endDate.day", String(df));
+      const avisos: string[] = [];
+      const seguro = async <T,>(f: () => Promise<T>, padrao: T) => { try { return await f(); } catch (e) { avisos.push((e as Error).message); return padrao; } };
+
+      const [perf, palavras, rev] = await Promise.all([
+        seguro(() => gapi(`https://businessprofileperformance.googleapis.com/v1/locations/${localId}:fetchMultiDailyMetricsTimeSeries?${q}`), {} as Json),
+        seguro(() => gapi(`https://businessprofileperformance.googleapis.com/v1/locations/${localId}/searchkeywords/impressions/monthly?monthlyRange.startMonth.year=${ai}&monthlyRange.startMonth.month=${mi}&monthlyRange.endMonth.year=${af}&monthlyRange.endMonth.month=${mf}&pageSize=50`), {} as Json),
+        seguro(() => gapi(`https://mybusiness.googleapis.com/v4/${loc.conta}/locations/${localId}/reviews?pageSize=50&orderBy=updateTime%20desc`), {} as Json),
+      ]);
+
+      // Série diária por métrica
+      const dias = new Map<string, Record<string, number>>();
+      for (const grupo of (perf.multiDailyMetricTimeSeries as Json[]) ?? []) {
+        for (const serie of (grupo.dailyMetricTimeSeries as Json[]) ?? []) {
+          const metrica = String(serie.dailyMetric);
+          for (const v of (((serie.timeSeries as Json)?.datedValues as Json[]) ?? [])) {
+            const d = v.date as { year: number; month: number; day: number };
+            const k = `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
+            const linha = dias.get(k) ?? {};
+            linha[metrica] = Number(v.value ?? 0);
+            dias.set(k, linha);
+          }
+        }
+      }
+      const serie = [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([data, m]) => ({ data, ...m }));
+      const total: Record<string, number> = {};
+      for (const d of serie) for (const [k, v] of Object.entries(d)) if (k !== "data") total[k] = (total[k] ?? 0) + Number(v);
+
+      const NOTA: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+      const avaliacoes = ((rev.reviews as Json[]) ?? []).map((r) => ({
+        id: r.name,
+        autor: (r.reviewer as Json | undefined)?.displayName ?? "Anônimo",
+        nota: NOTA[String(r.starRating)] ?? null,
+        texto: r.comment ?? "",
+        data: r.createTime,
+        resposta: (r.reviewReply as Json | undefined)?.comment ?? null,
+        respondida_em: (r.reviewReply as Json | undefined)?.updateTime ?? null,
+      }));
+
+      return responder({
+        ok: true,
+        encontrado: true,
+        local: loc,
+        periodo: { inicio: ini, fim },
+        total,
+        dias: serie,
+        palavras: ((palavras.searchKeywordsCounts as Json[]) ?? []).map((k) => ({ termo: k.searchKeyword, impressoes: Number((k.insightsValue as Json)?.value ?? 0), abaixo_de: (k.insightsValue as Json)?.threshold ?? null })),
+        avaliacoes,
+        media: rev.averageRating ?? null,
+        total_avaliacoes: rev.totalReviewCount ?? null,
+        avisos,
+      });
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 500);
+    }
+  }
 
   async function gaql(customerId: string, query: string): Promise<Json[]> {
     const r = await fetch(`https://googleads.googleapis.com/${VERSAO}/customers/${soDigitos(customerId)}/googleAds:searchStream`, {

@@ -139,7 +139,7 @@ export function Integracoes() {
       </div>
 
       <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
-        <h2 className="flex items-center gap-2 text-[16px] font-semibold"><BarChart3 size={17} className="text-accent" /> Google Ads</h2>
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold"><BarChart3 size={17} className="text-accent" /> Google Ads e Perfil da Empresa</h2>
         <p className="mt-1 text-[12.5px] text-muted">O acesso à API agora fica no projeto do Google Cloud: ative a Google Ads API, peça o nível Explorer na página dela e crie a credencial OAuth (Aplicativo da Web) com o endereço abaixo.</p>
         <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
           <Campo rotulo="ID da MCC (ex.: 123-456-7890)" ok={!!status.google_ads_mcc} onSalvar={(v) => salvar("google_ads_mcc", v)} />
@@ -156,7 +156,7 @@ export function Integracoes() {
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button onClick={conectarGoogle} disabled={conectando || !status.google_ads_client_id || !status.google_ads_client_secret} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-fg disabled:opacity-40">
-            <Link2 size={14} /> {status.google_ads_refresh_token ? "Reconectar Google Ads" : "Conectar Google Ads"}
+            <Link2 size={14} /> {status.google_ads_refresh_token ? "Reconectar Google (Ads + Meu Negócio)" : "Conectar Google (Ads + Meu Negócio)"}
           </button>
           {status.google_ads_refresh_token && (
             <button onClick={testarGoogle} disabled={conectando} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-raised disabled:opacity-40">Testar conexão</button>
