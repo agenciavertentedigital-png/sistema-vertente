@@ -26,6 +26,7 @@ import {
 import { demoAnalises, demoPerfis } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
+import { DadosOficiaisGoogle } from "./DadosOficiaisGoogle";
 import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
 import { CRITERIOS_FICHA } from "../../lib/fichaGoogle";
 
@@ -368,6 +369,7 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
       </section>
 
       {rodando && <div className="rounded-xl bg-accent-soft px-4 py-3 text-[13px] text-accent print:hidden">{rodando}</div>}
+      <DadosOficiaisGoogle placeId={perfil.place_id} />
       {a?.dados?.completo && a.dados.versao !== 2 && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
 
       {a?.dados?.versao === 2 && a.dados.coleta ? (
