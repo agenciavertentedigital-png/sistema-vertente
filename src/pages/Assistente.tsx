@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUp, CheckCircle2, Database, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, ArrowUp, CheckCircle2, Database, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { chamarFuncao, useTabela } from "../lib/tabela";
@@ -16,8 +16,14 @@ interface Mensagem {
   content: string;
   consultas?: Consulta[];
   acoes?: { tipo: string; texto: string }[];
+  confirmacao?: Confirmacao | null;
+  /** situação do quadro de exclusão: confirmado, cancelado ou expirado */
+  confirmacao_estado?: "confirmada" | "cancelada";
   erro?: boolean;
 }
+interface ItemExclusao { id: string; titulo: string; cliente: string; status: string; prazo: string | null; responsavel: string | null; rotina: boolean; comentarios: number; checklist: number }
+interface Confirmacao { token: string; modo: "excluir" | "arquivar"; itens: ItemExclusao[]; expira_em: string }
+const NOME_STATUS: Record<string, string> = { a_fazer: "A fazer", fazendo: "Fazendo", aguardando: "Aguardando", feita: "Feita", nao_feita: "Não feita" };
 interface Conversa {
   id: string;
   titulo: string;
@@ -103,6 +109,38 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [confirmando, setConfirmando] = useState<number | null>(null);
+  async function decidirExclusao(indice: number, confirmar: boolean) {
+    const alvo = mensagens[indice];
+    if (!alvo?.confirmacao || alvo.confirmacao_estado || confirmando !== null) return;
+    let extra: Mensagem | null = null;
+    let estado: "confirmada" | "cancelada" = "cancelada";
+    if (confirmar) {
+      setConfirmando(indice);
+      try {
+        const r = await chamarFuncao<{ resposta: string; acoes?: { tipo: string; texto: string }[] }>("assistente", { confirmar_exclusao: alvo.confirmacao.token });
+        extra = { role: "assistant", content: r.resposta, acoes: r.acoes };
+        estado = "confirmada";
+        d.recarregar().catch(() => null);
+      } catch (e) {
+        extra = { role: "assistant", content: (e as Error).message, erro: true };
+      } finally {
+        setConfirmando(null);
+      }
+      if (extra?.erro) {
+        setMensagens((ms) => [...ms, extra!]);
+        return;
+      }
+    } else extra = { role: "assistant", content: "Exclusão cancelada. Nada foi alterado." };
+    const todas = [...mensagens.map((m, i) => (i === indice ? { ...m, confirmacao_estado: estado } : m)), extra!];
+    setMensagens(todas);
+    try {
+      if (atualId) await conversas.salvar(atualId, { mensagens: todas });
+    } catch {
+      /* segue na tela */
+    }
+  }
+
   async function enviar(pergunta?: string) {
     const q = (pergunta ?? texto).trim();
     if (!q || pensando) return;
@@ -116,11 +154,11 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
         await new Promise((r) => setTimeout(r, 700));
         resposta = { role: "assistant", content: "Esta é a prévia, sem banco conectado. No sistema publicado eu consulto tarefas, tráfego, GMN, social media, financeiro, cadastros e contratos para responder." };
       } else {
-        const r = await chamarFuncao<{ resposta: string; consultas: Consulta[]; acoes?: { tipo: string; texto: string }[] }>("assistente", {
+        const r = await chamarFuncao<{ resposta: string; consultas: Consulta[]; acoes?: { tipo: string; texto: string }[]; confirmacao?: Confirmacao | null }>("assistente", {
           mensagens: novas.filter((m) => !m.erro).map(({ role, content }) => ({ role, content })),
           pagina: rotaAnterior,
         });
-        resposta = { role: "assistant", content: r.resposta, consultas: r.consultas, acoes: r.acoes };
+        resposta = { role: "assistant", content: r.resposta, consultas: r.consultas, acoes: r.acoes, confirmacao: r.confirmacao ?? null };
         // A IA mexeu no sistema: atualiza tarefas e registros na tela
         if (r.acoes?.length) d.recarregar().catch(() => null);
       }
@@ -229,6 +267,9 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
                     </span>
                     <div className="min-w-0 flex-1">
                       {m.erro ? <p className="rounded-xl bg-bad-soft px-3 py-2 text-[13.5px] text-bad">{m.content}</p> : <Markdown texto={m.content} />}
+                      {m.confirmacao && (
+                        <QuadroExclusao c={m.confirmacao} estado={m.confirmacao_estado} ocupado={confirmando === i} decidir={(sim) => decidirExclusao(i, sim)} />
+                      )}
                       {m.acoes && m.acoes.length > 0 && (
                         <ul className="mt-2 flex flex-col gap-1 rounded-xl border border-ok/30 bg-ok-soft/50 px-3 py-2 text-[12.5px]">
                           {m.acoes.map((x, k) => (
@@ -285,6 +326,59 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
           <p className="mx-auto mt-1.5 max-w-[820px] text-center text-[11px] text-muted">O assistente só lê os dados e respeita as suas permissões. Confira números importantes antes de enviar a clientes.</p>
         </div>
       </section>
+    </div>
+  );
+}
+
+function QuadroExclusao({ c, estado, ocupado, decidir }: { c: Confirmacao; estado?: "confirmada" | "cancelada"; ocupado: boolean; decidir: (sim: boolean) => void }) {
+  const [aceite, setAceite] = useState(false);
+  const excluir = c.modo === "excluir";
+  const expirada = !estado && Date.now() > new Date(c.expira_em).getTime();
+  const comAnexos = c.itens.filter((i) => i.comentarios || i.checklist).length;
+  const rotinas = c.itens.filter((i) => i.rotina).length;
+  const n = c.itens.length;
+  return (
+    <div className={`mt-3 rounded-2xl border-2 p-4 text-[13px] ${excluir ? "border-bad/50 bg-bad-soft/40" : "border-warn/50 bg-warn-soft/40"}`}>
+      <div className={`flex items-center gap-2 text-[14px] font-semibold ${excluir ? "text-bad" : "text-warn"}`}>
+        <AlertTriangle size={16} /> Atenção: {excluir ? "excluir" : "arquivar"} {n} tarefa{n > 1 ? "s" : ""}
+      </div>
+      <p className="mt-1 text-[12.5px]">
+        {excluir
+          ? `A exclusão é definitiva e não dá para desfazer${comAnexos ? `: ${comAnexos} delas têm comentários ou checklist, que também serão apagados` : ""}.`
+          : "As tarefas vão para Não feita: saem das listas ativas e ficam no histórico (dá para reabrir depois)."}
+        {rotinas ? ` ${rotinas} é de rotina${excluir ? " (a rotina continua gerando as próximas)" : " (a próxima da rotina será criada)"}.` : ""} Confira a lista antes de confirmar.
+      </p>
+      <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-line bg-surface">
+        <table className="w-full text-[12.5px]">
+          <thead><tr className="border-b border-line text-left text-muted"><th className="px-3 py-1.5 font-medium">Tarefa</th><th className="px-2 font-medium">Cliente</th><th className="px-2 font-medium">Status</th><th className="px-2 font-medium">Prazo</th><th className="px-2 font-medium">Responsável</th></tr></thead>
+          <tbody>
+            {c.itens.map((i) => (
+              <tr key={i.id} className="border-b border-line last:border-0">
+                <td className="px-3 py-1.5">{i.titulo}{i.rotina && <span className="ml-1 text-[10.5px] text-muted">(rotina)</span>}{(i.comentarios > 0 || i.checklist > 0) && <span className="ml-1 text-[10.5px] text-muted">· {i.comentarios} coment. · {i.checklist} checklist</span>}</td>
+                <td className="px-2">{i.cliente}</td>
+                <td className="px-2">{NOME_STATUS[i.status] ?? i.status}</td>
+                <td className="px-2">{i.prazo ? i.prazo.split("-").reverse().join("/") : "—"}</td>
+                <td className="px-2">{i.responsavel ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {estado ? (
+        <p className={`mt-2 text-[12.5px] font-medium ${estado === "confirmada" ? "text-ok" : "text-muted"}`}>{estado === "confirmada" ? (excluir ? "Exclusão confirmada." : "Arquivamento confirmado.") : "Cancelado. Nada foi alterado."}</p>
+      ) : expirada ? (
+        <p className="mt-2 text-[12.5px] text-muted">Esta confirmação expirou. Peça de novo para montar a lista atualizada.</p>
+      ) : (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-[12.5px]"><input type="checkbox" checked={aceite} onChange={(e) => setAceite(e.target.checked)} /> Conferi a lista e quero {excluir ? "excluir" : "arquivar"} essas {n} tarefa{n > 1 ? "s" : ""}</label>
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => decidir(false)} disabled={ocupado} className="h-9 rounded-lg border border-line bg-surface px-3 text-[13px]">Cancelar</button>
+            <button onClick={() => decidir(true)} disabled={!aceite || ocupado} className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-white disabled:opacity-40 ${excluir ? "bg-bad" : "bg-warn"}`}>
+              {excluir ? <Trash2 size={14} /> : <Archive size={14} />} {ocupado ? "Executando…" : `Confirmar ${excluir ? "exclusão" : "arquivamento"}`}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

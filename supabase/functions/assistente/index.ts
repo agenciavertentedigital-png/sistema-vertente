@@ -1,6 +1,6 @@
 // Assistente de IA do Sistema Vertente: responde no chat consultando os dados do sistema e executa ações
 // pedidas pelo time (criar e atualizar tarefas, comentar, checklist, anotações, registros e temperatura).
-// Nada é apagado. As operações rodam com o login de quem pede, então valem as mesmas permissões do banco
+// Exclusão/arquivamento de tarefas só com o clique da pessoa no quadro de confirmação (token assinado). As operações rodam com o login de quem pede, então valem as mesmas permissões do banco
 // (ex.: financeiro só para administradores).
 // IA: Anthropic (Claude) se houver 'anthropic_api_key' no Vault; senão OpenAI (ChatGPT) com 'openai_api_key'.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -192,9 +192,22 @@ const FERRAMENTAS = [
       required: ["cliente_id", "nivel"],
     },
   },
+  {
+    name: "preparar_exclusao_tarefas",
+    description: "PEDE CONFIRMAÇÃO para excluir (apagar de vez) ou arquivar (marcar como Não feita, sai das listas e fica no histórico) tarefas. NÃO apaga nada: só monta a lista e mostra para a pessoa um quadro com o botão de confirmar. A exclusão só acontece quando ela clicar em Confirmar. Antes, ache os ids certos com consultar_tabela (título + cliente). Use só quando a pessoa pedir para excluir/apagar/arquivar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        tarefa_ids: { type: "array", items: { type: "string" }, description: "ids das tarefas (até 50)" },
+        modo: { type: "string", enum: ["excluir", "arquivar"] },
+        motivo: { type: "string", description: "frase curta do pedido da pessoa" },
+      },
+      required: ["tarefa_ids", "modo"],
+    },
+  },
 ];
 
-const ACOES = new Set(["criar_tarefa", "atualizar_tarefa", "comentar_tarefa", "checklist_tarefa", "criar_anotacao", "registrar_na_linha_do_tempo", "marcar_temperatura"]);
+const ACOES = new Set(["preparar_exclusao_tarefas", "criar_tarefa", "atualizar_tarefa", "comentar_tarefa", "checklist_tarefa", "criar_anotacao", "registrar_na_linha_do_tempo", "marcar_temperatura"]);
 const dataValida = (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 
 function hojeBR() {
@@ -220,6 +233,31 @@ interface Acesso {
   membroId: string;
   admin: boolean;
   acoes: { tipo: string; texto: string; tarefa_id?: string }[]; // o que foi feito nesta conversa
+  canal?: string;
+  confirmacao?: Confirmacao | null; // exclusão aguardando o clique da pessoa
+}
+interface ItemExclusao { id: string; titulo: string; cliente: string; status: string; prazo: string | null; responsavel: string | null; rotina: boolean; comentarios: number; checklist: number }
+interface Confirmacao { token: string; modo: "excluir" | "arquivar"; itens: ItemExclusao[]; expira_em: string }
+
+// ---------------- Confirmação de exclusão (assinada pelo servidor; a IA não consegue confirmar sozinha) ----------------
+const enc = new TextEncoder();
+const b64 = (b: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function assinar(dados: string) {
+  const k = await crypto.subtle.importKey("raw", enc.encode(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! + ":exclusao"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64(await crypto.subtle.sign("HMAC", k, enc.encode(dados)));
+}
+async function criarToken(p: { m: string; modo: string; ids: string[]; exp: number }) {
+  const corpo = b64(enc.encode(JSON.stringify(p)));
+  return `${corpo}.${await assinar(corpo)}`;
+}
+async function lerToken(token: string): Promise<{ m: string; modo: "excluir" | "arquivar"; ids: string[]; exp: number } | null> {
+  const [corpo, ass] = String(token).split(".");
+  if (!corpo || !ass || (await assinar(corpo)) !== ass) return null;
+  try {
+    return JSON.parse(atob(corpo.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
 }
 
 /** Na chamada interna as regras do banco não se aplicam sozinhas: repete aqui as restrições. */
@@ -308,6 +346,43 @@ async function executar(nome: string, entrada: Json, a: Acesso): Promise<unknown
     if (!data) throw new Error("Tarefa não encontrada.");
     return data as unknown as { id: string; titulo: string; cliente_id: string; cliente: { nome: string } | null };
   };
+
+  if (nome === "preparar_exclusao_tarefas") {
+    if (a.canal === "whatsapp" || !a.jwt) throw new Error("Exclusão só pode ser confirmada dentro do sistema (Central de IA), não pelo WhatsApp.");
+    if (a.confirmacao) throw new Error("Já existe uma exclusão aguardando confirmação nesta resposta. Junte tudo numa única lista.");
+    const modo = entrada.modo === "arquivar" ? "arquivar" : "excluir";
+    const ids = [...new Set(((entrada.tarefa_ids as string[] | undefined) ?? []).map(String))];
+    if (!ids.length) throw new Error("Informe as tarefas.");
+    if (ids.length > 50) throw new Error("No máximo 50 tarefas por vez. Divida o pedido.");
+    const { data, error } = await a.sb.from("tarefas").select("id, titulo, status, prazo, cliente_rotina_id, cliente:clientes(nome), responsavel:membros!tarefas_responsavel_id_fkey(nome), tarefa_comentarios(count), tarefa_checklist(count)").in("id", ids);
+    if (error) throw new Error(error.message);
+    const linhas = (data ?? []) as unknown as Json[];
+    const faltam = ids.filter((id) => !linhas.some((l) => l.id === id));
+    if (faltam.length) throw new Error(`Não achei ${faltam.length} tarefa(s) com esses ids. Consulte de novo antes de pedir a confirmação.`);
+    const cnt = (x: unknown) => Number(((x as { count?: number }[] | undefined) ?? [])[0]?.count ?? 0);
+    const itens: ItemExclusao[] = linhas.map((l) => ({
+      id: String(l.id),
+      titulo: String(l.titulo),
+      cliente: (l.cliente as { nome?: string } | null)?.nome ?? "—",
+      status: String(l.status),
+      prazo: (l.prazo as string | null) ?? null,
+      responsavel: (l.responsavel as { nome?: string } | null)?.nome ?? null,
+      rotina: !!l.cliente_rotina_id,
+      comentarios: cnt(l.tarefa_comentarios),
+      checklist: cnt(l.tarefa_checklist),
+    }));
+    const exp = Date.now() + 15 * 60_000;
+    a.confirmacao = { token: await criarToken({ m: a.membroId, modo, ids, exp }), modo, itens, expira_em: new Date(exp).toISOString() };
+    return {
+      ok: true,
+      aguardando_confirmacao: true,
+      nada_foi_alterado: true,
+      modo,
+      quantidade: itens.length,
+      itens: itens.map((i) => ({ titulo: i.titulo, cliente: i.cliente, status: i.status, prazo: i.prazo })),
+      instrucao: "A tela vai mostrar um quadro com a lista e o botão de confirmar. Diga em 1-2 linhas o que será feito e peça para a pessoa conferir a lista e clicar em Confirmar. Não diga que já foi feito.",
+    };
+  }
 
   if (nome === "criar_tarefa") {
     if (entrada.prazo && !dataValida(entrada.prazo)) throw new Error("Prazo deve ser AAAA-MM-DD.");
@@ -407,12 +482,13 @@ function sistema(nome: string, papel: string, pagina: string | undefined, canal?
   return `Você é o Assistente da Vertente Digital, agência de marketing (tráfego pago, Google Meu Negócio, social media e CRM) de Minas Gerais. Você fica dentro do Sistema Vertente, o sistema interno da agência, e conversa com ${nome} (${papel}).
 Hoje é ${hojeBR()} (horário de Brasília).${pagina ? ` A pessoa está na tela "${pagina}" do sistema.` : ""}
 
-Você lê todo o sistema pelas ferramentas e também EXECUTA ações quando a pessoa pede: criar tarefa, mudar status/prazo/responsável/prioridade, concluir tarefa, comentar, mexer no checklist, criar anotação, registrar na linha do tempo e marcar a temperatura do cliente. Sempre consulte os dados antes de afirmar números; nunca invente.
+Você lê todo o sistema pelas ferramentas e também EXECUTA ações quando a pessoa pede: criar tarefa, excluir/arquivar tarefas (sempre com confirmação na tela), mudar status/prazo/responsável/prioridade, concluir tarefa, comentar, mexer no checklist, criar anotação, registrar na linha do tempo e marcar a temperatura do cliente. Sempre consulte os dados antes de afirmar números; nunca invente.
 Regras das ações:
 - Só aja quando a pessoa pedir (ou confirmar uma sugestão sua). Em perguntas, apenas responda.
 - Antes, ache os ids certos (cliente por nome com ilike, membro por nome, tarefa pelo título + cliente). Se houver mais de uma opção possível ou faltar algo essencial, pergunte antes em vez de chutar.
 - Se o pedido mexer em mais de 5 itens de uma vez, liste o que vai fazer e peça confirmação primeiro.
-- Você não apaga nada nem mexe em financeiro, contratos, cadastros ou integrações: para isso, explique onde fazer no sistema.
+- Excluir ou arquivar tarefas: use SEMPRE preparar_exclusao_tarefas com a lista exata (uma única chamada com todas). Isso NÃO apaga: a tela mostra a lista com um aviso e o botão Confirmar, e só o clique da pessoa executa. Nunca diga que excluiu antes da confirmação. Se o pedido for vago ("apague as antigas"), consulte, mostre e deixe a pessoa conferir na lista. Arquivar = marcar como Não feita (some das listas e fica no histórico); excluir = apagar de vez, com comentários e checklist.
+- Você NÃO apaga mais nada além de tarefas, e NÃO faz mudanças estruturais no sistema (tabelas, colunas, telas, permissões, usuários, integrações, automações, rotinas), nem mexe em financeiro, contratos ou cadastros: para isso, explique onde fazer no sistema.
 - "Minhas tarefas"/"para mim" = responsavel_id ${membroId} (você está falando com essa pessoa). Datas relativas ("amanhã", "sexta") contam a partir de hoje.
 - Depois de agir, confirme em poucas linhas o que foi feito.
 
@@ -443,7 +519,7 @@ Deno.serve(async (req) => {
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const corpo = (await req.json().catch(() => ({}))) as { mensagens?: { role: string; content: string }[]; pagina?: string; membro_id?: string; canal?: string };
+  const corpo = (await req.json().catch(() => ({}))) as { mensagens?: { role: string; content: string }[]; pagina?: string; membro_id?: string; canal?: string; confirmar_exclusao?: string; cancelar_exclusao?: boolean };
 
   // Quem pergunta: login do sistema ou chamada interna (WhatsApp) com a chave do servidor
   const chaveCron = req.headers.get("x-chave-cron");
@@ -463,6 +539,26 @@ Deno.serve(async (req) => {
   }
   if (!m) return responder({ erro: "Sem acesso." }, 403);
 
+  // ---------------- Clique em "Confirmar" no quadro de exclusão ----------------
+  if (corpo.confirmar_exclusao) {
+    if (interno || !jwt) return responder({ erro: "Exclusão só pelo sistema." }, 403);
+    const t = await lerToken(corpo.confirmar_exclusao);
+    if (!t || t.m !== m.id) return responder({ erro: "Confirmação inválida. Peça a exclusão de novo ao assistente." }, 403);
+    if (Date.now() > t.exp) return responder({ erro: "A confirmação expirou (15 min). Peça de novo para eu montar a lista atualizada." }, 410);
+    const sbu = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
+    const { data: antes } = await sbu.from("tarefas").select("id, titulo, cliente:clientes(nome)").in("id", t.ids);
+    const lista = (antes ?? []) as unknown as { id: string; titulo: string; cliente: { nome: string } | null }[];
+    if (!lista.length) return responder({ ok: true, resposta: "Essas tarefas já não existem mais (talvez já tenham sido excluídas).", acoes: [] });
+    const r = t.modo === "excluir"
+      ? await sbu.from("tarefas").delete().in("id", lista.map((x) => x.id))
+      : await sbu.from("tarefas").update({ status: "nao_feita" }).in("id", lista.map((x) => x.id));
+    if (r.error) return responder({ erro: r.error.message }, 500);
+    const verbo = t.modo === "excluir" ? "Excluída" : "Arquivada";
+    const acoes = lista.map((x) => ({ tipo: t.modo === "excluir" ? "tarefa_excluida" : "tarefa_arquivada", texto: `${verbo}: "${x.titulo}" (${x.cliente?.nome ?? ""})` }));
+    const resposta = `${t.modo === "excluir" ? "Exclusão" : "Arquivamento"} confirmado: ${lista.length} tarefa${lista.length > 1 ? "s" : ""} ${t.modo === "excluir" ? "excluída" : "arquivada"}${lista.length > 1 ? "s" : ""}.${lista.length < t.ids.length ? ` (${t.ids.length - lista.length} já não existia${t.ids.length - lista.length > 1 ? "m" : ""}.)` : ""}`;
+    return responder({ ok: true, resposta, acoes });
+  }
+
   const chave = Deno.env.get("ANTHROPIC_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "anthropic_api_key" })).data as string | null);
   const chaveOpenai = chave ? null : Deno.env.get("OPENAI_API_KEY") || ((await admin.rpc("ler_segredo", { nome: "openai_api_key" })).data as string | null);
   if (!chave && !chaveOpenai) return responder({ erro: "O assistente ainda não está ligado: falta a chave da IA (anthropic_api_key ou openai_api_key no Vault do Supabase)." }, 412);
@@ -470,7 +566,7 @@ Deno.serve(async (req) => {
   // No sistema: cliente com o login de quem pergunta (as regras do banco valem).
   // Interno: cliente do servidor, com as restrições repetidas em conferirTabela/restringir.
   const sb = interno ? admin : createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
-  const acesso: Acesso = { sb, jwt, chaveCron: interno ? chaveCron : null, membroId: m.id, admin: m.papel === "admin", acoes: [] };
+  const acesso: Acesso = { sb, jwt, chaveCron: interno ? chaveCron : null, membroId: m.id, admin: m.papel === "admin", acoes: [], canal: corpo.canal, confirmacao: null };
   const historico = (corpo.mensagens ?? []).filter((x) => (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && x.content.trim()).slice(-20);
   if (!historico.length || historico[historico.length - 1].role !== "user") return responder({ erro: "Envie uma pergunta." }, 400);
 
@@ -514,7 +610,7 @@ Deno.serve(async (req) => {
         const chamadas = saida.filter((o) => o.type === "function_call");
         if (!chamadas.length) {
           const texto = saida.filter((o) => o.type === "message").flatMap((o) => o.content ?? []).filter((c) => c.type === "output_text").map((c) => c.text).join("\n").trim();
-          return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, modelo: MODELO_OPENAI });
+          return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, confirmacao: acesso.confirmacao, modelo: MODELO_OPENAI });
         }
         entrada = await Promise.all(
           chamadas.map(async (c) => {
@@ -527,7 +623,7 @@ Deno.serve(async (req) => {
           }),
         );
       }
-      return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, modelo: MODELO_OPENAI });
+      return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, confirmacao: acesso.confirmacao, modelo: MODELO_OPENAI });
     } catch (e) {
       return responder({ erro: (e as Error).message }, 500);
     }
@@ -552,7 +648,7 @@ Deno.serve(async (req) => {
       const usos = blocos.filter((b) => b.type === "tool_use");
       if (j.stop_reason !== "tool_use" || !usos.length) {
         const texto = blocos.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-        return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, modelo: MODELO });
+        return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, confirmacao: acesso.confirmacao, modelo: MODELO });
       }
       const resultados = await Promise.all(
         usos.map(async (b) => {
@@ -562,7 +658,7 @@ Deno.serve(async (req) => {
       );
       mensagens.push({ role: "user", content: resultados });
     }
-    return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, modelo: MODELO });
+    return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, confirmacao: acesso.confirmacao, modelo: MODELO });
   } catch (e) {
     return responder({ erro: (e as Error).message }, 500);
   }
