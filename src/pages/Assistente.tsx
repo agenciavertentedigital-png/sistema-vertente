@@ -119,7 +119,7 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
       setConfirmando(indice);
       try {
         const r = await chamarFuncao<{ resposta: string; acoes?: { tipo: string; texto: string }[] }>("assistente", { confirmar_exclusao: alvo.confirmacao.token });
-        extra = { role: "assistant", content: r.resposta, acoes: r.acoes };
+        extra = { role: "assistant", content: r.resposta.replace("Exclusão confirmado", "Exclusão confirmada"), acoes: r.acoes };
         estado = "confirmada";
         d.recarregar().catch(() => null);
       } catch (e) {
@@ -227,7 +227,7 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-[16px] font-semibold leading-tight">Assistente Vertente</h1>
-              <p className="truncate text-[11.5px] text-muted">Consulta o sistema e executa tarefas que você pedir · nada é apagado</p>
+              <p className="truncate text-[11.5px] text-muted">Consulta o sistema e executa tarefas que você pedir · exclusões só com a sua confirmação</p>
             </div>
           </div>
           <button onClick={() => abrir(null)} className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] hover:bg-raised lg:hidden">

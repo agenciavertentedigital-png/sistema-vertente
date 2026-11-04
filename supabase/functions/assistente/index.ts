@@ -555,7 +555,7 @@ Deno.serve(async (req) => {
     if (r.error) return responder({ erro: r.error.message }, 500);
     const verbo = t.modo === "excluir" ? "Excluída" : "Arquivada";
     const acoes = lista.map((x) => ({ tipo: t.modo === "excluir" ? "tarefa_excluida" : "tarefa_arquivada", texto: `${verbo}: "${x.titulo}" (${x.cliente?.nome ?? ""})` }));
-    const resposta = `${t.modo === "excluir" ? "Exclusão" : "Arquivamento"} confirmado: ${lista.length} tarefa${lista.length > 1 ? "s" : ""} ${t.modo === "excluir" ? "excluída" : "arquivada"}${lista.length > 1 ? "s" : ""}.${lista.length < t.ids.length ? ` (${t.ids.length - lista.length} já não existia${t.ids.length - lista.length > 1 ? "m" : ""}.)` : ""}`;
+    const resposta = `${t.modo === "excluir" ? "Exclusão confirmada" : "Arquivamento confirmado"}: ${lista.length} tarefa${lista.length > 1 ? "s" : ""} ${t.modo === "excluir" ? "excluída" : "arquivada"}${lista.length > 1 ? "s" : ""}.${lista.length < t.ids.length ? ` (${t.ids.length - lista.length} já não existia${t.ids.length - lista.length > 1 ? "m" : ""}.)` : ""}`;
     return responder({ ok: true, resposta, acoes });
   }
 
