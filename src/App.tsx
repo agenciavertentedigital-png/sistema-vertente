@@ -4,7 +4,8 @@ import { Menu } from "./components/Menu";
 import { Marca } from "./components/Marca";
 import { useRota } from "./lib/rota";
 import { MODULOS } from "./data/modulos";
-import { Central } from "./pages/Central";
+import { DashboardVertente } from "./pages/Central";
+import { CentralVertente } from "./pages/CentralVertente";
 import { PaginaModulo } from "./pages/PaginaModulo";
 import { BaseClientes } from "./pages/BaseClientes";
 import { Entrar } from "./pages/Entrar";
@@ -22,6 +23,7 @@ import { Financeiro } from "./pages/financeiro/Financeiro";
 import { GestorProjetos } from "./pages/projetos/GestorProjetos";
 import { Cadastro } from "./pages/cadastro/Cadastro";
 import { Contratos } from "./pages/cadastro/Contratos";
+import { InformacoesCadastrais } from "./pages/cadastro/InformacoesCadastrais";
 import { CadastroPublico } from "./pages/cadastro/CadastroPublico";
 import { Crm } from "./pages/Crm";
 import { Comando, useAtalhoComando } from "./components/Comando";
@@ -111,8 +113,9 @@ export default function App() {
 
   const modulo = MODULOS.find((m) => m.id === rota);
   const naCentral = rota === "inicio" || (!modulo && !rotaConhecida(rota));
-  let pagina = <Central ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
-  if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
+  let pagina = <CentralVertente ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
+  if (rota === "dashboard") pagina = <DashboardVertente ir={navegar} />;
+  else if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
   else if (rota === "trafego" || rota.startsWith("trafego-")) pagina = <GestaoTrafego rota={rota} ir={navegar} />;
@@ -127,6 +130,7 @@ export default function App() {
   else if (rota === "integracoes") pagina = <Integracoes />;
   else if (rota === "anotacoes" || rota.startsWith("anotacoes-")) pagina = <CentralAnotacoes rota={rota} ir={navegar} />;
   else if (rota === "cadastro") pagina = <><AbasCadastro rota={rota} ir={navegar} /><Cadastro ir={navegar} /></>;
+  else if (rota === "cadastro-informacoes") pagina = <><AbasCadastro rota={rota} ir={navegar} /><InformacoesCadastrais ir={navegar} /></>;
   else if (rota === "contratos" || rota.startsWith("contratos-")) pagina = <><AbasCadastro rota={rota} ir={navegar} /><Contratos rota={rota} ir={navegar} /></>;
   else if (modulo) pagina = <PaginaModulo key={modulo.id} modulo={modulo} ir={navegar} />;
 
@@ -222,14 +226,15 @@ export default function App() {
   );
 }
 
-/** Rotas que têm página própria (o resto cai na Central). */
+/** Rotas que têm página própria (o resto cai na Central Vertente). */
 function rotaConhecida(r: string) {
-  return /^(base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
+  return /^(dashboard|base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
 }
 
 /** Abas que unem Fichas, Contratos e Base num tópico só. */
 function AbasCadastro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const abas = [
+    { id: "cadastro-informacoes", nome: "Informações cadastrais", ativo: rota === "cadastro-informacoes" },
     { id: "cadastro", nome: "Fichas dos clientes", ativo: rota === "cadastro" },
     { id: "contratos", nome: "Contratos", ativo: rota.startsWith("contratos") },
     { id: "base", nome: "Base de clientes", ativo: rota === "base" },

@@ -21,6 +21,7 @@ const CAMPOS: { id: string; nome: string; tipo?: string; dica?: string; obrigato
 export function CadastroPublico({ token }: { token: string }) {
   const [estado, setEstado] = useState<"carregando" | "form" | "enviado" | "erro">("carregando");
   const [nome, setNome] = useState("");
+  const [novo, setNovo] = useState(false);
   const [dados, setDados] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -44,6 +45,7 @@ export function CadastroPublico({ token }: { token: string }) {
           return;
         }
         setNome(j.nome);
+        setNovo(j.tipo === "novo_cliente");
         setDados(Object.fromEntries(Object.entries(j.dados ?? {}).filter(([, v]) => typeof v === "string")) as Record<string, string>);
         setEstado("form");
       })
@@ -86,14 +88,26 @@ export function CadastroPublico({ token }: { token: string }) {
           {estado === "form" && (
             <form onSubmit={enviar} className="flex flex-col gap-4">
               <div>
-                <div className="eyebrow">Cadastro de cliente</div>
-                <h1 className="mt-1 text-[22px] font-semibold">{nome}</h1>
+                <div className="eyebrow">{novo ? "Bem-vindo à Vertente" : "Cadastro de cliente"}</div>
+                <h1 className="mt-1 text-[22px] font-semibold">{novo ? "Cadastro de cliente" : nome}</h1>
                 <p className="mt-1 text-[13px] text-muted">Preencha seus dados para o cadastro e o contrato com a Vertente Digital.</p>
               </div>
               {!supabase && (
                 <p className="rounded-xl bg-warn-soft px-3 py-2 text-[12.5px] text-warn">Exemplo da prévia: este formulário não grava dados. O link real é gerado pelo sistema em sistema.agenciavertente.com.br.</p>
               )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {novo && (
+                  <label className="flex flex-col gap-1 text-[12.5px] text-muted sm:col-span-2">
+                    Nome da empresa (como seus clientes conhecem)
+                    <input
+                      required
+                      value={dados.nome ?? ""}
+                      placeholder="Ex.: Óticas Carol"
+                      onChange={(e) => setDados({ ...dados, nome: e.target.value })}
+                      className="rounded-xl border border-line bg-bg px-3 py-2.5 text-[14px] text-fg outline-none focus:border-accent"
+                    />
+                  </label>
+                )}
                 {CAMPOS.map((c) => (
                   <label key={c.id} className={`flex flex-col gap-1 text-[12.5px] text-muted ${c.id === "endereco" || c.id === "razao_social" ? "sm:col-span-2" : ""}`}>
                     {c.nome}

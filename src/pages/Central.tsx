@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronRight, LogOut, Moon, Plug, Search, Sun } from "lucide-react";
+import { ChevronRight, Gauge, LogOut, Moon, Plug, Search, Sun } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { useTrafego } from "../lib/trafego";
 import { moedaBR, useTabela } from "../lib/tabela";
@@ -23,12 +23,18 @@ interface Props {
   usuario: { nome: string; papel: string };
   onSair?: () => void;
   abrirComando: () => void;
+  /** Dentro do layout com menu lateral (Dashboard Vertente): sem a barra do topo própria */
+  embutido?: boolean;
 }
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-/** Central: ponto de partida do dia. O que pede atenção, o seu dia e todas as áreas, sem menu lateral. */
-export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando }: Props) {
+/** Dashboard Vertente: o que pede atenção, saúde dos clientes, o seu dia e o estado de cada área. */
+export function DashboardVertente({ ir }: { ir: (r: string) => void }) {
+  return <Central ir={ir} tema="light" alternarTema={() => null} usuario={{ nome: "", papel: "" }} abrirComando={() => null} embutido />;
+}
+
+export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando, embutido = false }: Props) {
   const d = useDados();
   const trafego = useTrafego();
   const gmn = useGmn();
@@ -108,7 +114,7 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
   return (
     <div className="min-h-full">
       {/* Barra do topo: marca, busca e conta */}
-      <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur-md">
+      {!embutido && <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1120px] items-center gap-3 px-[max(16px,env(safe-area-inset-left,0px))] sm:px-8">
           <span className="shrink-0 sm:hidden"><Marca compacta /></span>
           <span className="hidden shrink-0 sm:block"><Marca /></span>
@@ -128,11 +134,12 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando 
             {onSair && <Icone rotulo="Sair" onClick={onSair}><LogOut size={16} strokeWidth={1.8} /></Icone>}
           </div>
         </div>
-      </header>
+      </header>}
 
-      <div className="mx-auto flex max-w-[1120px] flex-col gap-8 px-[max(16px,env(safe-area-inset-left,0px))] pb-20 pt-8 sm:px-8">
+      <div className={`mx-auto flex max-w-[1120px] flex-col gap-8 ${embutido ? "pb-16" : "px-[max(16px,env(safe-area-inset-left,0px))] pb-20 pt-8 sm:px-8"}`}>
         {/* Abertura: data e frase do dia, discretas; o destaque fica nas áreas */}
         <section className="flex flex-col gap-3">
+          {embutido && <div className="eyebrow flex items-center gap-2"><Gauge size={13} /> Dashboard Vertente</div>}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
             <span className="font-medium">{data}</span>
             <span className="flex items-center gap-1.5">

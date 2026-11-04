@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { LayoutGrid, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plug, Search, Sun } from "lucide-react";
 import { Sininho } from "./Sininho";
-import { ASSISTENTE, SECOES, ativo } from "../data/navegacao";
+import { ASSISTENTE, DASHBOARD, SECOES, ativo } from "../data/navegacao";
 import { Marca } from "./Marca";
 
 interface Props {
@@ -57,7 +57,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
   return (
     <nav className={`flex h-full flex-col gap-4 overflow-y-auto overflow-x-hidden pb-3 pt-4 ${recolhido ? "px-2" : "px-3"}`} style={{ scrollbarWidth: "none" }} aria-label="Menu principal">
       <div className={`flex items-center ${recolhido ? "flex-col gap-3" : "justify-between gap-2 px-1.5"}`}>
-        <button onClick={() => ir("inicio")} title="Ir para a Central" aria-label="Ir para a Central" className="rounded-lg">
+        <button onClick={() => ir("inicio")} title="Ir para a Central Vertente" aria-label="Ir para a Central Vertente" className="rounded-lg">
           <Marca compacta={recolhido} />
         </button>
         {alternarRecolhido && (
@@ -84,7 +84,8 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
       )}
 
       <div className="flex flex-col gap-0.5">
-        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={LayoutGrid} rotulo="Central" recolhido={recolhido} />
+        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={LayoutGrid} rotulo="Central Vertente" recolhido={recolhido} />
+        <Item ativo={ativo(DASHBOARD, rota)} onClick={() => ir(DASHBOARD.rota)} icone={DASHBOARD.icone} rotulo={DASHBOARD.nome} recolhido={recolhido} />
         <Item ativo={ativo(ASSISTENTE, rota)} onClick={() => ir(ASSISTENTE.rota)} icone={ASSISTENTE.icone} rotulo={ASSISTENTE.nome} recolhido={recolhido} />
         {recolhido ? <div className="flex justify-center"><Sininho ir={ir} compacto /></div> : <Sininho ir={ir} />}
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
-import { CornerDownLeft, LayoutGrid, Moon, Plug, Search, Sparkles, User } from "lucide-react";
+import { CornerDownLeft, Gauge, LayoutGrid, Moon, Plug, Search, Sparkles, User } from "lucide-react";
 import { ASSISTENTE, SECOES } from "../data/navegacao";
 import { useDados } from "../lib/dados";
 
@@ -40,7 +40,10 @@ export function Comando({ aberto, fechar, ir, alternarTema }: { aberto: boolean;
   }, [aberto]);
 
   const todas = useMemo<Opcao[]>(() => {
-    const ops: Opcao[] = [{ id: "inicio", grupo: "Ir para", titulo: "Central", icone: LayoutGrid, acao: () => ir("inicio"), termos: "central inicio home" }];
+    const ops: Opcao[] = [
+      { id: "inicio", grupo: "Ir para", titulo: "Central Vertente", icone: LayoutGrid, acao: () => ir("inicio"), termos: "central inicio home ferramentas" },
+      { id: "dashboard", grupo: "Ir para", titulo: "Dashboard Vertente", icone: Gauge, acao: () => ir("dashboard"), termos: "dashboard painel alertas saude indicadores" },
+    ];
     for (const s of SECOES)
       for (const t of s.topicos) {
         ops.push({ id: t.id, grupo: "Ir para", titulo: t.nome, sub: s.nome, icone: t.icone, acao: () => ir(t.rota), termos: `${t.nome} ${s.nome} ${t.descricao}` });

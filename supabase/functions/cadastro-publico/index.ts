@@ -1,5 +1,6 @@
 // Link de cadastro: o cliente abre sem login, vê o nome da empresa e preenche a própria ficha.
 // GET ?token=… devolve os dados atuais; POST {token, dados} grava na ficha e avisa o time.
+// Links do tipo "novo_cliente" (sem cliente ainda) criam o cliente no sistema com os dados enviados.
 // Links do tipo "briefing" leem e gravam as perguntas do briefing que o cliente pode responder (nunca a parte interna).
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
@@ -24,6 +25,34 @@ Deno.serve(async (req) => {
   const { data: link } = await admin.from("cadastro_links").select("token, cliente_id, expira_em, preenchido_em, tipo").eq("token", token).maybeSingle();
   if (!link) return responder({ erro: "Link não encontrado. Peça um novo para a Vertente." }, 404);
   if (new Date(link.expira_em) < new Date()) return responder({ erro: "Este link expirou. Peça um novo para a Vertente." }, 410);
+
+  // Link de cliente novo: ainda não existe cadastro; ao enviar, o cliente é criado no sistema
+  if (link.tipo === "novo_cliente" && !link.cliente_id) {
+    if (req.method === "GET" || !corpo.dados) return responder({ ok: true, tipo: "novo_cliente", nome: "", dados: {}, preenchido_em: null });
+    const nomeNovo = typeof corpo.dados.nome === "string" ? corpo.dados.nome.trim().slice(0, 120) : "";
+    if (nomeNovo.length < 2) return responder({ erro: "Informe o nome da empresa." }, 400);
+    const novo: Record<string, string | null> = { nome: nomeNovo };
+    for (const c of CAMPOS) {
+      const v = corpo.dados[c];
+      if (typeof v === "string") novo[c] = v.trim().slice(0, 300) || null;
+    }
+    // trava o link antes de criar, para dois envios ao mesmo tempo não criarem dois clientes
+    const { data: trava } = await admin.from("cadastro_links").update({ preenchido_em: new Date().toISOString() }).eq("token", token).is("cliente_id", null).is("preenchido_em", null).select("token");
+    if (!trava?.length) return responder({ erro: "Este cadastro já foi enviado. Se precisar corrigir algo, fale com a Vertente." }, 409);
+    const { data: criado, error } = await admin.from("clientes").insert({ ...novo, status: "ativo", origem: "vertente" }).select("id").single();
+    if (error || !criado) {
+      await admin.from("cadastro_links").update({ preenchido_em: null }).eq("token", token);
+      return responder({ erro: "Não foi possível salvar. Tente de novo." }, 500);
+    }
+    await admin.from("cadastro_links").update({ cliente_id: criado.id, tipo: "cadastro", respostas: novo }).eq("token", token);
+    // guarda o nome no apelido para a lista de links continuar mostrando que foi um cliente novo
+    await admin.from("cadastro_links").update({ apelido: nomeNovo }).eq("token", token).is("apelido", null);
+    const { data: time } = await admin.from("membros").select("id").eq("ativo", true).eq("acesso", true);
+    if (time?.length) {
+      await admin.from("notificacoes").insert(time.map((m) => ({ membro_id: m.id, tipo: "alerta", texto: `Novo cliente cadastrado pelo link: ${nomeNovo}`, cliente_id: criado.id })));
+    }
+    return responder({ ok: true, novo: true });
+  }
 
   const { data: cliente } = await admin.from("clientes").select(`nome, ${CAMPOS.join(", ")}`).eq("id", link.cliente_id).single();
   if (!cliente) return responder({ erro: "Cliente não encontrado." }, 404);

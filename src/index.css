@@ -259,3 +259,48 @@ kbd {
 }
 .tema-diagnostico .diag-pergunta { animation: diag-subir 320ms var(--ease) both; }
 @keyframes diag-subir { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------------
+   Central Vertente (porta de entrada): visual tecnológico fixo, escuro
+   ------------------------------------------------------------------ */
+.central-v { background: #040818; color-scheme: dark; }
+.central-v ::selection { background: rgba(79, 107, 255, 0.45); color: #fff; }
+.cv-vidro { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.09); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.cv-texto-gradiente { background: linear-gradient(100deg, #c7d2fe 0%, #7dd3fc 45%, #a78bfa 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cv-grade {
+  background-image: linear-gradient(rgba(148, 163, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 255, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 30%, transparent 75%);
+}
+.cv-simbolo { opacity: 0.11; filter: drop-shadow(0 0 40px rgba(125, 211, 252, 0.35)); animation: cv-respirar 9s ease-in-out infinite; }
+.cv-orbita { animation: cv-girar 70s linear infinite; }
+.cv-orbita-2 { animation: cv-girar 110s linear infinite reverse; }
+.cv-luz { animation: cv-flutuar 18s ease-in-out infinite; }
+.cv-luz-2 { animation: cv-flutuar 24s ease-in-out infinite reverse; }
+.cv-luz-3 { animation: cv-flutuar 28s ease-in-out infinite; }
+.cv-pulso { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.6); animation: cv-pulso 2.4s ease-out infinite; }
+.cv-borda-ia { background: linear-gradient(120deg, rgba(79, 107, 255, 0.8), rgba(34, 211, 238, 0.6), rgba(167, 139, 250, 0.7), rgba(79, 107, 255, 0.8)); background-size: 300% 300%; animation: cv-fluxo 8s ease infinite; box-shadow: 0 20px 60px -20px rgba(56, 84, 255, 0.55); }
+.cv-borda-ia:focus-within { box-shadow: 0 20px 70px -15px rgba(34, 211, 238, 0.55); }
+.cv-cartao { background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s, box-shadow 0.35s; }
+.cv-cartao::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--cor) 28%, transparent), transparent 70%); }
+.cv-cartao:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--cor) 45%, rgba(255, 255, 255, 0.15)); box-shadow: 0 18px 50px -22px color-mix(in srgb, var(--cor) 70%, transparent); }
+.cv-cartao:hover::before, .cv-cartao:focus-within::before { opacity: 1; }
+.cv-icone { background: linear-gradient(145deg, color-mix(in srgb, var(--cor) 92%, #fff 8%), color-mix(in srgb, var(--cor) 55%, #040818)); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 8px 24px -8px color-mix(in srgb, var(--cor) 80%, transparent); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.cv-cartao:hover .cv-icone { transform: scale(1.06) rotate(-3deg); }
+.cv-entrar { opacity: 0; animation: cv-entrar 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+@keyframes cv-entrar { from { opacity: 0; transform: translateY(14px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes cv-respirar { 0%, 100% { transform: scale(1); opacity: 0.1; } 50% { transform: scale(1.035); opacity: 0.15; } }
+@keyframes cv-girar { to { transform: rotate(360deg); } }
+@keyframes cv-flutuar { 0%, 100% { transform: translate(-50%, 0) scale(1); } 50% { transform: translate(-46%, 4%) scale(1.06); } }
+@keyframes cv-pulso { 0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); } 80%, 100% { box-shadow: 0 0 0 8px rgba(34, 211, 238, 0); } }
+@keyframes cv-fluxo { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.cv-luz-2, .cv-luz-3 { translate: 0 0; }
+@keyframes cv-flutuar-2 { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-4%, 5%); } }
+.cv-luz-2 { animation-name: cv-flutuar-2; }
+.cv-luz-3 { animation-name: cv-flutuar-2; }
+@media (prefers-reduced-motion: reduce) {
+  .cv-simbolo, .cv-orbita, .cv-orbita-2, .cv-luz, .cv-luz-2, .cv-luz-3, .cv-pulso, .cv-borda-ia { animation: none; }
+  .cv-entrar { animation: none; opacity: 1; }
+}

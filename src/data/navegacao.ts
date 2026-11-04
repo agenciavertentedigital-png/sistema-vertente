@@ -1,9 +1,11 @@
-// Organização dos menus: usada no menu lateral e nos tópicos da Central.
+// Organização dos menus: usada no menu lateral, na Central Vertente e no Dashboard Vertente.
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarCheck,
   CalendarDays,
   FileSignature,
+  Gauge,
+  Plug,
   HeartPulse,
   MapPin,
   MessagesSquare,
@@ -36,7 +38,7 @@ export const SECOES: Secao[] = [
     nome: "Clientes",
     topicos: [
       {
-        id: "clientes", nome: "Clientes", icone: Users, rota: "clientes", prefixos: ["clientes", "cliente-"], cor: "#2f54eb",
+        id: "clientes", nome: "Gestão do Cliente", icone: Users, rota: "clientes", prefixos: ["clientes", "cliente-"], cor: "#2f54eb",
         descricao: "Tarefas, carteira, onboarding e rotinas",
         atalhos: [{ nome: "Tarefas", rota: "clientes" }, { nome: "Carteira", rota: "clientes-carteira" }, { nome: "Caixa de entrada", rota: "clientes-entrada" }, { nome: "Onboarding", rota: "clientes-onboarding" }],
       },
@@ -47,8 +49,8 @@ export const SECOES: Secao[] = [
       },
       {
         id: "cadastro", nome: "Cadastro e contratos", icone: FileSignature, rota: "cadastro", prefixos: ["cadastro", "contratos", "base"], cor: "#0891b2",
-        descricao: "Fichas, link de cadastro e contratos",
-        atalhos: [{ nome: "Fichas", rota: "cadastro" }, { nome: "Contratos", rota: "contratos" }, { nome: "Modelos", rota: "contratos-modelos" }],
+        descricao: "Informações cadastrais, fichas e contratos",
+        atalhos: [{ nome: "Fichas", rota: "cadastro" }, { nome: "Informações cadastrais", rota: "cadastro-informacoes" }, { nome: "Contratos", rota: "contratos" }, { nome: "Modelos", rota: "contratos-modelos" }],
       },
     ],
   },
@@ -57,14 +59,14 @@ export const SECOES: Secao[] = [
     nome: "Marketing",
     topicos: [
       {
-        id: "trafego", nome: "Tráfego", icone: TrendingUp, rota: "trafego", prefixos: ["trafego"], cor: "#1d4ed8",
-        descricao: "Meta Ads: contas, dashboards e saúde",
+        id: "trafego", nome: "Gestão de Tráfego", icone: TrendingUp, rota: "trafego", prefixos: ["trafego"], cor: "#1d4ed8",
+        descricao: "Meta e Google Ads: contas, dashboards e saúde",
         atalhos: [{ nome: "Visão geral", rota: "trafego" }, { nome: "Dashboards", rota: "trafego-dashboards" }, { nome: "Saúde das contas", rota: "trafego-saude" }, { nome: "Alterações", rota: "trafego-alteracoes" }],
       },
       {
         id: "gmn", nome: "Google Meu Negócio", icone: MapPin, rota: "gmn", prefixos: ["gmn"], cor: "#16a34a",
-        descricao: "Análise da ficha, nota e ranking",
-        atalhos: [{ nome: "Perfis dos clientes", rota: "gmn" }, { nome: "Prospecção", rota: "gmn-prospeccao" }],
+        descricao: "Análise da ficha, avaliações, postagens e ranking",
+        atalhos: [{ nome: "Perfis dos clientes", rota: "gmn" }, { nome: "Monitoramento", rota: "gmn-fichas" }, { nome: "Avaliações", rota: "gmn-avaliacoes" }, { nome: "Postagens", rota: "gmn-postagens" }, { nome: "Prospecção", rota: "gmn-prospeccao" }],
       },
       {
         id: "social", nome: "Social Media", icone: CalendarDays, rota: "social", prefixos: ["social"], cor: "#db2777",
@@ -105,6 +107,16 @@ export const SECOES: Secao[] = [
     ],
   },
 ];
+
+export const DASHBOARD: Topico = {
+  id: "dashboard", nome: "Dashboard Vertente", icone: Gauge, rota: "dashboard", prefixos: ["dashboard"], cor: "#2747d6",
+  descricao: "Alertas, saúde dos clientes, tarefas e indicadores do dia", atalhos: [],
+};
+
+export const INTEGRACOES: Topico = {
+  id: "integracoes", nome: "Integrações", icone: Plug, rota: "integracoes", prefixos: ["integracoes"], cor: "#475569",
+  descricao: "Meta, Google, IA, WhatsApp e conexões do sistema", atalhos: [],
+};
 
 export const ASSISTENTE: Topico = {
   id: "assistente", nome: "Assistente IA", icone: Sparkles, rota: "assistente", prefixos: ["assistente"], cor: "#1d34a0",
