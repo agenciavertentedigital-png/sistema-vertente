@@ -1,5 +1,6 @@
-// Assistente de IA do Sistema Vertente: responde no chat consultando os dados do sistema.
-// Só leitura. As consultas rodam com o login de quem pergunta, então valem as mesmas permissões do banco
+// Assistente de IA do Sistema Vertente: responde no chat consultando os dados do sistema e executa ações
+// pedidas pelo time (criar e atualizar tarefas, comentar, checklist, anotações, registros e temperatura).
+// Nada é apagado. As operações rodam com o login de quem pede, então valem as mesmas permissões do banco
 // (ex.: financeiro só para administradores).
 // IA: Anthropic (Claude) se houver 'anthropic_api_key' no Vault; senão OpenAI (ChatGPT) com 'openai_api_key'.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -26,7 +27,7 @@ const TABELAS: Record<string, string> = {
   cliente_rotinas: "Rotinas ativas por cliente (frequência, responsável).",
   registros: "Linha do tempo: revisões, otimizações, reuniões, notas, decisões, daily e weekly. tipo: revisao|otimizacao|reuniao|nota|decisao|daily|weekly. situacao: ok|atencao|problema. acoes (lista), nota (texto), alteracoes (json), data.",
   notificacoes: "Avisos do usuário logado (menções, atribuições, alertas).",
-  contas_anuncio: "Contas de anúncio Meta por cliente: status (ativa, desativada, pagamento_pendente…), saldo, ultimo_sync, erro_sync.",
+  contas_anuncio: "Contas de anúncio por cliente (plataforma meta|google): status, saldo, ultimo_sync, erro_sync.",
   metricas_diarias: "Métricas da Meta por campanha e dia (sincronizadas 3x ao dia): gasto, impressoes, alcance, cliques, resultados, tipo_resultado, leads (formulário), conversas (WhatsApp/Direct). conta_id -> contas_anuncio. Contatos = conversas + leads. Alcance não se soma entre dias.",
   metricas_conta_dia: "Visão por conta e dia (soma das campanhas).",
   gmn_perfis: "Perfis do Google Meu Negócio (cliente_id nulo = prospecção).",
@@ -39,6 +40,7 @@ const TABELAS: Record<string, string> = {
   processos_aplicados: "Processos aplicados a clientes (nome, cliente_id, inicio). As tarefas do processo têm tarefas.processo_aplicado_id = processos_aplicados.id.",
   briefings: "Briefing estratégico de cada cliente (um por cliente): campos = {negocio_resumo, produtos_carro_chefe, ticket_medio, area_atendimento, sazonalidade, persona, dores_desejos, objecoes, diferenciais, concorrentes, tom_de_voz, restricoes, objetivo_principal, metas_90_dias, verba_midia, kpi_principal, atendimento_leads, processo_venda, conversao, historico_marketing, funcionou, materiais, estrategia_atual, funil_campanhas, proximos_testes, pontos_atencao}. Use para entender o contexto e a estratégia do cliente.",
   notas: "Anotações do time (cliente_id nulo = interna da agência): titulo, texto, etiqueta geral|estrategia|reuniao|ideia|alinhamento|aprendizado|pendencia, fixada (importante), autor_id, atualizado_em.",
+  temperaturas: "Temperatura do cliente marcada pelo time: nivel 1 (crítica) a 5 (ótima), motivo, criado_em.",
   servicos: "Catálogo de serviços.",
 };
 
@@ -96,7 +98,104 @@ const FERRAMENTAS = [
       required: ["cliente_id", "inicio", "fim"],
     },
   },
+  {
+    name: "criar_tarefa",
+    description: "AÇÃO: cria uma tarefa para um cliente (use o cliente 'Agência Vertente Digital' para tarefas internas). Só use quando a pessoa pedir.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string" },
+        titulo: { type: "string" },
+        descricao: { type: "string" },
+        prazo: { type: "string", description: "AAAA-MM-DD" },
+        responsavel_id: { type: "string", description: "id em membros" },
+        prioridade: { type: "string", enum: ["urgente", "alta", "normal", "baixa"] },
+        pilar: { type: "string", enum: ["trafego", "social", "gmn", "cs", "interno"] },
+        canal: { type: "string", enum: ["meta", "google"] },
+        checklist: { type: "array", items: { type: "string" } },
+      },
+      required: ["cliente_id", "titulo"],
+    },
+  },
+  {
+    name: "atualizar_tarefa",
+    description: "AÇÃO: muda status (concluir = feita), prazo, responsável, prioridade, título ou descrição de uma tarefa existente.",
+    input_schema: {
+      type: "object",
+      properties: {
+        tarefa_id: { type: "string" },
+        status: { type: "string", enum: ["a_fazer", "fazendo", "aguardando", "feita", "nao_feita"] },
+        prazo: { type: "string", description: "AAAA-MM-DD" },
+        responsavel_id: { type: "string" },
+        prioridade: { type: "string", enum: ["urgente", "alta", "normal", "baixa"] },
+        titulo: { type: "string" },
+        descricao: { type: "string" },
+      },
+      required: ["tarefa_id"],
+    },
+  },
+  {
+    name: "comentar_tarefa",
+    description: "AÇÃO: escreve um comentário numa tarefa (use @Nome para avisar alguém do time).",
+    input_schema: { type: "object", properties: { tarefa_id: { type: "string" }, texto: { type: "string" } }, required: ["tarefa_id", "texto"] },
+  },
+  {
+    name: "checklist_tarefa",
+    description: "AÇÃO: adiciona itens ao checklist de uma tarefa e/ou marca/desmarca itens existentes (ids de tarefa_checklist).",
+    input_schema: {
+      type: "object",
+      properties: {
+        tarefa_id: { type: "string" },
+        adicionar: { type: "array", items: { type: "string" } },
+        marcar: { type: "array", items: { type: "object", properties: { item_id: { type: "string" }, feito: { type: "boolean" } }, required: ["item_id", "feito"] } },
+      },
+      required: ["tarefa_id"],
+    },
+  },
+  {
+    name: "criar_anotacao",
+    description: "AÇÃO: cria uma anotação (cliente_id vazio = anotação interna da agência).",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string" },
+        titulo: { type: "string" },
+        texto: { type: "string" },
+        etiqueta: { type: "string", enum: ["geral", "estrategia", "reuniao", "ideia", "alinhamento", "aprendizado", "pendencia"] },
+        fixada: { type: "boolean" },
+      },
+      required: ["texto"],
+    },
+  },
+  {
+    name: "registrar_na_linha_do_tempo",
+    description: "AÇÃO: registra na linha do tempo do cliente uma nota, reunião, decisão, revisão ou otimização (alterações feitas na conta de anúncio entram como otimização).",
+    input_schema: {
+      type: "object",
+      properties: {
+        cliente_id: { type: "string" },
+        tipo: { type: "string", enum: ["nota", "reuniao", "decisao", "revisao", "otimizacao"] },
+        nota: { type: "string" },
+        canal: { type: "string", enum: ["meta", "google"] },
+        situacao: { type: "string", enum: ["ok", "atencao", "problema"] },
+        data: { type: "string", description: "AAAA-MM-DD (padrão hoje)" },
+      },
+      required: ["cliente_id", "tipo", "nota"],
+    },
+  },
+  {
+    name: "marcar_temperatura",
+    description: "AÇÃO: marca a temperatura do cliente de 1 (crítica) a 5 (ótima), com o motivo.",
+    input_schema: {
+      type: "object",
+      properties: { cliente_id: { type: "string" }, nivel: { type: "integer", minimum: 1, maximum: 5 }, motivo: { type: "string" } },
+      required: ["cliente_id", "nivel"],
+    },
+  },
 ];
+
+const ACOES = new Set(["criar_tarefa", "atualizar_tarefa", "comentar_tarefa", "checklist_tarefa", "criar_anotacao", "registrar_na_linha_do_tempo", "marcar_temperatura"]);
+const dataValida = (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 
 function hojeBR() {
   return new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
@@ -120,6 +219,7 @@ interface Acesso {
   chaveCron: string | null; // chamada interna (WhatsApp)
   membroId: string;
   admin: boolean;
+  acoes: { tipo: string; texto: string; tarefa_id?: string }[]; // o que foi feito nesta conversa
 }
 
 /** Na chamada interna as regras do banco não se aplicam sozinhas: repete aqui as restrições. */
@@ -197,14 +297,124 @@ async function executar(nome: string, entrada: Json, a: Acesso): Promise<unknown
     }));
     return { inicio: j.inicio, fim: j.fim, anterior: j.anterior, contas };
   }
+
+  // ---------------- Ações (escrita) ----------------
+  const ok = (r: { error: { message: string } | null }) => {
+    if (r.error) throw new Error(r.error.message);
+  };
+  const umaTarefa = async (id: string) => {
+    const { data, error } = await sb.from("tarefas").select("id, titulo, cliente_id, cliente:clientes(nome)").eq("id", id).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("Tarefa não encontrada.");
+    return data as unknown as { id: string; titulo: string; cliente_id: string; cliente: { nome: string } | null };
+  };
+
+  if (nome === "criar_tarefa") {
+    if (entrada.prazo && !dataValida(entrada.prazo)) throw new Error("Prazo deve ser AAAA-MM-DD.");
+    const r = await sb.from("tarefas").insert({
+      cliente_id: entrada.cliente_id,
+      titulo: String(entrada.titulo).slice(0, 200),
+      descricao: entrada.descricao ?? null,
+      prazo: entrada.prazo ?? null,
+      responsavel_id: entrada.responsavel_id ?? null,
+      prioridade: entrada.prioridade ?? "normal",
+      pilar: entrada.pilar ?? "trafego",
+      canal: entrada.canal ?? null,
+      origem: "manual",
+      criado_por: a.membroId,
+    }).select("id, titulo, cliente:clientes(nome)").single();
+    ok(r);
+    const t = r.data as unknown as { id: string; titulo: string; cliente: { nome: string } | null };
+    const itens = ((entrada.checklist as string[] | undefined) ?? []).filter((x) => String(x).trim()).slice(0, 30);
+    if (itens.length) ok(await sb.from("tarefa_checklist").insert(itens.map((texto, ordem) => ({ tarefa_id: t.id, texto: String(texto), ordem }))));
+    a.acoes.push({ tipo: "tarefa_criada", texto: `Tarefa criada: "${t.titulo}" (${t.cliente?.nome ?? "cliente"})`, tarefa_id: t.id });
+    return { ok: true, tarefa_id: t.id };
+  }
+
+  if (nome === "atualizar_tarefa") {
+    const t = await umaTarefa(String(entrada.tarefa_id));
+    const campos: Json = {};
+    for (const k of ["status", "prazo", "responsavel_id", "prioridade", "titulo", "descricao"]) if (entrada[k] !== undefined) campos[k] = entrada[k];
+    if (campos.prazo && !dataValida(campos.prazo)) throw new Error("Prazo deve ser AAAA-MM-DD.");
+    if (!Object.keys(campos).length) throw new Error("Nada para mudar.");
+    ok(await sb.from("tarefas").update(campos).eq("id", t.id));
+    const desc = Object.entries(campos).map(([k, v]) => `${k}: ${v}`).join(", ");
+    a.acoes.push({ tipo: "tarefa_atualizada", texto: `Tarefa "${t.titulo}" (${t.cliente?.nome ?? ""}) → ${desc}`, tarefa_id: t.id });
+    return { ok: true };
+  }
+
+  if (nome === "comentar_tarefa") {
+    const t = await umaTarefa(String(entrada.tarefa_id));
+    ok(await sb.from("tarefa_comentarios").insert({ tarefa_id: t.id, texto: String(entrada.texto).slice(0, 4000), autor_id: a.membroId }));
+    a.acoes.push({ tipo: "comentario", texto: `Comentário em "${t.titulo}" (${t.cliente?.nome ?? ""})`, tarefa_id: t.id });
+    return { ok: true };
+  }
+
+  if (nome === "checklist_tarefa") {
+    const t = await umaTarefa(String(entrada.tarefa_id));
+    const novos = ((entrada.adicionar as string[] | undefined) ?? []).filter((x) => String(x).trim()).slice(0, 30);
+    if (novos.length) {
+      const { data: ex } = await sb.from("tarefa_checklist").select("ordem").eq("tarefa_id", t.id).order("ordem", { ascending: false }).limit(1);
+      const base = ((ex?.[0] as { ordem?: number } | undefined)?.ordem ?? -1) + 1;
+      ok(await sb.from("tarefa_checklist").insert(novos.map((texto, i) => ({ tarefa_id: t.id, texto: String(texto), ordem: base + i }))));
+    }
+    const marcar = (entrada.marcar as { item_id: string; feito: boolean }[] | undefined) ?? [];
+    for (const m of marcar) ok(await sb.from("tarefa_checklist").update({ feito: !!m.feito }).eq("id", m.item_id).eq("tarefa_id", t.id));
+    a.acoes.push({ tipo: "checklist", texto: `Checklist de "${t.titulo}": ${novos.length ? `+${novos.length} item(ns)` : ""}${novos.length && marcar.length ? ", " : ""}${marcar.length ? `${marcar.length} marcado(s)` : ""}`, tarefa_id: t.id });
+    return { ok: true };
+  }
+
+  if (nome === "criar_anotacao") {
+    const r = await sb.from("notas").insert({
+      cliente_id: entrada.cliente_id || null,
+      titulo: entrada.titulo ?? null,
+      texto: String(entrada.texto).slice(0, 8000),
+      etiqueta: entrada.etiqueta ?? "geral",
+      fixada: !!entrada.fixada,
+      autor_id: a.membroId,
+    }).select("id").single();
+    ok(r);
+    a.acoes.push({ tipo: "anotacao", texto: `Anotação criada${entrada.titulo ? `: "${entrada.titulo}"` : ""}` });
+    return { ok: true };
+  }
+
+  if (nome === "registrar_na_linha_do_tempo") {
+    const data = entrada.data && dataValida(entrada.data) ? entrada.data : hojeBR();
+    ok(await sb.from("registros").insert({
+      cliente_id: entrada.cliente_id,
+      tipo: entrada.tipo,
+      nota: String(entrada.nota).slice(0, 8000),
+      canal: entrada.canal ?? null,
+      situacao: entrada.situacao ?? null,
+      data,
+      autor_id: a.membroId,
+    }));
+    a.acoes.push({ tipo: "registro", texto: `Registro (${entrada.tipo}) na linha do tempo, ${String(data).split("-").reverse().join("/")}` });
+    return { ok: true };
+  }
+
+  if (nome === "marcar_temperatura") {
+    const nivel = Math.round(Number(entrada.nivel));
+    if (!(nivel >= 1 && nivel <= 5)) throw new Error("Nível de 1 a 5.");
+    ok(await sb.from("temperaturas").insert({ cliente_id: entrada.cliente_id, nivel, motivo: entrada.motivo ?? null, autor_id: a.membroId }));
+    a.acoes.push({ tipo: "temperatura", texto: `Temperatura marcada: ${["", "Crítica", "Fria", "Morna", "Boa", "Ótima"][nivel]}` });
+    return { ok: true };
+  }
   throw new Error("Ferramenta desconhecida.");
 }
 
-function sistema(nome: string, papel: string, pagina: string | undefined, canal?: string) {
+function sistema(nome: string, papel: string, pagina: string | undefined, canal?: string, membroId = "") {
   return `Você é o Assistente da Vertente Digital, agência de marketing (tráfego pago, Google Meu Negócio, social media e CRM) de Minas Gerais. Você fica dentro do Sistema Vertente, o sistema interno da agência, e conversa com ${nome} (${papel}).
 Hoje é ${hojeBR()} (horário de Brasília).${pagina ? ` A pessoa está na tela "${pagina}" do sistema.` : ""}
 
-Você tem acesso de LEITURA a todo o sistema pelas ferramentas. Sempre consulte os dados antes de afirmar números; nunca invente. Se algo não existir no sistema, diga que não encontrou. Você não altera nada: se pedirem para mudar algo, explique onde fazer no sistema.
+Você lê todo o sistema pelas ferramentas e também EXECUTA ações quando a pessoa pede: criar tarefa, mudar status/prazo/responsável/prioridade, concluir tarefa, comentar, mexer no checklist, criar anotação, registrar na linha do tempo e marcar a temperatura do cliente. Sempre consulte os dados antes de afirmar números; nunca invente.
+Regras das ações:
+- Só aja quando a pessoa pedir (ou confirmar uma sugestão sua). Em perguntas, apenas responda.
+- Antes, ache os ids certos (cliente por nome com ilike, membro por nome, tarefa pelo título + cliente). Se houver mais de uma opção possível ou faltar algo essencial, pergunte antes em vez de chutar.
+- Se o pedido mexer em mais de 5 itens de uma vez, liste o que vai fazer e peça confirmação primeiro.
+- Você não apaga nada nem mexe em financeiro, contratos, cadastros ou integrações: para isso, explique onde fazer no sistema.
+- "Minhas tarefas"/"para mim" = responsavel_id ${membroId} (você está falando com essa pessoa). Datas relativas ("amanhã", "sexta") contam a partir de hoje.
+- Depois de agir, confirme em poucas linhas o que foi feito.
 
 Tabelas disponíveis:
 ${Object.entries(TABELAS).map(([t, d]) => `- ${t}: ${d}`).join("\n")}
@@ -260,7 +470,7 @@ Deno.serve(async (req) => {
   // No sistema: cliente com o login de quem pergunta (as regras do banco valem).
   // Interno: cliente do servidor, com as restrições repetidas em conferirTabela/restringir.
   const sb = interno ? admin : createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: `Bearer ${jwt}` } } });
-  const acesso: Acesso = { sb, jwt, chaveCron: interno ? chaveCron : null, membroId: m.id, admin: m.papel === "admin" };
+  const acesso: Acesso = { sb, jwt, chaveCron: interno ? chaveCron : null, membroId: m.id, admin: m.papel === "admin", acoes: [] };
   const historico = (corpo.mensagens ?? []).filter((x) => (x.role === "user" || x.role === "assistant") && typeof x.content === "string" && x.content.trim()).slice(-20);
   if (!historico.length || historico[historico.length - 1].role !== "user") return responder({ erro: "Envie uma pergunta." }, 400);
 
@@ -271,7 +481,7 @@ Deno.serve(async (req) => {
   async function rodarFerramenta(nome: string, entrada: Json): Promise<{ texto: string; erro: boolean }> {
     try {
       const saida = await executar(nome, entrada, acesso);
-      consultas.push({ ferramenta: nome, tabela: (entrada.tabela as string) ?? (nome === "relatorio_meta_ao_vivo" ? "Meta" : undefined), ok: true });
+      if (!ACOES.has(nome)) consultas.push({ ferramenta: nome, tabela: (entrada.tabela as string) ?? (nome === "relatorio_meta_ao_vivo" ? "Meta" : undefined), ok: true });
       let texto = JSON.stringify(saida);
       if (texto.length > 60000) texto = texto.slice(0, 60000) + "… (resultado cortado; refine os filtros)";
       return { texto, erro: false };
@@ -284,7 +494,7 @@ Deno.serve(async (req) => {
   // ---------------- OpenAI (Responses API com funções) ----------------
   if (!chave && chaveOpenai) {
     const ferramentas = FERRAMENTAS.map((f) => ({ type: "function", name: f.name, description: f.description, parameters: f.input_schema }));
-    const instrucoes = sistema(m.nome, m.papel, corpo.pagina, corpo.canal);
+    const instrucoes = sistema(m.nome, m.papel, corpo.pagina, corpo.canal, m.id);
     let entrada: unknown = historico.map((x) => ({ role: x.role, content: x.content.slice(0, 12000) }));
     let anterior: string | null = null;
     try {
@@ -304,7 +514,7 @@ Deno.serve(async (req) => {
         const chamadas = saida.filter((o) => o.type === "function_call");
         if (!chamadas.length) {
           const texto = saida.filter((o) => o.type === "message").flatMap((o) => o.content ?? []).filter((c) => c.type === "output_text").map((c) => c.text).join("\n").trim();
-          return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, modelo: MODELO_OPENAI });
+          return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, modelo: MODELO_OPENAI });
         }
         entrada = await Promise.all(
           chamadas.map(async (c) => {
@@ -317,7 +527,7 @@ Deno.serve(async (req) => {
           }),
         );
       }
-      return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, modelo: MODELO_OPENAI });
+      return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, modelo: MODELO_OPENAI });
     } catch (e) {
       return responder({ erro: (e as Error).message }, 500);
     }
@@ -330,7 +540,7 @@ Deno.serve(async (req) => {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": chave!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model: MODELO, max_tokens: 4096, system: sistema(m.nome, m.papel, corpo.pagina, corpo.canal), tools: FERRAMENTAS, messages: mensagens }),
+        body: JSON.stringify({ model: MODELO, max_tokens: 4096, system: sistema(m.nome, m.papel, corpo.pagina, corpo.canal, m.id), tools: FERRAMENTAS, messages: mensagens }),
       });
       const j = (await r.json()) as Json;
       if (j.type === "error" || !r.ok) {
@@ -342,7 +552,7 @@ Deno.serve(async (req) => {
       const usos = blocos.filter((b) => b.type === "tool_use");
       if (j.stop_reason !== "tool_use" || !usos.length) {
         const texto = blocos.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-        return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, modelo: MODELO });
+        return responder({ ok: true, resposta: texto || "Não consegui montar uma resposta. Tente perguntar de outro jeito.", consultas, acoes: acesso.acoes, modelo: MODELO });
       }
       const resultados = await Promise.all(
         usos.map(async (b) => {
@@ -352,7 +562,7 @@ Deno.serve(async (req) => {
       );
       mensagens.push({ role: "user", content: resultados });
     }
-    return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, modelo: MODELO });
+    return responder({ ok: true, resposta: "A pergunta exigiu consultas demais. Tente dividir em partes menores.", consultas, acoes: acesso.acoes, modelo: MODELO });
   } catch (e) {
     return responder({ erro: (e as Error).message }, 500);
   }

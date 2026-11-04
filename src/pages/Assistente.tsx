@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUp, Database, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, CheckCircle2, Database, MessageSquarePlus, Sparkles, Trash2 } from "lucide-react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { chamarFuncao, useTabela } from "../lib/tabela";
@@ -15,6 +15,7 @@ interface Mensagem {
   role: "user" | "assistant";
   content: string;
   consultas?: Consulta[];
+  acoes?: { tipo: string; texto: string }[];
   erro?: boolean;
 }
 interface Conversa {
@@ -31,6 +32,8 @@ const SUGESTOES = [
   "Quais clientes merecem mais atenção agora e por quê?",
   "O que foi registrado nas revisões e otimizações desta semana?",
   "Quais posts estão aguardando aprovação do cliente?",
+  "Crie uma tarefa para o João revisar os criativos da Madalena até sexta, prioridade alta.",
+  "Marque como feita a revisão diária da Nobre Fio e comente que o CPC subiu.",
 ];
 
 const NOME_TABELA: Record<string, string> = {
@@ -113,11 +116,13 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
         await new Promise((r) => setTimeout(r, 700));
         resposta = { role: "assistant", content: "Esta é a prévia, sem banco conectado. No sistema publicado eu consulto tarefas, tráfego, GMN, social media, financeiro, cadastros e contratos para responder." };
       } else {
-        const r = await chamarFuncao<{ resposta: string; consultas: Consulta[] }>("assistente", {
+        const r = await chamarFuncao<{ resposta: string; consultas: Consulta[]; acoes?: { tipo: string; texto: string }[] }>("assistente", {
           mensagens: novas.filter((m) => !m.erro).map(({ role, content }) => ({ role, content })),
           pagina: rotaAnterior,
         });
-        resposta = { role: "assistant", content: r.resposta, consultas: r.consultas };
+        resposta = { role: "assistant", content: r.resposta, consultas: r.consultas, acoes: r.acoes };
+        // A IA mexeu no sistema: atualiza tarefas e registros na tela
+        if (r.acoes?.length) d.recarregar().catch(() => null);
       }
     } catch (e) {
       resposta = { role: "assistant", content: (e as Error).message, erro: true };
@@ -184,7 +189,7 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
             </span>
             <div className="min-w-0">
               <h1 className="truncate text-[16px] font-semibold leading-tight">Assistente Vertente</h1>
-              <p className="truncate text-[11.5px] text-muted">Consulta todo o sistema para responder · só leitura</p>
+              <p className="truncate text-[11.5px] text-muted">Consulta o sistema e executa tarefas que você pedir · nada é apagado</p>
             </div>
           </div>
           <button onClick={() => abrir(null)} className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] hover:bg-raised lg:hidden">
@@ -224,6 +229,13 @@ export function Assistente({ rotaAnterior }: { rotaAnterior?: string }) {
                     </span>
                     <div className="min-w-0 flex-1">
                       {m.erro ? <p className="rounded-xl bg-bad-soft px-3 py-2 text-[13.5px] text-bad">{m.content}</p> : <Markdown texto={m.content} />}
+                      {m.acoes && m.acoes.length > 0 && (
+                        <ul className="mt-2 flex flex-col gap-1 rounded-xl border border-ok/30 bg-ok-soft/50 px-3 py-2 text-[12.5px]">
+                          {m.acoes.map((x, k) => (
+                            <li key={k} className="flex items-start gap-1.5 text-ok"><CheckCircle2 size={13} className="mt-0.5 shrink-0" /><span className="text-fg">{x.texto}</span></li>
+                          ))}
+                        </ul>
+                      )}
                       {m.consultas && m.consultas.length > 0 && (
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
                           <Database size={12} /> Consultou:
