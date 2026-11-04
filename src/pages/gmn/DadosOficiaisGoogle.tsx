@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { MessageSquareReply, MousePointerClick, Navigation, Phone, Search, ShieldCheck, Star } from "lucide-react";
+import { Loader2, MessageSquareReply, Sparkles, MousePointerClick, Navigation, Phone, Search, ShieldCheck, Star } from "lucide-react";
 import { chamarFuncao } from "../../lib/tabela";
 import { supabase } from "../../lib/supabase";
 import { useDados } from "../../lib/dados";
@@ -27,7 +27,7 @@ const n = (v: number | undefined) => Math.round(v ?? 0).toLocaleString("pt-BR");
 const dataBR = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
 /** Métricas, buscas e avaliações vindas da API oficial do Perfil da Empresa (fichas que a agência gerencia). */
-export function DadosOficiaisGoogle({ placeId }: { placeId: string | null }) {
+export function DadosOficiaisGoogle({ placeId, nomeFicha = "" }: { placeId: string | null; nomeFicha?: string }) {
   const d = useDados();
   const [periodo, setPeriodo] = useState("30");
   const [r, setR] = useState<Relatorio | null>(null);
@@ -37,6 +37,25 @@ export function DadosOficiaisGoogle({ placeId }: { placeId: string | null }) {
   const [respondendo, setRespondendo] = useState<string | null>(null);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [gerando, setGerando] = useState(false);
+  const [evolucao, setEvolucao] = useState<({ mes: string } & Record<string, number>)[] | null>(null);
+
+  useEffect(() => {
+    if (!placeId || !supabase) return;
+    chamarFuncao<{ meses?: ({ mes: string } & Record<string, number>)[] }>("gbp", { acao: "gbp_evolucao", place_id: placeId, meses: 18 }).then((x) => setEvolucao(x.meses ?? []), () => setEvolucao([]));
+  }, [placeId]);
+
+  async function sugerir(a: Avaliacao) {
+    setGerando(true);
+    try {
+      const x = await chamarFuncao<{ texto: string }>("gbp", { acao: "gbp_ia_resposta", empresa: nomeFicha, autor: a.autor, nota: a.nota, texto: a.texto });
+      setTexto(x.texto);
+    } catch (e) {
+      d.avisar((e as Error).message);
+    } finally {
+      setGerando(false);
+    }
+  }
 
   const p = PERIODOS.find((x) => x.id === periodo)!;
   const buscar = useCallback(async () => {
@@ -117,6 +136,8 @@ export function DadosOficiaisGoogle({ placeId }: { placeId: string | null }) {
         </div>
       )}
 
+      {evolucao && evolucao.length > 1 && <Evolucao meses={evolucao} />}
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <div>
           <h3 className="mb-1.5 text-[13px] font-semibold">O que buscaram até achar a ficha</h3>
@@ -157,7 +178,8 @@ export function DadosOficiaisGoogle({ placeId }: { placeId: string | null }) {
                   ) : respondendo === a.id ? (
                     <div className="mt-2 flex flex-col gap-2">
                       <textarea autoFocus rows={3} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escreva a resposta. Ela será publicada no Google com o nome da empresa." className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-[13px] outline-none focus:border-accent" />
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => sugerir(a)} disabled={gerando} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[12.5px] hover:border-accent hover:text-accent disabled:opacity-50">{gerando ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} {texto ? "Gerar outra" : "Sugerir com IA"}</button>
                         <button onClick={() => responder(a.id)} disabled={enviando || !texto.trim()} className="h-8 rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg disabled:opacity-40">{enviando ? "Publicando…" : "Publicar resposta"}</button>
                         <button onClick={() => { setRespondendo(null); setTexto(""); }} className="h-8 rounded-lg px-3 text-[12.5px] text-muted">Cancelar</button>
                       </div>
@@ -181,6 +203,61 @@ function Kpi({ icone: I, rotulo, valor, detalhe, destaque }: { icone: typeof Sea
       <div className="flex items-center gap-1.5 text-[12px] text-muted"><I size={13} /> {rotulo}</div>
       <b className="num block text-[20px] leading-tight">{valor}</b>
       {detalhe && <span className="text-[11.5px] text-muted">{detalhe}</span>}
+    </div>
+  );
+}
+
+type Mes = { mes: string } & Record<string, number>;
+const visMes = (m: Mes) => (m.BUSINESS_IMPRESSIONS_MOBILE_SEARCH ?? 0) + (m.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH ?? 0) + (m.BUSINESS_IMPRESSIONS_MOBILE_MAPS ?? 0) + (m.BUSINESS_IMPRESSIONS_DESKTOP_MAPS ?? 0);
+const acoesMes = (m: Mes) => (m.CALL_CLICKS ?? 0) + (m.WEBSITE_CLICKS ?? 0) + (m.BUSINESS_DIRECTION_REQUESTS ?? 0) + (m.BUSINESS_CONVERSATIONS ?? 0);
+const nomeMes = (k: string) => new Date(`${k}-15T12:00:00Z`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit", timeZone: "UTC" }).replace(". de ", "/").replace(".", "");
+
+/** Evolução mês a mês (até 18 meses) e comparação do último mês fechado com o anterior e com o mesmo mês do ano passado. */
+function Evolucao({ meses }: { meses: Mes[] }) {
+  const atualKey = hoje().slice(0, 7);
+  const fechados = meses.filter((m) => m.mes < atualKey);
+  const ult = fechados[fechados.length - 1];
+  const ant = fechados[fechados.length - 2];
+  const anoPassado = ult ? fechados.find((m) => m.mes === `${Number(ult.mes.slice(0, 4)) - 1}${ult.mes.slice(4)}`) : undefined;
+  const max = Math.max(1, ...meses.map(visMes));
+  const maxA = Math.max(1, ...meses.map(acoesMes));
+  const comp = (rot: string, f: (m: Mes) => number) => {
+    if (!ult) return null;
+    const v = f(ult);
+    const va = ant ? f(ant) : null;
+    const vy = anoPassado ? f(anoPassado) : null;
+    const p = (x: number | null) => (x ? `${v >= x ? "▲" : "▼"} ${Math.abs(Math.round(((v - x) / x) * 100))}%` : "—");
+    const cor = (x: number | null) => (x ? (v >= x ? "text-ok" : "text-bad") : "text-muted");
+    return (
+      <div className="rounded-xl border border-line px-3 py-2 text-[12.5px]">
+        <div className="text-muted">{rot} em {nomeMes(ult.mes)}</div>
+        <b className="num text-[18px]">{Math.round(v).toLocaleString("pt-BR")}</b>
+        <div className="flex gap-3"><span className={cor(va)}>{p(va)} vs mês anterior</span><span className={cor(vy)}>{p(vy)} vs ano passado</span></div>
+      </div>
+    );
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {comp("Visualizações", visMes)}
+        {comp("Ações na ficha", acoesMes)}
+        {comp("Ligações", (m) => m.CALL_CLICKS ?? 0)}
+        {comp("Pedidos de rota", (m) => m.BUSINESS_DIRECTION_REQUESTS ?? 0)}
+      </div>
+      <div>
+        <div className="mb-1 flex gap-3 text-[12px] text-muted"><span>Evolução mês a mês ({meses.length} meses)</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-accent/30" /> visualizações</span><span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-accent" /> ações</span></div>
+        <div className="flex h-28 items-end gap-1">
+          {meses.map((m) => (
+            <div key={m.mes} className="flex flex-1 flex-col items-center gap-0.5" title={`${nomeMes(m.mes)}: ${visMes(m)} visualizações · ${acoesMes(m)} ações`}>
+              <div className="flex h-24 w-full items-end gap-[2px]">
+                <div className="flex-1 rounded-t-[2px] bg-accent/30" style={{ height: `${Math.max(2, (visMes(m) / max) * 100)}%` }} />
+                <div className="flex-1 rounded-t-[2px] bg-accent" style={{ height: `${Math.max(2, (acoesMes(m) / maxA) * 100)}%` }} />
+              </div>
+              <span className="text-[9.5px] text-muted">{nomeMes(m.mes)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

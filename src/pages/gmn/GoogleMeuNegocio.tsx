@@ -27,6 +27,7 @@ import { demoAnalises, demoPerfis } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 import { DadosOficiaisGoogle } from "./DadosOficiaisGoogle";
+import { CentralAvaliacoes, FerramentasGmn, FichasGerenciadas } from "./GbpGerenciadas";
 import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
 import { CRITERIOS_FICHA } from "../../lib/fichaGoogle";
 
@@ -48,14 +49,15 @@ export function useGmn() {
   return { perfis, analises, historico: (id: string) => ultima.get(id) ?? [] };
 }
 
-type Aba = "gmn" | "gmn-prospeccao";
+type Aba = "gmn" | "gmn-prospeccao" | "gmn-fichas" | "gmn-avaliacoes" | "gmn-ferramentas";
 
 export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const gmn = useGmn();
   const [novo, setNovo] = useState(false);
   const [analisar, setAnalisar] = useState(false);
   if (rota.startsWith("gmn-perfil-")) return <TelaPerfil key={rota} id={rota.slice(11)} gmn={gmn} ir={ir} />;
-  const aba: Aba = rota === "gmn-prospeccao" ? "gmn-prospeccao" : "gmn";
+  const d = useDados();
+  const aba: Aba = (["gmn-prospeccao", "gmn-fichas", "gmn-avaliacoes", "gmn-ferramentas"].includes(rota) ? rota : "gmn") as Aba;
   const lista = gmn.perfis.linhas.filter((p) => p.ativo && (aba === "gmn" ? p.cliente_id : !p.cliente_id));
 
   return (
@@ -64,7 +66,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
         icone={MapPin}
         rotulo="Fase 3 · Operacional"
         titulo="Google Meu Negócio"
-        descricao="GBP Check da Vertente: nota de saúde de cada perfil, plano de ação, histórico mensal e grade de ranking no Maps."
+        descricao="Saúde de cada ficha, monitoramento das fichas gerenciadas, central de avaliações com IA, prospecção, grade de ranking no Maps e ferramentas."
         acoes={
           <div className="flex gap-2">
             <Botao onClick={() => setNovo(true)}><Plus size={15} /> Cadastrar perfil</Botao>
@@ -75,12 +77,34 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
       <Abas<Aba>
         abas={[
           { id: "gmn", nome: "Perfis dos clientes", contador: gmn.perfis.linhas.filter((p) => p.cliente_id).length },
+          { id: "gmn-fichas", nome: "Monitoramento" },
+          { id: "gmn-avaliacoes", nome: "Central de avaliações" },
           { id: "gmn-prospeccao", nome: "Prospecção", contador: gmn.perfis.linhas.filter((p) => !p.cliente_id).length },
+          { id: "gmn-ferramentas", nome: "Ferramentas" },
         ]}
         ativa={aba}
         mudar={ir}
       />
       {gmn.perfis.erro && <Vazio>{gmn.perfis.erro}</Vazio>}
+      {aba === "gmn-fichas" ? (
+        <FichasGerenciadas
+          perfis={gmn.perfis.linhas}
+          ir={ir}
+          criarPerfil={async (f) => {
+            try {
+              const id = await gmn.perfis.salvar(null, { nome: f.nome, place_id: f.place_id, cidade: f.cidade, categoria: f.categoria, url_maps: f.maps, cliente_id: null } as Partial<PerfilGmn>);
+              d.avisar("Ficha adicionada. Ligue ao cliente na tela da ficha, se for de um cliente.");
+              ir(`gmn-perfil-${id}`);
+            } catch (e) {
+              d.avisar((e as Error).message);
+            }
+          }}
+        />
+      ) : aba === "gmn-avaliacoes" ? (
+        <CentralAvaliacoes />
+      ) : aba === "gmn-ferramentas" ? (
+        <FerramentasGmn perfis={gmn.perfis.linhas.filter((p) => p.ativo)} />
+      ) : (<>
       {aba === "gmn" && <Resumo perfis={lista} gmn={gmn} />}
       {gmn.perfis.carregando ? (
         <Vazio>Carregando…</Vazio>
@@ -98,6 +122,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
             ))}
         </div>
       )}
+      </>)}
       <NovaAnaliseFicha aberto={analisar} fechar={() => setAnalisar(false)} gmn={gmn} prospeccao={aba === "gmn-prospeccao"} ir={ir} />
       <NovoPerfil aberto={novo} fechar={() => setNovo(false)} gmn={gmn} prospeccao={aba === "gmn-prospeccao"} abrir={(id) => ir(`gmn-perfil-${id}`)} />
     </div>
@@ -369,7 +394,7 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
       </section>
 
       {rodando && <div className="rounded-xl bg-accent-soft px-4 py-3 text-[13px] text-accent print:hidden">{rodando}</div>}
-      <DadosOficiaisGoogle placeId={perfil.place_id} />
+      <DadosOficiaisGoogle placeId={perfil.place_id} nomeFicha={perfil.nome} />
       {a?.dados?.completo && a.dados.versao !== 2 && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
 
       {a?.dados?.versao === 2 && a.dados.coleta ? (
