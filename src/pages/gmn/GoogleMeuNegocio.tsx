@@ -27,6 +27,7 @@ import { demoAnalises, demoPerfis } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 import { DadosOficiaisGoogle } from "./DadosOficiaisGoogle";
+import { GmnPostagens } from "./GmnPostagens";
 import { AnaliseOficial, RelatorioAvancado, ehOficial } from "./AnaliseOficial";
 import { CentralAvaliacoes, FerramentasGmn, FichasGerenciadas } from "./GbpGerenciadas";
 import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
@@ -50,7 +51,7 @@ export function useGmn() {
   return { perfis, analises, historico: (id: string) => ultima.get(id) ?? [] };
 }
 
-type Aba = "gmn" | "gmn-prospeccao" | "gmn-fichas" | "gmn-avaliacoes" | "gmn-ferramentas";
+type Aba = "gmn" | "gmn-prospeccao" | "gmn-fichas" | "gmn-avaliacoes" | "gmn-postagens" | "gmn-ferramentas";
 
 export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) => void }) {
   const gmn = useGmn();
@@ -62,7 +63,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
     return gmn.perfis.carregando || gmn.analises.carregando ? <Vazio>Carregando…</Vazio> : perfil ? <RelatorioAvancado perfil={perfil} gmn={gmn} ir={ir} /> : <Vazio>Ficha não encontrada.</Vazio>;
   }
   const d = useDados();
-  const aba: Aba = (["gmn-prospeccao", "gmn-fichas", "gmn-avaliacoes", "gmn-ferramentas"].includes(rota) ? rota : "gmn") as Aba;
+  const aba: Aba = (["gmn-prospeccao", "gmn-fichas", "gmn-avaliacoes", "gmn-postagens", "gmn-ferramentas"].includes(rota) ? rota : "gmn") as Aba;
   const lista = gmn.perfis.linhas.filter((p) => p.ativo && (aba === "gmn" ? p.cliente_id : !p.cliente_id));
 
   return (
@@ -84,6 +85,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
           { id: "gmn", nome: "Perfis dos clientes", contador: gmn.perfis.linhas.filter((p) => p.cliente_id).length },
           { id: "gmn-fichas", nome: "Monitoramento" },
           { id: "gmn-avaliacoes", nome: "Central de avaliações" },
+          { id: "gmn-postagens", nome: "Postagens" },
           { id: "gmn-prospeccao", nome: "Prospecção", contador: gmn.perfis.linhas.filter((p) => !p.cliente_id).length },
           { id: "gmn-ferramentas", nome: "Ferramentas" },
         ]}
@@ -107,6 +109,8 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
         />
       ) : aba === "gmn-avaliacoes" ? (
         <CentralAvaliacoes />
+      ) : aba === "gmn-postagens" ? (
+        <GmnPostagens perfis={gmn.perfis.linhas.filter((p) => p.ativo)} />
       ) : aba === "gmn-ferramentas" ? (
         <FerramentasGmn perfis={gmn.perfis.linhas.filter((p) => p.ativo)} />
       ) : (<>

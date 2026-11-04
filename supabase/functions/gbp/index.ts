@@ -28,19 +28,20 @@ Deno.serve(async (req) => {
     if (!m) return responder({ erro: "Sem acesso." }, 403);
   }
 
-  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; place_id?: string; busca?: string; empresa?: string; autor?: string; nota?: number; texto?: string; tom?: string; meses?: number };
+  const corpo = (await req.json().catch(() => ({}))) as { acao?: string; place_id?: string; busca?: string; empresa?: string; autor?: string; nota?: number; texto?: string; tom?: string; meses?: number; id?: string; tema?: string; tipo?: string };
   const [clientId, clientSecret, refresh] = await Promise.all([segredo("google_ads_client_id"), segredo("google_ads_client_secret"), segredo("google_ads_refresh_token")]);
 
   // A resposta com IA não precisa do Google
-  if (corpo.acao !== "gbp_ia_resposta") {
+  if (corpo.acao !== "gbp_ia_resposta" && corpo.acao !== "gbp_post_ia") {
     if (!clientId || !clientSecret || !refresh) return responder({ erro: "Conecte o Google em Integrações." }, 412);
   }
-  const tk = corpo.acao === "gbp_ia_resposta" ? {} as Json : (await (await fetch("https://oauth2.googleapis.com/token", {
+  const semGoogle = corpo.acao === "gbp_ia_resposta" || corpo.acao === "gbp_post_ia";
+  const tk = semGoogle ? {} as Json : (await (await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, refresh_token: refresh, grant_type: "refresh_token" }),
   })).json()) as Json;
-  if (corpo.acao !== "gbp_ia_resposta" && !tk.access_token) return responder({ erro: "O Google recusou a conexão. Reconecte em Integrações." }, 401);
+  if (!semGoogle && !tk.access_token) return responder({ erro: "O Google recusou a conexão. Reconecte em Integrações." }, 401);
 
   async function gapi(u: string, init?: RequestInit): Promise<Json> {
     const r = await fetch(u, { ...init, headers: { Authorization: `Bearer ${tk.access_token}`, "Content-Type": "application/json", ...(init?.headers ?? {}) } });
@@ -328,6 +329,88 @@ Regras: português do Brasil, ${corpo.tom || "cordial e profissional"}, de 2 a 4
     } catch (e) {
       return responder({ erro: (e as Error).message }, 500);
     }
+  }
+
+
+  // ---------------- Postagens: texto com IA, listar, publicar agora e fila de agendadas ----------------
+  if (corpo.acao === "gbp_post_ia") {
+    const chave = await segredo("openai_api_key");
+    if (!chave) return responder({ erro: "Falta a chave da IA (OpenAI) em Integrações." }, 412);
+    const pedido = `Escreva uma postagem para o Perfil da Empresa no Google de "${corpo.empresa ?? ""}".
+Tema: ${String(corpo.tema ?? "").trim() || "apresente um serviço da empresa"}
+Tipo: ${corpo.tipo === "OFFER" ? "oferta" : corpo.tipo === "EVENT" ? "evento" : "novidade"}
+Regras: português do Brasil, de 600 a 1200 caracteres, parágrafos curtos, comece com uma pergunta ou frase que prenda atenção, cite o serviço e a cidade de forma natural (bom para buscas locais), termine com um convite para entrar em contato. Sem hashtags, sem telefone ou link no texto (o Google recusa) e no máximo 1 emoji. Responda só com o texto.`;
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: Deno.env.get("ASSISTENTE_MODELO_OPENAI") || "gpt-5.5", input: pedido }),
+    });
+    const j = (await r.json()) as Json;
+    if (!r.ok) return responder({ erro: (j.error as Json | undefined)?.message ?? "A IA não respondeu." }, 502);
+    const texto = ((j.output as Json[]) ?? []).filter((o) => o.type === "message").flatMap((o) => (o.content as Json[]) ?? []).map((c) => c.text).join("\n").trim();
+    return responder({ ok: true, texto });
+  }
+
+  async function baseLocal(placeId: string) {
+    const loc = (await locais()).find((l) => l.place_id && l.place_id === placeId);
+    if (!loc) throw new Error("Esta ficha não está na conta da agência no Google.");
+    return `https://mybusiness.googleapis.com/v4/${loc.conta}/locations/${String(loc.local).split("/")[1]}`;
+  }
+  const dataG = (iso: string) => { const d = new Date(iso); return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }; };
+  const horaG = (iso: string) => { const d = new Date(new Date(iso).getTime() - 3 * 3600_000); return { hours: d.getUTCHours(), minutes: d.getUTCMinutes() }; };
+  async function publicar(p: Json) {
+    const corpoPost: Json = { languageCode: "pt-BR", summary: p.texto, topicType: p.tipo ?? "STANDARD" };
+    if (p.cta_tipo) corpoPost.callToAction = p.cta_tipo === "CALL" ? { actionType: "CALL" } : { actionType: p.cta_tipo, url: p.cta_url };
+    if (p.foto_url) corpoPost.media = [{ mediaFormat: "PHOTO", sourceUrl: p.foto_url }];
+    const ev = p.evento as { titulo?: string; inicio?: string; fim?: string } | null;
+    if ((p.tipo === "EVENT" || p.tipo === "OFFER") && ev?.inicio && ev?.fim) {
+      corpoPost.event = {
+        title: ev.titulo || "Oferta",
+        schedule: { startDate: dataG(ev.inicio), endDate: dataG(ev.fim), ...(p.tipo === "EVENT" ? { startTime: horaG(ev.inicio), endTime: horaG(ev.fim) } : {}) },
+      };
+    }
+    const of = p.oferta as { cupom?: string; link?: string; termos?: string } | null;
+    if (p.tipo === "OFFER" && of) corpoPost.offer = { couponCode: of.cupom || undefined, redeemOnlineUrl: of.link || undefined, termsConditions: of.termos || undefined };
+    const base = await baseLocal(String(p.place_id));
+    return await gapi(`${base}/localPosts`, { method: "POST", body: JSON.stringify(corpoPost) });
+  }
+
+  if (corpo.acao === "gbp_posts") {
+    try {
+      const base = await baseLocal(String(corpo.place_id));
+      const j = await gapi(`${base}/localPosts?pageSize=100`);
+      return responder({ ok: true, postagens: ((j.localPosts as Json[]) ?? []).map((p) => ({
+        nome: p.name, data: p.createTime, tipo: p.topicType, texto: p.summary ?? "", estado: p.state,
+        cta: (p.callToAction as Json | undefined)?.actionType ?? null, url: p.searchUrl ?? null,
+        foto: (((p.media as Json[]) ?? [])[0] as Json | undefined)?.googleUrl ?? null,
+      })) });
+    } catch (e) {
+      return responder({ erro: (e as Error).message }, 500);
+    }
+  }
+
+  if (corpo.acao === "gbp_publicar" || corpo.acao === "gbp_publicar_fila") {
+    const q = admin.from("gmn_postagens").select("*");
+    const { data: fila } = corpo.acao === "gbp_publicar"
+      ? await q.eq("id", corpo.id ?? "").in("status", ["agendada", "falhou", "rascunho"])
+      : await q.eq("status", "agendada").lte("quando", new Date().toISOString()).order("quando").limit(20);
+    const feitos: Json[] = [];
+    for (const p of (fila ?? []) as Json[]) {
+      await admin.from("gmn_postagens").update({ status: "publicando", tentativas: Number(p.tentativas ?? 0) + 1 }).eq("id", p.id);
+      try {
+        const r = await publicar(p);
+        await admin.from("gmn_postagens").update({ status: "publicada", erro: null, google_nome: r.name ?? null, google_url: r.searchUrl ?? null, publicada_em: new Date().toISOString() }).eq("id", p.id);
+        feitos.push({ id: p.id, ok: true });
+      } catch (e) {
+        const msg = (e as Error).message;
+        // até 3 tentativas pela fila; depois fica como "falhou" para a equipe ver
+        const volta = corpo.acao === "gbp_publicar_fila" && Number(p.tentativas ?? 0) + 1 < 3;
+        await admin.from("gmn_postagens").update({ status: volta ? "agendada" : "falhou", erro: msg, quando: volta ? new Date(Date.now() + 30 * 60_000).toISOString() : p.quando }).eq("id", p.id);
+        feitos.push({ id: p.id, ok: false, erro: msg });
+      }
+    }
+    if (corpo.acao === "gbp_publicar" && feitos[0] && !feitos[0].ok) return responder({ erro: `O Google recusou: ${feitos[0].erro}` }, 502);
+    return responder({ ok: true, feitos });
   }
 
   return responder({ erro: "Ação desconhecida." }, 400);

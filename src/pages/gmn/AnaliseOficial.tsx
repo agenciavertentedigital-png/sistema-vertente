@@ -322,10 +322,10 @@ export function RelatorioAvancado({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn:
               <tbody>
                 {me.meses.slice(-12).map((m, i, arr) => {
                   const ant = arr[i - 1];
-                  const delta = ant ? m.acoes - ant.acoes : null;
+                  const delta = ant && !(i === arr.length - 1 && m.mes === hoje().slice(0, 7)) ? m.acoes - ant.acoes : null;
                   return (
                     <tr key={m.mes} className="border-b border-line last:border-0">
-                      <td className="py-1">{nomeMes(m.mes)}</td>
+                      <td className="py-1">{nomeMes(m.mes)}{i === arr.length - 1 && m.mes === hoje().slice(0, 7) ? " (parcial)" : ""}</td>
                       <td className="num text-right">{n(m.vis)}</td>
                       <td className="num text-right">{n(m.acoes)} {delta !== null && <span className={delta >= 0 ? "text-ok" : "text-bad"}>({delta >= 0 ? "+" : ""}{delta})</span>}</td>
                       <td className="num text-right">{n(m.rotas)}</td><td className="num text-right">{n(m.lig)}</td><td className="num text-right">{n(m.site)}</td>
