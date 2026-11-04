@@ -27,6 +27,7 @@ import { demoAnalises, demoPerfis } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 import { DadosOficiaisGoogle } from "./DadosOficiaisGoogle";
+import { AnaliseOficial, RelatorioAvancado, ehOficial } from "./AnaliseOficial";
 import { CentralAvaliacoes, FerramentasGmn, FichasGerenciadas } from "./GbpGerenciadas";
 import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
 import { CRITERIOS_FICHA } from "../../lib/fichaGoogle";
@@ -56,6 +57,10 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
   const [novo, setNovo] = useState(false);
   const [analisar, setAnalisar] = useState(false);
   if (rota.startsWith("gmn-perfil-")) return <TelaPerfil key={rota} id={rota.slice(11)} gmn={gmn} ir={ir} />;
+  if (rota.startsWith("gmn-relatorio-")) {
+    const perfil = gmn.perfis.linhas.find((p) => p.id === rota.slice(14));
+    return gmn.perfis.carregando || gmn.analises.carregando ? <Vazio>Carregando…</Vazio> : perfil ? <RelatorioAvancado perfil={perfil} gmn={gmn} ir={ir} /> : <Vazio>Ficha não encontrada.</Vazio>;
+  }
   const d = useDados();
   const aba: Aba = (["gmn-prospeccao", "gmn-fichas", "gmn-avaliacoes", "gmn-ferramentas"].includes(rota) ? rota : "gmn") as Aba;
   const lista = gmn.perfis.linhas.filter((p) => p.ativo && (aba === "gmn" ? p.cliente_id : !p.cliente_id));
@@ -326,7 +331,8 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
   if (gmn.perfis.carregando) return <Vazio>Carregando…</Vazio>;
   if (!perfil) return <Vazio>Perfil não encontrado.</Vazio>;
   const a = historico[0];
-  const niveis = new Map((a?.criterios ?? []).map((c) => [c.id, c]));
+  const b = historico.find((x) => !ehOficial(x));
+  const niveis = new Map((b?.criterios ?? []).map((c) => [c.id, c]));
   const plano = CRITERIOS.filter((c) => (niveis.get(c.id)?.nivel ?? 0) < 2).sort((x, y) => (niveis.get(x.id)?.nivel ?? 0) - (niveis.get(y.id)?.nivel ?? 0) || y.peso - x.peso);
   const grupos = [...new Set(CRITERIOS.map((c) => c.grupo))];
 
@@ -378,8 +384,8 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
             <div className="mt-1 text-[13px] text-muted">
               {[perfil.cliente_id ? d.cliente(perfil.cliente_id)?.nome : "Prospecção", perfil.categoria, perfil.cidade].filter(Boolean).join(" · ")}
             </div>
-            {a?.dados?.coleta?.info.endereco && <div className="text-[12.5px] text-muted">{a.dados.coleta.info.endereco}</div>}
-            <div className="mt-1"><LinkFicha perfil={perfil} coleta={a?.dados?.coleta} /></div>
+            {b?.dados?.coleta?.info?.endereco && <div className="text-[12.5px] text-muted">{b.dados.coleta.info.endereco}</div>}
+            <div className="mt-1"><LinkFicha perfil={perfil} coleta={b?.dados?.coleta} /></div>
             {a && (
               <div className="mt-3 flex flex-wrap gap-5 text-[13px]">
                 <Info rotulo="Situação" valor={faixa(a.nota).nome} />
@@ -394,16 +400,17 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
       </section>
 
       {rodando && <div className="rounded-xl bg-accent-soft px-4 py-3 text-[13px] text-accent print:hidden">{rodando}</div>}
+      <AnaliseOficial perfil={perfil} gmn={gmn} ir={ir} />
       <DadosOficiaisGoogle placeId={perfil.place_id} nomeFicha={perfil.nome} />
-      {a?.dados?.completo && a.dados.versao !== 2 && <RaioX c={a.dados.completo} esconderCusto={ocultarRecomendacoes} />}
+      {b?.dados?.completo && b.dados.versao !== 2 && <RaioX c={b.dados.completo} esconderCusto={ocultarRecomendacoes} />}
 
-      {a?.dados?.versao === 2 && a.dados.coleta ? (
+      {b?.dados?.versao === 2 && b.dados.coleta ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <RelatorioFicha perfil={perfil} analise={a} gmn={gmn} ocultarRecomendacoes={ocultarRecomendacoes} />
+          <RelatorioFicha perfil={perfil} analise={b} gmn={gmn} ocultarRecomendacoes={ocultarRecomendacoes} />
           <aside className="flex flex-col gap-4 print:hidden"><Historico historico={historico} editar={(x) => setEditor(x)} /></aside>
         </div>
-      ) : !a ? (
-        <Vazio>Este perfil ainda não tem análise. Clique em Nova análise{perfil.place_id ? " e use os dados do Google para começar" : ""}.</Vazio>
+      ) : !b ? (
+        ehOficial(a) ? null : <Vazio>Este perfil ainda não tem análise. Clique em Nova análise{perfil.place_id ? " e use os dados do Google para começar" : ""}.</Vazio>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="flex min-w-0 flex-col gap-4">
