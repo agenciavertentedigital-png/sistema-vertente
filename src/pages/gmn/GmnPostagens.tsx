@@ -30,6 +30,7 @@ export function GmnPostagens({ perfis }: { perfis: PerfilGmn[] }) {
   const d = useDados();
   const fichas = perfis.filter((p) => p.place_id && p.cliente_id);
   const [placeId, setPlaceId] = useState(fichas[0]?.place_id ?? "");
+  useEffect(() => { if (!placeId && fichas[0]?.place_id) setPlaceId(fichas[0].place_id); }, [placeId, fichas]);
   const ficha = fichas.find((f) => f.place_id === placeId);
   const fila = useTabela<Agendada>("gmn_postagens", CAMPOS, () => [], { ordem: { coluna: "quando", asc: false }, limite: 500 });
   const minhas = fila.linhas.filter((p) => p.place_id === placeId);
