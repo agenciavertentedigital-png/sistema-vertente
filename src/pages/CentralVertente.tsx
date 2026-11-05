@@ -25,17 +25,11 @@ const SUGESTOES = [
   "Como está a ficha do Google da Óticas Carol?",
 ];
 
-function saudacao() {
-  const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/Sao_Paulo" }));
-  return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-}
-
 /** Central Vertente: a porta de entrada do sistema. Só ferramentas, sem números nem alertas. */
 export function CentralVertente({ ir, tema, alternarTema, usuario, onSair, abrirComando }: Props) {
   const [pergunta, setPergunta] = useState("");
   const [dica, setDica] = useState(0);
   const campo = useRef<HTMLInputElement>(null);
-  const primeiroNome = usuario.nome.split(" ")[0];
   const iniciais = usuario.nome.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   useEffect(() => {
@@ -67,11 +61,11 @@ export function CentralVertente({ ir, tema, alternarTema, usuario, onSair, abrir
 
   let ordem = 0;
   return (
-    <div className="central-v relative isolate min-h-[100dvh] overflow-hidden text-[#e9edff]">
+    <div className="central-v relative isolate flex min-h-[100dvh] flex-col overflow-hidden text-[#e9edff] lg:h-[100dvh]">
       <FundoTecnologico />
 
       {/* Topo */}
-      <header className="relative z-10 mx-auto flex h-16 max-w-[1240px] items-center gap-3 px-[max(16px,env(safe-area-inset-left,0px))] sm:px-8">
+      <header className="relative z-10 mx-auto flex h-14 w-full max-w-[1280px] shrink-0 items-center gap-3 px-[max(16px,env(safe-area-inset-left,0px))] sm:px-8">
         <div className="flex items-center gap-2.5">
           <img src={simboloPrata} alt="" width={30} height={30} className="h-[30px] w-[30px] object-contain" />
           <div className="leading-none">
@@ -95,19 +89,13 @@ export function CentralVertente({ ir, tema, alternarTema, usuario, onSair, abrir
         )}
       </header>
 
-      <main className="relative z-10 mx-auto flex max-w-[1240px] flex-col gap-14 px-[max(16px,env(safe-area-inset-left,0px))] pb-20 pt-10 sm:px-8 sm:pt-16">
-        {/* Abertura */}
+      <main className="relative z-10 mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 lg:justify-center px-[max(16px,env(safe-area-inset-left,0px))] py-5 sm:px-8 lg:min-h-0 lg:gap-[clamp(20px,4vh,44px)] lg:py-[clamp(12px,3vh,32px)]">
+        {/* Central + IA */}
         <section className="cv-entrar flex flex-col items-center text-center" style={{ animationDelay: "60ms" }}>
-          <span className="cv-vidro mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#aab4e8]">
+          <span className="cv-vidro mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#aab4e8]">
             <span className="cv-pulso h-1.5 w-1.5 rounded-full bg-[#22d3ee]" /> Central Vertente
           </span>
-          <h1 className="font-display text-[34px] font-semibold leading-[1.08] tracking-[-0.02em] sm:text-[52px]">
-            {saudacao()}, <span className="cv-texto-gradiente">{primeiroNome}</span>.
-          </h1>
-          <p className="mt-3 max-w-[46ch] text-[14.5px] text-[#9aa5dc] sm:text-[16px]">Todas as ferramentas da Vertente em um só lugar. Escolha por onde começar ou peça à IA.</p>
-
-          {/* Pergunta direto para a IA */}
-          <div className="cv-borda-ia mt-8 w-full max-w-[640px] rounded-2xl p-px">
+          <div className="cv-borda-ia w-full max-w-[680px] rounded-2xl p-px">
             <div className="flex items-center gap-2 rounded-2xl bg-[#070d2b]/90 py-1.5 pl-4 pr-1.5 backdrop-blur-xl">
               <Sparkles size={17} className="shrink-0 text-[#7dd3fc]" />
               <input
@@ -127,15 +115,15 @@ export function CentralVertente({ ir, tema, alternarTema, usuario, onSair, abrir
           </div>
         </section>
 
-        {/* Ferramentas */}
-        <div className="flex flex-col gap-10">
+        {/* Ferramentas: uma coluna por grupo, tudo na primeira dobra */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
           {GRUPOS.map((g) => (
-            <section key={g.id} aria-labelledby={`cv-${g.id}`} className="flex flex-col gap-3">
-              <h2 id={`cv-${g.id}`} className="cv-entrar flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#7f8ac4]" style={{ animationDelay: `${120 + ordem * 40}ms` }}>
+            <section key={g.id} aria-labelledby={`cv-${g.id}`} className="flex min-w-0 flex-col gap-2">
+              <h2 id={`cv-${g.id}`} className="cv-entrar flex items-center gap-3 px-1 text-[10.5px] font-semibold uppercase tracking-[0.24em] text-[#7f8ac4]" style={{ animationDelay: `${120 + ordem * 30}ms` }}>
                 {g.nome}
                 <span className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
               </h2>
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
                 {g.topicos.map((t) => {
                   ordem += 1;
                   return <Ferramenta key={t.id} t={t} n={ordem} ir={ir} />;
@@ -145,16 +133,16 @@ export function CentralVertente({ ir, tema, alternarTema, usuario, onSair, abrir
           ))}
         </div>
 
-        <footer className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11.5px] text-[#6f7bb8]">
+        <footer className="hidden items-center justify-center gap-4 text-[11px] text-[#6f7bb8] sm:flex">
           <span>Vertente Digital · Sistema próprio</span>
-          <span className="hidden sm:inline">Ctrl K para buscar · / para perguntar à IA</span>
+          <span>Ctrl K para buscar · / para perguntar à IA</span>
         </footer>
       </main>
     </div>
   );
 }
 
-/** Cartão de uma ferramenta: luz que segue o mouse e atalhos para as abas internas. */
+/** Cartão compacto de uma ferramenta: luz que segue o mouse e atalhos para as abas internas. */
 function Ferramenta({ t, n, ir }: { t: Topico; n: number; ir: (r: string) => void }) {
   const Ic = t.icone;
   const ref = useRef<HTMLDivElement>(null);
@@ -165,21 +153,16 @@ function Ferramenta({ t, n, ir }: { t: Topico; n: number; ir: (r: string) => voi
     ref.current.style.setProperty("--my", `${e.clientY - r.top}px`);
   };
   return (
-    <div ref={ref} onMouseMove={mover} className="cv-cartao cv-entrar group relative rounded-2xl hover:z-30 focus-within:z-30" style={{ animationDelay: `${160 + n * 35}ms`, ["--cor" as string]: t.cor }}>
-      <button onClick={() => ir(t.rota)} className="relative z-[1] flex w-full flex-col gap-3 rounded-2xl p-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc] sm:gap-4 sm:p-4">
-        <div className="flex items-start justify-between">
-          <span className="cv-icone relative grid h-10 w-10 place-items-center rounded-xl text-white sm:h-11 sm:w-11">
-            <Ic size={20} strokeWidth={1.8} />
-          </span>
-          <span className="flex items-center gap-1 font-mono text-[10.5px] text-[#5d68a6]">
-            {String(n).padStart(2, "0")}
-            <ArrowUpRight size={14} className="text-[#aab4e8] opacity-0 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100" />
-          </span>
-        </div>
-        <div>
-          <div className="text-[14px] font-semibold leading-tight text-white sm:text-[15px]">{t.nome}</div>
-          <div className="mt-1 line-clamp-2 text-[12px] leading-snug text-[#8f9ad3] sm:text-[12.5px]">{t.descricao}</div>
-        </div>
+    <div ref={ref} onMouseMove={mover} className="cv-cartao cv-entrar group relative rounded-xl hover:z-30 focus-within:z-30" style={{ animationDelay: `${150 + n * 30}ms`, ["--cor" as string]: t.cor }}>
+      <button onClick={() => ir(t.rota)} className="relative z-[1] flex w-full flex-col gap-2 rounded-xl p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#7dd3fc] sm:flex-row sm:items-center sm:gap-3 sm:px-3 sm:py-[clamp(8px,1.2vh,12px)]">
+        <span className="cv-icone relative grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white">
+          <Ic size={17} strokeWidth={1.8} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13.5px] font-semibold leading-tight text-white">{t.nome}</span>
+          <span className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-[#8f9ad3] sm:line-clamp-1">{t.descricao}</span>
+        </span>
+        <ArrowUpRight size={15} className="hidden shrink-0 text-[#aab4e8] opacity-0 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100 sm:block" />
       </button>
       {t.atalhos.length > 1 && (
         <div className="pointer-events-none absolute inset-x-0 top-full z-20 hidden pt-1.5 opacity-0 transition-all duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 sm:block">
@@ -291,8 +274,8 @@ function FundoTecnologico() {
       <div className="cv-luz-3 absolute bottom-[-10%] left-[-10%] h-[560px] w-[560px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(124,58,237,0.13), transparent)" }} />
       <div className="cv-grade absolute inset-0" />
       {/* Símbolo da Vertente com órbitas */}
-      <div className="absolute left-1/2 top-[230px] -translate-x-1/2 -translate-y-1/2 sm:top-[260px]">
-        <div className="relative grid h-[min(620px,92vw)] w-[min(620px,92vw)] place-items-center">
+      <div className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative grid h-[min(760px,92vw,92vh)] w-[min(760px,92vw,92vh)] place-items-center">
           <svg viewBox="0 0 200 200" className="cv-orbita absolute inset-0 h-full w-full">
             <defs>
               <linearGradient id="cv-g1" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#7dd3fc" stopOpacity="0.55" /><stop offset="1" stopColor="#4f6bff" stopOpacity="0" /></linearGradient>
