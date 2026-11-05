@@ -3,6 +3,7 @@ import {
   hoje,
   somarDias,
   tempoAtual,
+  type AtividadeMeta,
   type CamposTarefa,
   type Cliente,
   type ClienteRotina,
@@ -182,7 +183,7 @@ const repoSupabase = (): Repo => {
     async diario(clienteId, de, ate) {
       const ini = `${de}T00:00:00-03:00`;
       const fim = `${somarDias(ate, 1)}T00:00:00-03:00`;
-      const [rg, co, fe] = await Promise.all([
+      const [rg, co, fe, mt] = await Promise.all([
         sb.from("registros").select(`${CAMPOS_REGISTRO}, autor:membros(nome)`).eq("cliente_id", clienteId).gte("data", de).lte("data", ate).order("criado_em"),
         sb
           .from("tarefa_comentarios")
@@ -199,8 +200,17 @@ const repoSupabase = (): Repo => {
           .gte("concluida_em", ini)
           .lt("concluida_em", fim)
           .order("concluida_em"),
+        sb
+          .from("meta_atividades")
+          .select("id, quando, evento, evento_texto, objeto_tipo, objeto_nome, autor, antes, depois, automatico, app, conta:contas_anuncio(nome)")
+          .eq("cliente_id", clienteId)
+          .gte("quando", ini)
+          .lt("quando", fim)
+          .order("quando")
+          .limit(2000),
       ]);
       [rg, co, fe].forEach((r) => erro(r.error));
+      type M = AtividadeMeta & { id: string; quando: string; autor: string | null; conta: { nome: string } | null };
       type R = Registro & { autor: { nome: string } | null };
       type C = { id: string; texto: string; criado_em: string; autor: { nome: string } | null; tarefa: { titulo: string } };
       type F = { id: string; titulo: string; concluida_em: string; responsavel: { nome: string } | null };
@@ -216,6 +226,8 @@ const repoSupabase = (): Repo => {
         ...(rg.data as unknown as R[]).map((r) => ({ id: r.id, quando: r.data === r.criado_em.slice(0, 10) ? r.criado_em : `${r.data}T12:00:00-03:00`, tipo: "registro" as const, registro: r, autor: r.autor?.nome })),
         ...coments.map((c) => ({ id: c.id, quando: c.criado_em, tipo: "comentario" as const, texto: c.texto, tarefa: c.tarefa.titulo, autor: c.autor?.nome })),
         ...(fe.data as unknown as F[]).map((f) => ({ id: f.id, quando: f.concluida_em, tipo: "concluida" as const, tarefa: f.titulo, autor: f.responsavel?.nome })),
+        // sem a tabela ainda (ou sem permissão), o diário segue sem as atividades da Meta
+        ...((mt.error ? [] : (mt.data as unknown as M[])) ?? []).map((m) => ({ id: m.id, quando: m.quando, tipo: "meta" as const, autor: m.autor, meta: { ...m, conta: m.conta?.nome ?? null } })),
       ];
     },
     async marcarLidas(ids) {

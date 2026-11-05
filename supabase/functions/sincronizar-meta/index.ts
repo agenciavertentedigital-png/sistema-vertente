@@ -1,4 +1,4 @@
-// Sincroniza contas de anúncio da Meta: status, saldo e métricas diárias por campanha.
+// Sincroniza contas de anúncio da Meta: status, saldo, métricas diárias por campanha e o histórico de atividades (Diário de Bordo).
 // Chamada pelo agendamento (cabeçalho x-chave-cron) ou pelo botão "Atualizar agora" (usuário logado do time).
 // Token da Meta: segredo META_ACCESS_TOKEN ou 'meta_access_token' no Vault (lido por ler_token_meta). A chave do agendamento também fica no Vault.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -218,6 +218,49 @@ Deno.serve(async (req) => {
           await avisar(`${nomeCliente} · saldo baixo na conta ${c.nome}: R$ ${saldo.toFixed(2).replace(".", ",")} (dá para cerca de ${diasRestantes} dia${diasRestantes === 1 ? "" : "s"})`, c.cliente_id);
           mudancas.alerta_saldo_em = hojeBR();
         }
+      }
+
+      // ---- Atividades da conta (pausou, ativou, criou anúncio, mudou orçamento…) para o Diário de Bordo ----
+      try {
+        const desde = c.atividades_ate ? Math.floor(new Date(c.atividades_ate).getTime() / 1000) - 3600 : Math.floor(Date.now() / 1000) - 30 * 86400;
+        const atv = await todasPaginas(`act_${c.conta_id}/activities`, {
+          fields: "event_time,event_type,translated_event_type,object_id,object_name,object_type,actor_name,extra_data,application_name",
+          since: String(desde),
+          limit: "200",
+        }, token);
+        const texto = (v: unknown) => (v === null || v === undefined || v === "" ? null : typeof v === "object" ? JSON.stringify(v) : String(v));
+        const linhasAtv = atv.map((a) => {
+          let extra: Json = {};
+          try {
+            extra = JSON.parse(String(a.extra_data ?? "{}")) as Json;
+          } catch { /* extra_data às vezes não é JSON */ }
+          const evento = String(a.event_type ?? "");
+          const autor = (a.actor_name as string) ?? null;
+          return {
+            conta_id: c.id,
+            cliente_id: c.cliente_id,
+            quando: new Date(String(a.event_time)).toISOString(),
+            evento,
+            evento_texto: (a.translated_event_type as string) ?? evento,
+            objeto_tipo: (a.object_type as string) ?? null,
+            objeto_id: String(a.object_id ?? ""),
+            objeto_nome: (a.object_name as string) ?? null,
+            autor,
+            app: (a.application_name as string) ?? null,
+            antes: texto(extra.old_value),
+            depois: texto(extra.new_value),
+            dados: extra,
+            // cobranças, entrega iniciada e revisões são da própria Meta, não do time
+            automatico: !autor || autor === "Meta" || /billing|first_delivery|ad_review|funding_event|account_spending_limit_reached/.test(evento),
+          };
+        });
+        for (let i = 0; i < linhasAtv.length; i += 500) {
+          const { error: e3 } = await admin.from("meta_atividades").upsert(linhasAtv.slice(i, i + 500), { onConflict: "conta_id,quando,evento,objeto_id", ignoreDuplicates: true });
+          if (e3) throw new Error(e3.message);
+        }
+        mudancas.atividades_ate = new Date().toISOString();
+      } catch (e) {
+        console.error(`atividades ${c.nome}: ${(e as Error).message}`);
       }
 
       await admin.from("contas_anuncio").update({

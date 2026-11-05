@@ -218,11 +218,25 @@ export interface Notificacao {
 export interface ItemLinha {
   id: string;
   quando: string; // ISO
-  tipo: "registro" | "comentario" | "concluida";
+  tipo: "registro" | "comentario" | "concluida" | "meta";
   registro?: Registro;
   texto?: string;
   tarefa?: string;
   autor?: string | null;
+  /** Atividade da conta Meta (Gerenciador de Anúncios) */
+  meta?: AtividadeMeta;
+}
+
+export interface AtividadeMeta {
+  evento: string;
+  evento_texto: string | null;
+  objeto_tipo: string | null;
+  objeto_nome: string | null;
+  antes: string | null;
+  depois: string | null;
+  automatico: boolean;
+  app: string | null;
+  conta: string | null;
 }
 
 /** Últimos n dias úteis (seg–sex) terminando hoje, do mais antigo para o mais novo. */

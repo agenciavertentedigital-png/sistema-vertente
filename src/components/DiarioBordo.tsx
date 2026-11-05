@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, FileDown, MessageSquare, NotebookPen, SlidersHorizontal, Thermometer } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Megaphone, ChevronRight, FileDown, MessageSquare, NotebookPen, SlidersHorizontal, Thermometer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { repo } from "../lib/repo";
 import { useDados } from "../lib/dados";
@@ -13,7 +13,8 @@ interface Entrada {
   id: string;
   quando: string; // ISO
   dia: string; // AAAA-MM-DD no fuso de São Paulo
-  tipo: "conta" | "registro" | "comentario" | "concluida" | "nota" | "temperatura";
+  tipo: "conta" | "registro" | "comentario" | "concluida" | "nota" | "temperatura" | "meta";
+  automatico?: boolean;
   titulo: string;
   texto?: string;
   detalhes?: string[];
@@ -28,7 +29,39 @@ const ICONE: Record<Entrada["tipo"], LucideIcon> = {
   concluida: CheckCircle2,
   nota: NotebookPen,
   temperatura: Thermometer,
+  meta: Megaphone,
 };
+
+const OBJETO_META: Record<string, string> = {
+  ACCOUNT: "Conta",
+  CAMPAIGN_GROUP: "Campanha",
+  CAMPAIGN: "Conjunto de anúncios",
+  ADGROUP: "Anúncio",
+  AD: "Anúncio",
+  CREATIVE: "Criativo",
+  AD_CREATIVE: "Criativo",
+  AUDIENCE: "Público",
+  CUSTOM_AUDIENCE: "Público",
+  IMAGE: "Imagem",
+  VIDEO: "Vídeo",
+};
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+/** Valor antigo/novo da Meta em texto legível (orçamentos vêm em centavos). */
+function valorMeta(evento: string, v: string | null) {
+  if (v === null) return null;
+  if (/budget|spend_cap|bid/.test(evento) && /^\d+$/.test(v)) return brl(Number(v) / 100);
+  try {
+    const j = JSON.parse(v) as Record<string, unknown>;
+    if (j && typeof j === "object") {
+      const n = j.new_value ?? j.value ?? j.amount ?? j.name;
+      if (n !== undefined && n !== null) return /budget/.test(evento) && typeof n === "number" ? brl(n / 100) : String(n);
+      return Object.entries(j).slice(0, 3).map(([k, x]) => `${k}: ${typeof x === "object" ? JSON.stringify(x) : x}`).join(", ");
+    }
+  } catch {
+    /* texto simples */
+  }
+  return v.length > 120 ? `${v.slice(0, 120)}…` : v;
+}
 
 const diaSP = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
 const horaSP = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
@@ -70,6 +103,27 @@ function daLinha(i: ItemLinha): Entrada {
       cor: r.situacao === "problema" ? "var(--bad)" : r.situacao === "atencao" ? "var(--warn)" : ehConta ? "var(--accent)" : undefined,
     };
   }
+  if (i.tipo === "meta" && i.meta) {
+    const m = i.meta;
+    const antes = valorMeta(m.evento, m.antes);
+    const depois = valorMeta(m.evento, m.depois);
+    const objeto = m.objeto_tipo ? OBJETO_META[m.objeto_tipo] ?? m.objeto_tipo.toLowerCase() : null;
+    return {
+      id: i.id,
+      quando: i.quando,
+      dia: diaSP(i.quando),
+      tipo: "meta",
+      automatico: m.automatico,
+      titulo: `Meta Ads · ${m.evento_texto ?? m.evento}`,
+      texto: [objeto, m.objeto_nome ? `"${m.objeto_nome}"` : null].filter(Boolean).join(" ") || undefined,
+      detalhes: [
+        ...(antes || depois ? [antes && depois ? `${antes} → ${depois}` : depois ?? `antes: ${antes}`] : []),
+        ...(m.conta ? [`Conta ${m.conta}${m.app && m.app !== "Ads Manager" ? ` · via ${m.app}` : ""}`] : []),
+      ],
+      autor: i.autor,
+      cor: m.automatico ? undefined : "#1877f2",
+    };
+  }
   if (i.tipo === "comentario") return { id: i.id, quando: i.quando, dia: diaSP(i.quando), tipo: "comentario", titulo: `Comentário em "${i.tarefa}"`, texto: i.texto, autor: i.autor };
   return { id: i.id, quando: i.quando, dia: diaSP(i.quando), tipo: "concluida", titulo: "Tarefa concluída", texto: i.tarefa, autor: i.autor, cor: "var(--ok)" };
 }
@@ -87,6 +141,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
   const [itens, setItens] = useState<ItemLinha[] | null>(null);
   const [erro, setErro] = useState("");
   const [soComMovimento, setSoComMovimento] = useState(false);
+  const [verAutomaticos, setVerAutomaticos] = useState(false);
 
   const de = `${mes}-01`;
   const ate = ultimoDia(mes);
@@ -106,7 +161,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
   const nomeMembro = (id: string | null) => d.membros.find((m) => m.id === id)?.nome ?? null;
 
   const entradas = useMemo<Entrada[]>(() => {
-    const base = (itens ?? []).map(daLinha);
+    const base = (itens ?? []).map(daLinha).filter((e) => verAutomaticos || !e.automatico);
     const ns = notas.linhas
       .filter((n) => n.cliente_id === clienteId && diaSP(n.criado_em) >= de && diaSP(n.criado_em) <= ate)
       .map<Entrada>((n) => ({ id: `n-${n.id}`, quando: n.criado_em, dia: diaSP(n.criado_em), tipo: "nota", titulo: n.titulo ? `Anotação: ${n.titulo}` : "Anotação", texto: n.texto, autor: nomeMembro(n.autor_id) }));
@@ -118,7 +173,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
       });
     return [...base, ...ns, ...ts].sort((a, b) => a.quando.localeCompare(b.quando));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, notas.linhas, temps.linhas, clienteId, de, ate, d.membros]);
+  }, [itens, notas.linhas, temps.linhas, clienteId, de, ate, d.membros, verAutomaticos]);
 
   // Dias do mês até hoje: úteis sempre aparecem; fim de semana só se teve movimento
   const dias = useMemo(() => {
@@ -137,7 +192,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
   const resumo = [
     { n: new Set(entradas.map((e) => e.dia)).size, r: "dias com movimento" },
     { n: entradas.filter((e) => e.tipo === "concluida").length, r: "tarefas concluídas" },
-    { n: entradas.filter((e) => e.tipo === "conta").length, r: "ajustes na conta" },
+    { n: entradas.filter((e) => e.tipo === "conta" || (e.tipo === "meta" && !e.automatico)).length, r: "ajustes nas contas" },
     { n: entradas.filter((e) => e.tipo === "comentario" || e.tipo === "nota" || e.tipo === "registro").length, r: "registros e comentários" },
   ];
 
@@ -169,6 +224,10 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
           <input type="checkbox" checked={soComMovimento} onChange={(e) => setSoComMovimento(e.target.checked)} className="accent-[rgb(var(--accent-c))]" />
           Só dias com movimento
         </label>
+        <label className="flex items-center gap-2 text-[12.5px] text-muted" title="Cobranças, início de entrega e revisões feitas pela própria Meta">
+          <input type="checkbox" checked={verAutomaticos} onChange={(e) => setVerAutomaticos(e.target.checked)} className="accent-[rgb(var(--accent-c))]" />
+          Mostrar eventos automáticos da Meta
+        </label>
         <button onClick={exportar} disabled={!itens} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
           <FileDown size={14} /> Exportar PDF
         </button>
@@ -178,7 +237,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
         <header className="rounded-2xl border border-line bg-surface p-4">
           <p className="text-[12px] font-medium uppercase tracking-wide text-muted">Diário de Bordo</p>
           <h2 className="text-[19px] font-semibold">{cliente?.nome} · {nomeMes(mes)}</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">Tudo o que a Vertente fez neste cliente no mês, dia a dia. Gerado automaticamente pelo sistema.</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">Tudo o que a Vertente fez neste cliente no mês, dia a dia, incluindo as alterações feitas nas contas de anúncio da Meta. Gerado automaticamente pelo sistema.</p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {resumo.map((x) => (
               <div key={x.r} className="rounded-xl bg-raised px-3 py-2">
