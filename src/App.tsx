@@ -17,6 +17,7 @@ import { TelaCliente } from "./pages/clientes/TelaCliente";
 import { GestaoTrafego } from "./pages/trafego/GestaoTrafego";
 import { Reunioes } from "./pages/Reunioes";
 import { Sininho } from "./components/Sininho";
+import { Bandeja } from "./components/Bandeja";
 import { GoogleMeuNegocio } from "./pages/gmn/GoogleMeuNegocio";
 import { SocialMedia } from "./pages/social/SocialMedia";
 import { Financeiro } from "./pages/financeiro/Financeiro";
@@ -31,7 +32,6 @@ import { Assistente } from "./pages/Assistente";
 import { Integracoes } from "./pages/Integracoes";
 import { CentralAnotacoes } from "./pages/CentralAnotacoes";
 import { BriefingPublico } from "./pages/cadastro/BriefingPublico";
-import { Sparkles } from "lucide-react";
 import { DiagnosticoPublico } from "./pages/diagnostico/DiagnosticoPublico";
 import { Diagnosticos } from "./pages/diagnostico/Diagnosticos";
 
@@ -202,20 +202,13 @@ export default function App() {
               ? ""
               : rota === "crm" || rota === "assistente"
               ? "overflow-hidden pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 sm:pb-5 sm:pt-5"
-              : "overflow-y-auto py-6 sm:py-8"
+              : "overflow-y-auto pb-24 pt-6 sm:pt-8"
           }`}
         >
           <div key={rota.split("-")[0]} className={`anim-entrar ${rota === "crm" || rota === "assistente" ? "h-full" : ""}`}>{pagina}</div>
         </main>
-        {rota !== "assistente" && rota !== "crm" && !naCentral && (
-          <button
-            onClick={() => navegar("assistente")}
-            className="fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-2.5 text-[13px] font-medium text-fg hover:-translate-y-0.5 hover:border-line-forte"
-            style={{ bottom: "calc(20px + env(safe-area-inset-bottom, 0px))", boxShadow: "var(--sombra-flutuante)" }}
-            aria-label="Abrir o Assistente de IA"
-          >
-            <Sparkles size={15} className="text-accent" /> <span className="hidden sm:inline">Perguntar à IA</span>
-          </button>
+        {rota !== "assistente" && rota !== "crm" && !naCentral && !rota.startsWith("cadastro-publico") && (
+          <Bandeja rota={rota} ir={navegar} abrirComando={() => setComando(true)} />
         )}
       </div>
       <Aviso />
