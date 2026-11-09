@@ -74,6 +74,12 @@ export interface Tarefa {
   estimativa_min?: number | null;
   tempo_min?: number;
   fazendo_desde?: string | null;
+  /** Central do cliente: de quem depende, por que aguarda, quem do cliente e de onde nasceu */
+  lado?: "vertente" | "cliente";
+  aguardando_motivo?: AguardandoMotivo | null;
+  contato_cliente?: string | null;
+  reuniao_id?: string | null;
+  registro_id?: string | null;
   checklist_total: number;
   checklist_feitos: number;
 }
@@ -120,7 +126,7 @@ export interface ClienteRotina {
 export type CamposTarefa = Partial<
   Pick<
     Tarefa,
-    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem" | "estimativa_min" | "tempo_min"
+    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem" | "estimativa_min" | "tempo_min" | "lado" | "aguardando_motivo" | "contato_cliente" | "reuniao_id" | "registro_id"
   >
 >;
 
@@ -152,7 +158,9 @@ export function atrasada(t: Pick<Tarefa, "prazo" | "status">): boolean {
 // ------------------------------------------------------------------
 // Registros e notificações
 // ------------------------------------------------------------------
-export type TipoRegistro = "revisao" | "otimizacao" | "reuniao" | "nota" | "decisao" | "daily" | "weekly";
+export type TipoRegistro = "revisao" | "otimizacao" | "reuniao" | "nota" | "decisao" | "daily" | "weekly" | "retorno" | "combinado" | "conquista";
+export type AguardandoMotivo = "material" | "aprovacao" | "resposta" | "bloqueio";
+export const AGUARDANDO: Record<AguardandoMotivo, string> = { material: "Material", aprovacao: "Aprovação", resposta: "Resposta", bloqueio: "Bloqueio" };
 export type Situacao = "ok" | "atencao" | "problema";
 
 export const SITUACAO: Record<Situacao, string> = { ok: "Tudo certo", atencao: "Atenção", problema: "Problema" };
@@ -164,6 +172,9 @@ export const TIPO_REGISTRO: Record<TipoRegistro, string> = {
   decisao: "Decisão",
   daily: "Daily",
   weekly: "Weekly",
+  retorno: "Retorno do cliente",
+  combinado: "Combinado",
+  conquista: "Pequena conquista",
 };
 
 export const ACOES_REVISAO = [
@@ -196,7 +207,22 @@ export interface Registro {
   acoes: string[];
   nota: string | null;
   alteracoes: Alteracao[];
-  dados: { focos?: string[]; bloqueios?: string; decisoes?: string };
+  dados: {
+    focos?: string[];
+    bloqueios?: string;
+    decisoes?: string;
+    /** otimização estruturada */
+    motivo?: string;
+    hipotese?: string;
+    esperado?: string;
+    revisar_em?: string;
+    resultado?: string;
+    resultado_em?: string;
+    /** combinado vigente / conquista enviada */
+    encerrado_em?: string;
+    enviado_em?: string;
+    reuniao_id?: string;
+  };
   data: string;
   autor_id: string | null;
   criado_em: string;

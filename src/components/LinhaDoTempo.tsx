@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
-import { CheckCircle2, Gavel, MessageSquare, NotebookPen, SlidersHorizontal, Users2, Eye } from "lucide-react";
+import { CheckCircle2, Gavel, Handshake, MessageSquare, NotebookPen, SlidersHorizontal, Trophy, Users2, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { repo } from "../lib/repo";
 import { useDados } from "../lib/dados";
@@ -84,6 +84,9 @@ const ICONE: Record<TipoRegistro, LucideIcon> = {
   decisao: Gavel,
   daily: Users2,
   weekly: Users2,
+  retorno: MessageSquare,
+  combinado: Handshake,
+  conquista: Trophy,
 };
 
 function rotuloDia(dia: string) {
