@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Copy, History, Plus, Sparkles, Trash2, Wallet } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, History, Loader2, Plus, RefreshCw, Sparkles, Trash2, Wallet } from "lucide-react";
 import { useDados } from "../../lib/dados";
-import { moedaBR, useTabela } from "../../lib/tabela";
+import { chamarFuncao, moedaBR, useTabela } from "../../lib/tabela";
 import { hoje } from "../../lib/tipos";
 import { supabase } from "../../lib/supabase";
 import { useFichas } from "../../lib/cadastro";
@@ -10,6 +10,7 @@ import { demoLancamentos } from "../../data/modulosDemo";
 import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../components/ui";
 import { Abas, Barras, Cabecalho, Kpi, Selo, nomeMes, somarMeses } from "../../components/visual";
 
+interface Sinc { aba: string; receitas: number; despesas: number; total_receitas: number; total_despesas: number; removidos: number; removidos_previstos: number; sem_cliente: string[] }
 type Aba = "financeiro" | "financeiro-historico" | "financeiro-receber" | "financeiro-despesas" | "financeiro-mensalidades";
 const COR_SIT = { pago: "var(--ok)", atrasado: "var(--bad)", aberto: "var(--warn)" } as const;
 const NOME_SIT = { pago: "Pago", atrasado: "Atrasado", aberto: "Em aberto" } as const;
@@ -21,6 +22,22 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
   const lanc = useTabela<Lancamento>("lancamentos", CAMPOS_LANCAMENTO, demoLancamentos, { desde: { coluna: "competencia", valor: "2024-01-01" }, ordem: { coluna: "vencimento" } });
   const fichas = useFichas();
   const [editando, setEditando] = useState<Partial<Lancamento> | null>(null);
+  const [sinc, setSinc] = useState<null | "lendo" | "gravando" | Sinc>(null);
+  async function sincronizar(previa: boolean) {
+    setSinc(previa ? "lendo" : "gravando");
+    try {
+      const r = await chamarFuncao<Sinc>("sincronizar-financeiro", { mes: mes.slice(0, 7), previa });
+      if (previa) setSinc(r);
+      else {
+        setSinc(null);
+        await lanc.recarregar();
+        d.avisar(`${r.aba} sincronizado: ${r.receitas} receitas e ${r.despesas} despesas`);
+      }
+    } catch (e) {
+      setSinc(null);
+      d.avisar((e as Error).message);
+    }
+  }
 
   const linhas = useMemo(() => lanc.linhas.map((l) => ({ ...l, valor: Number(l.valor) })), [lanc.linhas]);
   // Abre no mês mais recente com lançamentos quando o mês atual ainda está vazio
@@ -99,13 +116,32 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
         titulo="Financeiro"
         descricao="Mensalidades, recebimentos, despesas e resultado da agência. Só administradores veem esta área."
         acoes={
+          <div className="flex flex-wrap items-center gap-2">
+          <Botao onClick={() => sincronizar(true)} disabled={sinc === "lendo" || sinc === "gravando"}>{sinc === "lendo" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Sincronizar com a planilha</Botao>
           <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1">
             <Botao variante="fantasma" onClick={() => setMes(somarMeses(mes, -1))} aria-label="Mês anterior"><ChevronLeft size={16} /></Botao>
             <span className="min-w-[150px] text-center text-[13.5px] font-semibold">{nomeMes(mes)}</span>
             <Botao variante="fantasma" onClick={() => setMes(somarMeses(mes, 1))} aria-label="Próximo mês"><ChevronRight size={16} /></Botao>
           </div>
+          </div>
         }
       />
+      {sinc && typeof sinc === "object" && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-accent/30 bg-accent-soft p-4 text-[13px]">
+          <b className="text-[14px]">Sincronizar {sinc.aba} com a planilha?</b>
+          <p>
+            A planilha traz <b>{sinc.receitas} receitas</b> ({moedaBR(sinc.total_receitas)}) e <b>{sinc.despesas} despesas</b> ({moedaBR(sinc.total_despesas)}).
+            {sinc.removidos > 0 && <> Vão sair <b>{sinc.removidos} lançamentos</b> deste mês{sinc.removidos_previstos ? ` (${sinc.removidos_previstos} mensalidades previstas ainda não pagas)` : ""}, substituídos pelo que está na planilha.</>}
+            {" "}Lançamentos feitos à mão no sistema ficam como estão.
+          </p>
+          {sinc.sem_cliente.length > 0 && <p className="text-muted">Sem cliente ligado: {sinc.sem_cliente.join(" · ")}</p>}
+          <div className="flex gap-2">
+            <Botao variante="primario" onClick={() => sincronizar(false)}>Confirmar sincronização</Botao>
+            <Botao onClick={() => setSinc(null)}>Cancelar</Botao>
+          </div>
+        </div>
+      )}
+      {sinc === "gravando" && <p className="text-[13px] text-muted">Sincronizando…</p>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Kpi rotulo="MRR contratado" valor={moedaBR(mrr, 0)} detalhe={`${clientesPagantes} clientes · ticket ${moedaBR(clientesPagantes ? mrr / clientesPagantes : 0, 0)}`} tom="accent" onClick={() => ir("financeiro-mensalidades")} />
         <Kpi rotulo="Receitas do mês" valor={moedaBR(soma(receitas), 0)} detalhe={`${moedaBR(recebido, 0)} já recebido`} />
