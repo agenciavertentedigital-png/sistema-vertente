@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
-import { CornerDownLeft, Gauge, LayoutGrid, Moon, Plug, Search, Sparkles, User } from "lucide-react";
+import { CalendarRange, CornerDownLeft, Gauge, LayoutGrid, Moon, Plug, Search, Sparkles, User } from "lucide-react";
 import { ASSISTENTE, SECOES } from "../data/navegacao";
 import { useDados } from "../lib/dados";
 
@@ -42,6 +42,7 @@ export function Comando({ aberto, fechar, ir, alternarTema }: { aberto: boolean;
   const todas = useMemo<Opcao[]>(() => {
     const ops: Opcao[] = [
       { id: "inicio", grupo: "Ir para", titulo: "Central Vertente", icone: LayoutGrid, acao: () => ir("inicio"), termos: "central inicio home ferramentas" },
+      { id: "planejador", grupo: "Ir para", titulo: "Planejador", icone: CalendarRange, acao: () => ir("planejador"), termos: "planejador agenda semana calendario capacidade planejar" },
       { id: "dashboard", grupo: "Ir para", titulo: "Dashboard Vertente", icone: Gauge, acao: () => ir("dashboard"), termos: "dashboard painel alertas saude indicadores" },
     ];
     for (const s of SECOES)

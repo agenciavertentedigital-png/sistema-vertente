@@ -5,6 +5,7 @@ import { Marca } from "./components/Marca";
 import { useRota } from "./lib/rota";
 import { MODULOS } from "./data/modulos";
 import { DashboardVertente } from "./pages/Central";
+import { Planejador } from "./pages/Planejador";
 import { CentralVertente } from "./pages/CentralVertente";
 import { PaginaModulo } from "./pages/PaginaModulo";
 import { BaseClientes } from "./pages/BaseClientes";
@@ -115,6 +116,7 @@ export default function App() {
   const naCentral = rota === "inicio" || (!modulo && !rotaConhecida(rota));
   let pagina = <CentralVertente ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
   if (rota === "dashboard") pagina = <DashboardVertente ir={navegar} />;
+  if (rota === "planejador") pagina = <Planejador />;
   else if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
@@ -221,7 +223,7 @@ export default function App() {
 
 /** Rotas que têm página própria (o resto cai na Central Vertente). */
 function rotaConhecida(r: string) {
-  return /^(dashboard|base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
+  return /^(dashboard|planejador|base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
 }
 
 /** Abas que unem Fichas, Contratos e Base num tópico só. */

@@ -75,6 +75,7 @@ export interface Tarefa {
   tempo_min?: number;
   fazendo_desde?: string | null;
   criado_em?: string;
+  planejado_inicio?: string | null;
   /** Central do cliente: de quem depende, por que aguarda, quem do cliente e de onde nasceu */
   lado?: "vertente" | "cliente";
   aguardando_motivo?: AguardandoMotivo | null;
@@ -127,7 +128,7 @@ export interface ClienteRotina {
 export type CamposTarefa = Partial<
   Pick<
     Tarefa,
-    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem" | "estimativa_min" | "tempo_min" | "lado" | "aguardando_motivo" | "contato_cliente" | "reuniao_id" | "registro_id"
+    "cliente_id" | "titulo" | "descricao" | "pilar" | "canal" | "responsavel_id" | "prazo" | "prioridade" | "status" | "triagem" | "estimativa_min" | "tempo_min" | "lado" | "aguardando_motivo" | "contato_cliente" | "reuniao_id" | "registro_id" | "planejado_inicio"
   >
 >;
 

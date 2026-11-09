@@ -58,8 +58,8 @@ function erro(e: { message: string } | null) {
 // Supabase
 // ------------------------------------------------------------------
 const CAMPOS_TAREFA =
-  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, estimativa_min, tempo_min, fazendo_desde, criado_em, lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id, tarefa_checklist(feito)";
-const CAMPOS_TAREFA_LEGADO = CAMPOS_TAREFA.replace(", lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id", "");
+  "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, estimativa_min, tempo_min, fazendo_desde, criado_em, lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id, planejado_inicio, tarefa_checklist(feito)";
+const CAMPOS_TAREFA_LEGADO = CAMPOS_TAREFA.replace(", lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id, planejado_inicio", "");
 
 type LinhaTarefa = Omit<Tarefa, "checklist_total" | "checklist_feitos"> & { tarefa_checklist: { feito: boolean }[] };
 
@@ -80,7 +80,7 @@ const repoSupabase = (): Repo => {
       // Enquanto o banco não tiver as colunas novas das demandas, cai para a lista antiga sem quebrar.
       const tarefas = async (filtro: (campos: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
         const r = await filtro(CAMPOS_TAREFA);
-        return r.error && /lado|aguardando_motivo|contato_cliente|reuniao_id|registro_id/i.test(r.error.message) ? filtro(CAMPOS_TAREFA_LEGADO) : r;
+        return r.error && /lado|aguardando_motivo|contato_cliente|reuniao_id|registro_id|planejado_inicio/i.test(r.error.message) ? filtro(CAMPOS_TAREFA_LEGADO) : r;
       };
       const [cl, me, ab, fe, ro, cr, rg, no] = await Promise.all([
         sb.from("clientes").select("id, nome, origem, marca").eq("status", "ativo").order("nome"),

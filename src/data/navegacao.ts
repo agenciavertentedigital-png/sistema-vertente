@@ -2,6 +2,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarCheck,
+  CalendarRange,
   CalendarDays,
   FileSignature,
   Gauge,
@@ -41,6 +42,11 @@ export const SECOES: Secao[] = [
         id: "clientes", nome: "Gestão do Cliente", icone: Users, rota: "clientes", prefixos: ["clientes", "cliente-"], cor: "#2f54eb",
         descricao: "Tarefas, carteira, onboarding e rotinas",
         atalhos: [{ nome: "Tarefas", rota: "clientes" }, { nome: "Carteira", rota: "clientes-carteira" }, { nome: "Caixa de entrada", rota: "clientes-entrada" }, { nome: "Onboarding", rota: "clientes-onboarding" }],
+      },
+      {
+        id: "planejador", nome: "Planejador", icone: CalendarRange, rota: "planejador", prefixos: ["planejador"], cor: "#0d9488",
+        descricao: "A semana de cada pessoa em grade, com capacidade do dia",
+        atalhos: [],
       },
       {
         id: "anotacoes", nome: "Briefings e notas", icone: NotebookPen, rota: "anotacoes", prefixos: ["anotacoes"], cor: "#7c3aed",
