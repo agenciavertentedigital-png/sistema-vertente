@@ -74,6 +74,7 @@ export interface Tarefa {
   estimativa_min?: number | null;
   tempo_min?: number;
   fazendo_desde?: string | null;
+  criado_em?: string;
   /** Central do cliente: de quem depende, por que aguarda, quem do cliente e de onde nasceu */
   lado?: "vertente" | "cliente";
   aguardando_motivo?: AguardandoMotivo | null;

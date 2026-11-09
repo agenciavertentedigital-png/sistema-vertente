@@ -178,8 +178,25 @@ function Carteira({ ir }: { ir: (r: string) => void }) {
 function CaixaEntrada({ abrir, novaDemanda }: { abrir: (id: string) => void; novaDemanda: () => void }) {
   const d = useDados();
   const lista = d.tarefas.filter((t) => t.triagem && STATUS_ABERTOS.includes(t.status));
+  const triadores = d.membros.filter((m) => /^(carol|rener)/i.test(m.nome));
+  const souTriador = triadores.some((m) => m.id === d.eu);
+  const maisAntiga = lista.reduce<string | null>((a, t) => (!a || (t.criado_em ?? "") < a ? t.criado_em ?? a : a), null);
+  const dias = maisAntiga ? Math.floor((Date.now() - new Date(maisAntiga).getTime()) / 86400000) : 0;
   return (
     <div className="flex flex-col gap-3">
+      {lista.length > 0 && (
+        <div className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-[13px] ${dias >= 1 ? "border-warn/40 bg-warn-soft" : "border-accent/30 bg-accent-soft"}`}>
+          <Inbox size={15} className={dias >= 1 ? "text-warn" : "text-accent"} />
+          <b>Triagem do dia</b>
+          <span>
+            {lista.length} {lista.length === 1 ? "demanda esperando" : "demandas esperando"}
+            {dias >= 1 ? ` · a mais antiga está aqui há ${dias} ${dias === 1 ? "dia" : "dias"}` : " · todas de hoje"}
+          </span>
+          <span className="ml-auto text-[12px] text-muted">
+            {souTriador ? "Você faz a triagem no início do dia" : `Triagem no início do dia: ${triadores.map((m) => m.nome.split(" ")[0]).join(" e ") || "Carol e Rener"}`}
+          </span>
+        </div>
+      )}
       <p className="max-w-[70ch] text-[13px] text-muted">
         Pedidos novos dos clientes entram aqui sem prazo. Na triagem você define responsável, prazo e pilar, e a demanda vira tarefa.
       </p>
