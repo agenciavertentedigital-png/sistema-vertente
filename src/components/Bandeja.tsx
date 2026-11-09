@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check, CheckSquare, Inbox, Search, Settings2, Sparkles, StickyNote, X } from "lucide-react";
+import { Check, CheckSquare, Inbox, Search, Settings2, Sparkles, StickyNote, Wand2, X } from "lucide-react";
+import { CaixaUniversal } from "./CaixaUniversal";
 import type { LucideIcon } from "lucide-react";
 import { repo } from "../lib/repo";
 import { useDados } from "../lib/dados";
@@ -9,23 +10,32 @@ import { PILAR, PILARES, PRIORIDADE, type Pilar, type Prioridade } from "../lib/
 import { CampoMencao } from "./LinhaDoTempo";
 import { Botao, Entrada, Rotulo, Selecao, campo } from "./ui";
 
-type IdAtalho = "demanda" | "anotacao" | "tarefa" | "ia" | "busca";
-type Popup = "demanda" | "anotacao" | "tarefa" | null;
+type IdAtalho = "despejar" | "demanda" | "anotacao" | "tarefa" | "ia" | "busca";
+type Popup = "despejar" | "demanda" | "anotacao" | "tarefa" | null;
 
 const ATALHOS: Record<IdAtalho, { nome: string; icone: LucideIcon; dica: string }> = {
+  despejar: { nome: "Despejar", icone: Wand2, dica: "Cole qualquer texto e a IA organiza em demandas, anotações e registros (Alt+C)" },
   demanda: { nome: "Demanda", icone: Inbox, dica: "Descarregar uma demanda na caixa de entrada" },
   anotacao: { nome: "Anotação", icone: StickyNote, dica: "Anotar algo rápido" },
   tarefa: { nome: "Tarefa", icone: CheckSquare, dica: "Criar uma tarefa com responsável e prazo" },
   ia: { nome: "IA", icone: Sparkles, dica: "Perguntar à IA" },
   busca: { nome: "Buscar", icone: Search, dica: "Buscar no sistema (Ctrl K)" },
 };
-const PADRAO: IdAtalho[] = ["demanda", "anotacao", "tarefa", "ia"];
+const PADRAO: IdAtalho[] = ["despejar", "demanda", "anotacao", "tarefa", "ia"];
 const CHAVE = "vertente.bandeja";
 
 function lerEscolha(): IdAtalho[] {
   try {
     const v = JSON.parse(localStorage.getItem(CHAVE) ?? "null") as IdAtalho[] | null;
-    if (Array.isArray(v)) return v.filter((x) => x in ATALHOS);
+    if (Array.isArray(v)) {
+      const lista = v.filter((x) => x in ATALHOS);
+      // atalho novo: entra uma vez para quem já tinha personalizado a bandeja
+      if (!lista.includes("despejar") && !localStorage.getItem(`${CHAVE}.despejar`)) {
+        localStorage.setItem(`${CHAVE}.despejar`, "1");
+        return ["despejar", ...lista];
+      }
+      return lista;
+    }
   } catch {
     /* sem armazenamento: usa o padrão */
   }
@@ -47,7 +57,7 @@ export function Bandeja({ rota, ir, abrirComando }: { rota: string; ir: (r: stri
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       const k = e.key.toLowerCase();
-      const alvo: Popup = k === "d" ? "demanda" : k === "n" ? "anotacao" : k === "t" ? "tarefa" : null;
+      const alvo: Popup = k === "c" ? "despejar" : k === "d" ? "demanda" : k === "n" ? "anotacao" : k === "t" ? "tarefa" : null;
       if (alvo) {
         e.preventDefault();
         setPopup(alvo);
@@ -105,12 +115,17 @@ export function Bandeja({ rota, ir, abrirComando }: { rota: string; ir: (r: stri
                   </button>
                 );
               })}
-              <p className="px-2 pt-1 text-[11px] text-muted">Alt+D demanda · Alt+N anotação · Alt+T tarefa</p>
+              <p className="px-2 pt-1 text-[11px] text-muted">Alt+C despejar · Alt+D demanda · Alt+N anotação · Alt+T tarefa</p>
             </div>
           )}
         </nav>
       </div>
 
+      {popup === "despejar" && (
+        <Popup titulo="Despejar e organizar" icone={Wand2} fechar={() => setPopup(null)}>
+          <CaixaUniversal clienteInicial={clienteDaPagina} fechar={() => setPopup(null)} />
+        </Popup>
+      )}
       {popup === "demanda" && <PopupTarefa demanda clienteInicial={clienteDaPagina} fechar={() => setPopup(null)} />}
       {popup === "tarefa" && <PopupTarefa clienteInicial={clienteDaPagina} fechar={() => setPopup(null)} />}
       {popup === "anotacao" && <PopupAnotacao clienteInicial={clienteDaPagina} fechar={() => setPopup(null)} />}
