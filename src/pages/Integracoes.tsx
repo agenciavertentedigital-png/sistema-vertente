@@ -4,7 +4,8 @@ import { supabase } from "../lib/supabase";
 import { chamarFuncao } from "../lib/tabela";
 
 type Status = Record<string, boolean>;
-interface Grupo { grupo: string; grupo_nome: string | null; ultima: string }
+interface Grupo { grupo: string; nome: string | null; cliente_id: string | null; tipo: string; atualizado_em: string }
+interface ClienteMin { id: string; nome: string }
 interface MembroTel { id: string; nome: string; telefone: string | null }
 
 const DEMO_STATUS: Status = { dataforseo_login: true, dataforseo_senha: true, meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false };
@@ -20,6 +21,8 @@ export function Integracoes() {
   const [aviso, setAviso] = useState("");
   const [saldo, setSaldo] = useState<number | null>(null);
   const [conectando, setConectando] = useState(false);
+  const [clientes, setClientes] = useState<ClienteMin[]>([]);
+  const [configurando, setConfigurando] = useState(false);
   const [contasGoogle, setContasGoogle] = useState<{ id: string; nome: string; status: string }[] | null>(null);
 
   // Volta da autorização do Google (#integracoes?google=ok)
@@ -63,11 +66,12 @@ export function Integracoes() {
 
   async function carregar() {
     if (!supabase) return;
-    const [s, w, g, m] = await Promise.all([
+    const [s, w, g, m, c] = await Promise.all([
       supabase.rpc("integracoes_status"),
       supabase.rpc("whatsapp_config"),
-      supabase.from("whatsapp_mensagens").select("grupo, grupo_nome, criado_em").order("criado_em", { ascending: false }).limit(300),
+      supabase.from("whatsapp_grupos").select("grupo, nome, cliente_id, tipo, atualizado_em").order("atualizado_em", { ascending: false }),
       supabase.from("membros").select("id, nome, telefone").eq("ativo", true).order("nome"),
+      supabase.from("clientes").select("id, nome").eq("status", "ativo").order("nome"),
     ]);
     if (s.error) {
       setErro(s.error.message.includes("administradores") ? "Só administradores podem ver as integrações." : s.error.message);
@@ -77,9 +81,8 @@ export function Integracoes() {
     const cfg = (w.data ?? {}) as { webhook?: string; grupo?: string | null };
     setWebhook(cfg.webhook ?? "");
     setGrupoAtual(cfg.grupo ?? null);
-    const vistos = new Map<string, Grupo>();
-    for (const r of (g.data ?? []) as { grupo: string; grupo_nome: string | null; criado_em: string }[]) if (!vistos.has(r.grupo)) vistos.set(r.grupo, { grupo: r.grupo, grupo_nome: r.grupo_nome, ultima: r.criado_em });
-    setGrupos([...vistos.values()]);
+    setGrupos((g.data ?? []) as Grupo[]);
+    setClientes((c.data ?? []) as ClienteMin[]);
     setTime((m.data ?? []) as MembroTel[]);
     if ((s.data as Status).dataforseo_login) chamarFuncao<{ saldo: number | null }>("gbp-check", { acao: "saldo" }).then((r) => setSaldo(r.saldo), () => setSaldo(null));
   }
@@ -96,6 +99,25 @@ export function Integracoes() {
     carregar();
   }
 
+  async function ligarEvolution() {
+    setConfigurando(true);
+    try {
+      const r = await chamarFuncao<{ conexao: string }>("whatsapp", { acao: "configurar" });
+      setAviso(r.conexao === "open" ? "WhatsApp conectado e webhook ligado. Mande uma mensagem num grupo para testar." : `Webhook ligado, mas a conexão está "${r.conexao}". Leia o QR code no painel da Evolution.`);
+    } catch (e) {
+      setAviso((e as Error).message);
+    } finally {
+      setConfigurando(false);
+    }
+  }
+
+  async function salvarGrupo(grupo: string, campos: Partial<Grupo>) {
+    if (!supabase) return;
+    setGrupos((xs) => xs.map((x) => (x.grupo === grupo ? { ...x, ...campos } : x)));
+    const { error } = await supabase.from("whatsapp_grupos").update(campos).eq("grupo", grupo);
+    if (error) setAviso(`Não salvou: ${error.message}`);
+  }
+
   async function salvarTelefone(id: string, telefone: string) {
     if (!supabase) return;
     const { error } = await supabase.from("membros").update({ telefone: telefone.replace(/\D/g, "") || null }).eq("id", id);
@@ -106,14 +128,15 @@ export function Integracoes() {
   if (erro) return <div className="rounded-xl bg-surface p-6 text-[13px] text-muted" style={{ boxShadow: "var(--sombra)" }}>{erro}</div>;
   if (!status) return <div className="p-6 text-[13px] text-muted">Carregando…</div>;
 
-  const whatsOk = status.zapi_instancia && status.zapi_token && status.whatsapp_grupo;
+  const evoOk = status.evolution_url && status.evolution_apikey && status.evolution_instancia;
+  const whatsOk = evoOk || (status.zapi_instancia && status.zapi_token);
   const cartoes = [
     { icone: Plug, nome: "Meta Ads", ok: status.meta_access_token, texto: "Sincroniza as contas de anúncio 3x ao dia." },
     { icone: BarChart3, nome: "Google Ads", ok: !!(status.google_ads_refresh_token && status.google_ads_mcc), texto: "Sincroniza as campanhas 3x ao dia." },
     { icone: Bot, nome: "IA do Assistente", ok: status.openai_api_key || status.anthropic_api_key, texto: status.anthropic_api_key ? "Usando Claude (Anthropic)." : "Usando ChatGPT (OpenAI)." },
     { icone: MapPin, nome: "Google Places (GBP Check)", ok: status.google_places_key, texto: "Busca nota, avaliações e fotos dos perfis do Google." },
     { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
-    { icone: MessageCircle, nome: "WhatsApp (Z-API)", ok: whatsOk, texto: "Assistente respondendo no grupo do time." },
+    { icone: MessageCircle, nome: evoOk ? "WhatsApp (Evolution)" : "WhatsApp", ok: !!whatsOk, texto: "Lê os grupos dos clientes e responde no grupo do time." },
     { icone: FolderOpen, nome: "Google Drive", ok: true, texto: "Pasta de cada cliente aparece na ficha (aba Pasta no Drive)." },
   ];
 
@@ -174,29 +197,57 @@ export function Integracoes() {
         <h2 className="flex items-center gap-2 text-[16px] font-semibold"><MessageCircle size={17} className="text-accent" /> WhatsApp do time</h2>
         <ol className="mt-3 grid gap-4 text-[13px] lg:grid-cols-2">
           <li className="flex flex-col gap-2">
-            <b>1. Credenciais da Z-API</b>
-            <Campo rotulo="ID da instância" ok={status.zapi_instancia} onSalvar={(v) => salvar("zapi_instancia", v)} />
-            <Campo rotulo="Token da instância" ok={status.zapi_token} onSalvar={(v) => salvar("zapi_token", v)} />
-            <Campo rotulo="Client-Token (Segurança da conta)" ok={status.zapi_client_token} onSalvar={(v) => salvar("zapi_client_token", v)} />
+            <b>1. Evolution API (conexão por QR code)</b>
+            <Campo rotulo="Endereço da Evolution (https://…)" ok={!!status.evolution_url} onSalvar={(v) => salvar("evolution_url", v)} />
+            <Campo rotulo="Chave da API (AUTHENTICATION_API_KEY)" ok={!!status.evolution_apikey} onSalvar={(v) => salvar("evolution_apikey", v)} />
+            <Campo rotulo="Nome da instância" ok={!!status.evolution_instancia} onSalvar={(v) => salvar("evolution_instancia", v)} />
+            <button onClick={ligarEvolution} disabled={!evoOk || configurando} className="mt-1 inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg disabled:opacity-40">
+              <Link2 size={14} /> {configurando ? "Ligando…" : "Ligar webhook e testar conexão"}
+            </button>
+            <details className="mt-2 text-[12px] text-muted">
+              <summary className="cursor-pointer">Usar Z-API clássica em vez da Evolution</summary>
+              <div className="mt-2 flex flex-col gap-2">
+                <Campo rotulo="ID da instância" ok={status.zapi_instancia} onSalvar={(v) => salvar("zapi_instancia", v)} />
+                <Campo rotulo="Token da instância" ok={status.zapi_token} onSalvar={(v) => salvar("zapi_token", v)} />
+                <Campo rotulo="Client-Token (Segurança da conta)" ok={status.zapi_client_token} onSalvar={(v) => salvar("zapi_client_token", v)} />
+                <span>Webhook "Ao receber" da Z-API:</span>
+                <div className="flex gap-2">
+                  <input readOnly value={webhook || "(disponível no sistema publicado)"} className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px]" />
+                  <button onClick={() => { navigator.clipboard?.writeText(webhook); setAviso("Endereço copiado."); }} className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 text-[12.5px] hover:bg-raised"><Copy size={14} /> Copiar</button>
+                </div>
+              </div>
+            </details>
           </li>
           <li className="flex flex-col gap-2">
-            <b>2. Webhook "Ao receber" na Z-API</b>
-            <div className="flex gap-2">
-              <input readOnly value={webhook || "(disponível no sistema publicado)"} className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px]" />
-              <button onClick={() => { navigator.clipboard?.writeText(webhook); setAviso("Endereço copiado."); }} className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 text-[12.5px] hover:bg-raised"><Copy size={14} /> Copiar</button>
-            </div>
-            <b className="mt-2">3. Grupo</b>
-            <p className="text-muted">Mande qualquer mensagem no grupo; ele aparece aqui. {grupoAtual ? <>Grupo em uso: <span className="font-mono">{grupoAtual}</span></> : "Nenhum grupo escolhido."}</p>
+            <b>2. Grupos</b>
+            <p className="text-muted">Cada grupo aparece aqui quando chega a primeira mensagem depois da conexão. Ligue cada um ao cliente e marque qual é o grupo do time (onde o assistente responde).</p>
             {grupos.length === 0 && <p className="text-[12px] text-muted">Nenhum grupo detectado ainda.</p>}
-            {grupos.map((g) => (
-              <div key={g.grupo} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{g.grupo_nome ?? "Grupo sem nome"}</div>
-                  <div className="truncate font-mono text-[11px] text-muted">{g.grupo}</div>
+            <div className="flex max-h-[420px] flex-col gap-1.5 overflow-y-auto">
+              {grupos.map((g) => (
+                <div key={g.grupo} className={`flex flex-col gap-1.5 rounded-lg border px-3 py-2 ${g.tipo === "pendente" ? "border-warn/50" : "border-line"}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate font-medium">{g.nome ?? "Grupo sem nome"}</span>
+                    {g.grupo === grupoAtual ? <span className="text-[12px] text-emerald-600">Grupo do time</span> : <button onClick={() => { salvar("whatsapp_grupo", g.grupo); salvarGrupo(g.grupo, { tipo: "time", cliente_id: null }); }} className="text-[12px] text-accent hover:underline">É o grupo do time</button>}
+                  </div>
+                  <div className="grid grid-cols-[120px_1fr] gap-1.5">
+                    <select value={g.tipo} onChange={(e) => salvarGrupo(g.grupo, { tipo: e.target.value, ...(e.target.value === "cliente" ? {} : { cliente_id: null }) })} className="h-8 rounded-lg border border-line bg-bg px-2 text-[12.5px]">
+                      <option value="pendente">Definir…</option>
+                      <option value="cliente">Cliente</option>
+                      <option value="parceria">Parceria</option>
+                      <option value="suporte">Suporte CRM</option>
+                      <option value="time">Time</option>
+                      <option value="ignorar">Ignorar</option>
+                    </select>
+                    {g.tipo === "cliente" || g.tipo === "suporte" ? (
+                      <select value={g.cliente_id ?? ""} onChange={(e) => salvarGrupo(g.grupo, { cliente_id: e.target.value || null })} className="h-8 min-w-0 rounded-lg border border-line bg-bg px-2 text-[12.5px]">
+                        <option value="">Qual cliente?</option>
+                        {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                      </select>
+                    ) : <span />}
+                  </div>
                 </div>
-                {g.grupo === grupoAtual ? <span className="text-[12px] text-emerald-600">Em uso</span> : <button onClick={() => salvar("whatsapp_grupo", g.grupo)} className="rounded-lg bg-accent px-2.5 py-1.5 text-[12px] font-medium text-accent-fg">Usar este grupo</button>}
-              </div>
-            ))}
+              ))}
+            </div>
           </li>
         </ol>
         <div className="mt-5">
