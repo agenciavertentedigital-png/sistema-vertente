@@ -7,7 +7,7 @@ import { useTabela } from "../../lib/tabela";
 import { hoje, somarDias, TIPO_REGISTRO } from "../../lib/tipos";
 import { CAMPOS_LANCAMENTO, type Lancamento } from "../../lib/financeiro";
 import { CAMPOS_POST, type Post } from "../../lib/social";
-import { calcularSaude, PESOS, type Fator, type SaudeCliente } from "../../lib/saude";
+import { calcularSaude, DIMENSOES, PESOS, notaDimensao, type Dimensao, type Fator, type SaudeCliente } from "../../lib/saude";
 import { useTemperaturas } from "../../lib/temperatura";
 import { MarcarTemperatura, SeloTemperatura } from "../../components/Temperatura";
 import { useGmn } from "../gmn/GoogleMeuNegocio";
@@ -116,9 +116,23 @@ function CartaoSaude({ s, abrir }: { s: SaudeCliente; abrir: () => void }) {
         </div>
         <ArrowRight size={16} className="text-muted transition-transform group-hover:translate-x-0.5" />
       </div>
-      <div className="grid grid-cols-4 gap-x-4 gap-y-2 sm:grid-cols-7">
-        {s.fatores.map((f) => <BarraFator key={f.id} f={f} />)}
+      <div className="grid grid-cols-3 gap-2">
+        {(Object.keys(DIMENSOES) as Dimensao[]).map((k) => {
+          const n = notaDimensao(s, k);
+          return (
+            <div key={k} className="rounded-xl border border-line px-2.5 py-1.5" title={DIMENSOES[k].fatores.map((id) => s.fatores.find((f) => f.id === id)).filter((f) => f && f.nota !== null).map((f) => `${f!.nome}: ${f!.nota} (${f!.motivo})`).join("\n")}>
+              <div className="text-[11px] text-muted">{DIMENSOES[k].nome}</div>
+              <div className="num text-[17px] font-semibold leading-tight" style={{ color: corNota(n) }}>{n ?? "—"}</div>
+            </div>
+          );
+        })}
       </div>
+      <details onClick={(e) => e.stopPropagation()} className="text-[12px]">
+        <summary className="cursor-pointer text-muted">Ver os 7 fatores</summary>
+        <div className="mt-2 grid grid-cols-4 gap-x-4 gap-y-2 sm:grid-cols-7">
+          {s.fatores.map((f) => <BarraFator key={f.id} f={f} />)}
+        </div>
+      </details>
       <div onClick={(e) => e.stopPropagation()} className="border-t border-line pt-3">
         <MarcarTemperatura clienteId={s.clienteId} compacto />
       </div>

@@ -21,6 +21,19 @@ export interface SaudeCliente {
   pior: Fator | null;
 }
 
+/** A saúde separada em três leituras: como está a entrega, o resultado e a relação com o cliente. */
+export type Dimensao = "operacao" | "resultado" | "relacionamento";
+export const DIMENSOES: Record<Dimensao, { nome: string; fatores: Fator["id"][] }> = {
+  operacao: { nome: "Operação", fatores: ["entregas", "gmn", "social"] },
+  resultado: { nome: "Resultado", fatores: ["trafego"] },
+  relacionamento: { nome: "Relacionamento", fatores: ["temperatura", "relacionamento", "financeiro"] },
+};
+export function notaDimensao(s: { fatores: Fator[] }, dim: Dimensao): number | null {
+  const fs = s.fatores.filter((f) => DIMENSOES[dim].fatores.includes(f.id) && f.nota !== null);
+  const peso = fs.reduce((t, f) => t + f.peso, 0);
+  return peso ? Math.round(fs.reduce((t, f) => t + f.peso * (f.nota ?? 0), 0) / peso) : null;
+}
+
 export const PESOS: Record<Fator["id"], { nome: string; peso: number }> = {
   temperatura: { nome: "Temperatura", peso: 30 },
   entregas: { nome: "Entregas no prazo", peso: 25 },

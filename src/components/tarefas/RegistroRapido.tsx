@@ -43,7 +43,7 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
   const pronto =
     situacao !== null &&
     (!notaObrigatoria || nota.trim().length > 0) &&
-    (tipo === "otimizacao" ? alteracoesValidas.length > 0 || nota.trim().length > 0 : acoes.length > 0);
+    (tipo === "otimizacao" ? alteracoesValidas.length > 0 || nota.trim().length > 0 : true);
 
   function alternarAcao(a: string) {
     setAcoes((v) => {
@@ -53,8 +53,9 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
     });
   }
 
-  async function salvar() {
-    if (!pronto || !situacao) return;
+  async function salvar(forcar?: Situacao) {
+    const sit = forcar ?? situacao;
+    if (!sit || (!forcar && !pronto)) return;
     setSalvando(true);
     try {
       await repo.registrar({
@@ -62,14 +63,14 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
         tarefa_id: t.id,
         tipo,
         canal: t.canal,
-        situacao,
-        acoes: tipo === "revisao" ? acoes : [],
+        situacao: sit,
+        acoes: tipo === "revisao" ? (acoes.length ? acoes : ["Nenhuma ação"]) : [],
         nota: nota.trim() || null,
         alteracoes: tipo === "otimizacao" ? alteracoesValidas : [],
       });
       await repo.salvarTarefa(t.id, { status: "feita" });
       await d.recarregar();
-      d.avisar(situacao === "problema" ? "Registrado. O time foi avisado da conta em vermelho." : "Registrado e concluído");
+      d.avisar(sit === "problema" ? "Registrado. O time foi avisado da conta em vermelho." : "Registrado e concluído");
       concluido();
     } catch (e) {
       d.avisar(`Não foi possível registrar: ${(e as Error).message}`);
@@ -87,26 +88,53 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
 
       {t.canal !== "google" && <NumerosDaConta clienteId={t.cliente_id} compacto />}
 
-      <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Situação da conta">
-        {(Object.keys(SITUACAO) as Situacao[]).map((s) => (
+      {tipo === "revisao" ? (
+        <div className="grid grid-cols-2 gap-2">
           <button
-            key={s}
-            role="radio"
-            aria-checked={situacao === s}
-            onClick={() => setSituacao(s)}
-            className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-[13px] font-semibold transition-colors ${
-              situacao === s ? ESTILO_SITUACAO[s] : "border-line text-muted hover:text-fg"
-            }`}
+            disabled={salvando}
+            onClick={() => salvar("ok")}
+            className="flex flex-col items-center gap-1 rounded-xl border-2 border-ok bg-ok-soft px-2 py-3 text-[13.5px] font-semibold text-ok hover:opacity-90"
           >
-            <span className="h-4 w-4 rounded-full" style={{ background: COR_SITUACAO[s] }} />
-            {SITUACAO[s]}
+            <span className="h-4 w-4 rounded-full" style={{ background: COR_SITUACAO.ok }} />
+            Tudo certo
+            <span className="text-[11.5px] font-normal">registra e conclui</span>
           </button>
-        ))}
-      </div>
+          <button
+            onClick={() => setSituacao(situacao === "atencao" || situacao === "problema" ? null : "atencao")}
+            aria-pressed={situacao === "atencao" || situacao === "problema"}
+            className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-[13.5px] font-semibold ${situacao === "atencao" || situacao === "problema" ? ESTILO_SITUACAO.atencao : "border-line text-muted hover:text-fg"}`}
+          >
+            <span className="h-4 w-4 rounded-full" style={{ background: COR_SITUACAO.atencao }} />
+            Ponto de atenção
+            <span className="text-[11.5px] font-normal">conta o que está acontecendo</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Situação da conta">
+          {(Object.keys(SITUACAO) as Situacao[]).map((s) => (
+            <button
+              key={s}
+              role="radio"
+              aria-checked={situacao === s}
+              onClick={() => setSituacao(s)}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-[13px] font-semibold transition-colors ${
+                situacao === s ? ESTILO_SITUACAO[s] : "border-line text-muted hover:text-fg"
+              }`}
+            >
+              <span className="h-4 w-4 rounded-full" style={{ background: COR_SITUACAO[s] }} />
+              {SITUACAO[s]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tipo === "revisao" ? (
-        <div className="flex flex-col gap-2">
-          <span className="text-[12px] text-muted">O que foi feito</span>
+        situacao === null ? null : <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-[12.5px]">
+            <input type="checkbox" checked={situacao === "problema"} onChange={(e) => setSituacao(e.target.checked ? "problema" : "atencao")} />
+            É grave: conta em vermelho, avisar o time
+          </label>
+          <span className="text-[12px] text-muted">O que foi feito (opcional)</span>
           <div className="flex flex-wrap gap-1.5">
             {ACOES_REVISAO.map((a) => (
               <button
@@ -148,14 +176,14 @@ export function RegistroRapido({ t, tipo, cancelar, concluido }: { t: Tarefa; ti
         </div>
       )}
 
-      <Rotulo texto={notaObrigatoria ? "O que está acontecendo (obrigatório). Use @Nome para avisar alguém" : "Observação (opcional). Use @Nome para avisar alguém"}>
+      {(tipo !== "revisao" || situacao !== null) && <Rotulo texto={notaObrigatoria ? "O que está acontecendo (obrigatório). Use @Nome para avisar alguém" : "Observação (opcional). Use @Nome para avisar alguém"}>
         <CampoMencao id="registro-nota" rows={2} valor={nota} mudar={setNota} />
-      </Rotulo>
+      </Rotulo>}
 
       <div className="flex flex-wrap gap-2">
-        <Botao variante="primario" disabled={!pronto || salvando} onClick={salvar}>
+        {(tipo !== "revisao" || situacao !== null) && <Botao variante="primario" disabled={!pronto || salvando} onClick={() => salvar()}>
           {salvando ? "Salvando…" : "Registrar e concluir"}
-        </Botao>
+        </Botao>}
         <Botao variante="fantasma" onClick={cancelar}>Cancelar</Botao>
       </div>
     </div>
