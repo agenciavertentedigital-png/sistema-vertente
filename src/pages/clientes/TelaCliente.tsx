@@ -29,6 +29,7 @@ import { SITUACAO } from "../../lib/tipos";
 import { RoteirosIA } from "../../components/RoteirosIA";
 import { AcessosCliente } from "../../components/AcessosCliente";
 import { Acompanhamento } from "../../components/Acompanhamento";
+import { FichaEstrategica } from "../../components/FichaEstrategica";
 import { DiarioBordo } from "../../components/DiarioBordo";
 import { PastaDrive } from "../../components/PastaDrive";
 import { AplicarProcesso, ProgressoProcessos, useProcessos } from "./Processos";
@@ -109,6 +110,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <Numero rotulo="Rotinas ativas" valor={d.clienteRotinas.filter((r) => r.cliente_id === c.id && r.ativa).length} />
         <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
       </div>
+
+      <FichaEstrategica clienteId={c.id} abrirBriefing={() => setAba("briefing")} />
 
       <ResumoEstrategico
         b={briefings.linhas.find((x) => x.cliente_id === c.id)}
