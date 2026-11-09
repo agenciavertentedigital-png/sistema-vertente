@@ -96,8 +96,8 @@ export const SECOES: Secao[] = [
       },
       {
         id: "projetos", nome: "Saúde e CS", icone: HeartPulse, rota: "projetos", prefixos: ["projetos"], cor: "#dc2626",
-        descricao: "Saúde dos clientes e fluxo de CS",
-        atalhos: [{ nome: "Saúde dos clientes", rota: "projetos" }, { nome: "Por pilar", rota: "projetos-pilares" }, { nome: "Fluxo de CS", rota: "projetos-cs" }],
+        descricao: "Acompanhamentos, saúde dos clientes e fluxo de CS",
+        atalhos: [{ nome: "Acompanhamentos", rota: "projetos-acompanhamentos" }, { nome: "Saúde dos clientes", rota: "projetos" }, { nome: "Por pilar", rota: "projetos-pilares" }, { nome: "Fluxo de CS", rota: "projetos-cs" }],
       },
       {
         id: "reuniao", nome: "Daily e Weekly", icone: CalendarCheck, rota: "reuniao-daily", prefixos: ["reuniao"], cor: "#4f46e5",
