@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, Megaphone, ChevronRight, FileDown, MessageSquare, NotebookPen, SlidersHorizontal, Thermometer } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Eye, EyeOff, Megaphone, Trophy, ChevronRight, FileDown, MessageSquare, NotebookPen, SlidersHorizontal, Thermometer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { repo } from "../lib/repo";
 import { useDados } from "../lib/dados";
@@ -15,6 +15,8 @@ interface Entrada {
   dia: string; // AAAA-MM-DD no fuso de São Paulo
   tipo: "conta" | "registro" | "comentario" | "concluida" | "nota" | "temperatura" | "meta";
   automatico?: boolean;
+  /** tipo do registro de origem (otimizacao, conquista, revisao…) */
+  regTipo?: string;
   titulo: string;
   texto?: string;
   detalhes?: string[];
@@ -93,6 +95,7 @@ function daLinha(i: ItemLinha): Entrada {
       quando: i.quando,
       dia: r.data,
       tipo: ehConta ? "conta" : "registro",
+      regTipo: r.tipo,
       titulo: `${TIPO_REGISTRO[r.tipo]}${r.canal ? ` · ${CANAL[r.canal]}` : ""}${r.situacao ? ` · ${SITUACAO[r.situacao]}` : ""}`,
       texto: r.nota ?? undefined,
       detalhes: [
@@ -142,6 +145,25 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
   const [erro, setErro] = useState("");
   const [soComMovimento, setSoComMovimento] = useState(false);
   const [verAutomaticos, setVerAutomaticos] = useState(false);
+  const [paraCliente, setParaCliente] = useState(false);
+  const chaveOcultos = `vertente.diario-oculto.${clienteId}.${mes}`;
+  const [ocultos, setOcultos] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      setOcultos(JSON.parse(localStorage.getItem(chaveOcultos) ?? "[]") as string[]);
+    } catch {
+      setOcultos([]);
+    }
+  }, [chaveOcultos]);
+  const alternarOculto = (id: string) => {
+    const novo = ocultos.includes(id) ? ocultos.filter((x) => x !== id) : [...ocultos, id];
+    setOcultos(novo);
+    try {
+      localStorage.setItem(chaveOcultos, JSON.stringify(novo));
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  };
 
   const de = `${mes}-01`;
   const ate = ultimoDia(mes);
@@ -171,9 +193,17 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
         const n = NIVEIS_TEMP[t.nivel];
         return { id: `t-${t.id}`, quando: t.criado_em, dia: diaSP(t.criado_em), tipo: "temperatura", titulo: `Temperatura: ${n?.nome ?? t.nivel}`, texto: t.motivo ?? undefined, autor: nomeMembro(t.autor_id), cor: n?.cor };
       });
-    return [...base, ...ns, ...ts].sort((a, b) => a.quando.localeCompare(b.quando));
+    const todas = [...base, ...ns, ...ts].sort((a, b) => a.quando.localeCompare(b.quando));
+    if (!paraCliente) return todas;
+    // Versão do cliente: só entregas e ajustes; sem anotações internas, temperatura, comentários e checagens de rotina
+    return todas
+      .filter((e) => e.tipo === "concluida" || e.tipo === "conta" || (e.tipo === "meta" && !e.automatico) || (e.tipo === "registro" && ["otimizacao", "reuniao", "conquista", "combinado"].includes(e.regTipo ?? "")))
+      .filter((e) => !(e.tipo === "concluida" && /^(revis[aã]o di[aá]ria|daily|weekly)/i.test(e.texto ?? "")))
+      .map((e) => (e.tipo === "registro" || e.tipo === "conta" ? { ...e, titulo: e.titulo.replace(/ · (Tudo certo|Atenção|Problema)$/, "") } : e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, notas.linhas, temps.linhas, clienteId, de, ate, d.membros, verAutomaticos]);
+  }, [itens, notas.linhas, temps.linhas, clienteId, de, ate, d.membros, verAutomaticos, paraCliente]);
+  const visiveis = paraCliente ? entradas.filter((e) => !ocultos.includes(e.id)) : entradas;
+  const conquistas = entradas.filter((e) => e.regTipo === "conquista");
 
   // Dias do mês até hoje: úteis sempre aparecem; fim de semana só se teve movimento
   const dias = useMemo(() => {
@@ -183,17 +213,19 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
       const dia = `${mes}-${String(i).padStart(2, "0")}`;
       if (dia > h) break;
       const tem = entradas.some((e) => e.dia === dia);
-      if (tem || (!fimDeSemana(dia) && !soComMovimento)) lista.push(dia);
+      if (tem || (!fimDeSemana(dia) && !soComMovimento && !paraCliente)) lista.push(dia);
     }
     return lista.reverse();
-  }, [mes, ate, entradas, soComMovimento]);
+  }, [mes, ate, entradas, soComMovimento, paraCliente]);
 
   const cliente = d.clientes.find((c) => c.id === clienteId);
   const resumo = [
-    { n: new Set(entradas.map((e) => e.dia)).size, r: "dias com movimento" },
-    { n: entradas.filter((e) => e.tipo === "concluida").length, r: "tarefas concluídas" },
-    { n: entradas.filter((e) => e.tipo === "conta" || (e.tipo === "meta" && !e.automatico)).length, r: "ajustes nas contas" },
-    { n: entradas.filter((e) => e.tipo === "comentario" || e.tipo === "nota" || e.tipo === "registro").length, r: "registros e comentários" },
+    { n: new Set(visiveis.map((e) => e.dia)).size, r: "dias com movimento" },
+    { n: visiveis.filter((e) => e.tipo === "concluida").length, r: paraCliente ? "entregas concluídas" : "tarefas concluídas" },
+    { n: visiveis.filter((e) => e.tipo === "conta" || (e.tipo === "meta" && !e.automatico)).length, r: "ajustes nas contas" },
+    paraCliente
+      ? { n: conquistas.filter((e) => !ocultos.includes(e.id)).length, r: "pequenas conquistas" }
+      : { n: visiveis.filter((e) => e.tipo === "comentario" || e.tipo === "nota" || e.tipo === "registro").length, r: "registros e comentários" },
   ];
 
   function exportar() {
@@ -228,6 +260,9 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
           <input type="checkbox" checked={verAutomaticos} onChange={(e) => setVerAutomaticos(e.target.checked)} className="accent-[rgb(var(--accent-c))]" />
           Mostrar eventos automáticos da Meta
         </label>
+        <button onClick={() => setParaCliente(!paraCliente)} className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[12.5px] ${paraCliente ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-muted hover:text-fg"}`}>
+          {paraCliente ? <Eye size={14} /> : <EyeOff size={14} />} Versão do cliente
+        </button>
         <button onClick={exportar} disabled={!itens} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
           <FileDown size={14} /> Exportar PDF
         </button>
@@ -237,7 +272,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
         <header className="rounded-2xl border border-line bg-surface p-4">
           <p className="text-[12px] font-medium uppercase tracking-wide text-muted">Diário de Bordo</p>
           <h2 className="text-[19px] font-semibold">{cliente?.nome} · {nomeMes(mes)}</h2>
-          <p className="mt-0.5 text-[12.5px] text-muted">Tudo o que a Vertente fez neste cliente no mês, dia a dia, incluindo as alterações feitas nas contas de anúncio da Meta. Gerado automaticamente pelo sistema.</p>
+          <p className="mt-0.5 text-[12.5px] text-muted">{paraCliente ? "O que a Vertente Digital fez pelo seu negócio neste mês: entregas, otimizações e ajustes nas campanhas, dia a dia." : "Tudo o que a Vertente fez neste cliente no mês, dia a dia, incluindo as alterações feitas nas contas de anúncio da Meta. Gerado automaticamente pelo sistema."}</p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {resumo.map((x) => (
               <div key={x.r} className="rounded-xl bg-raised px-3 py-2">
@@ -248,6 +283,13 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
           </div>
         </header>
 
+        {paraCliente && <p className="nao-imprimir -mt-2 rounded-xl bg-accent-soft px-3 py-2 text-[12.5px] text-accent">Versão do cliente: anotações internas, temperatura, comentários e checagens de rotina ficam de fora. Clique no olho de um item para tirá-lo também; o PDF sai como está na tela.</p>}
+        {paraCliente && conquistas.filter((e) => !ocultos.includes(e.id)).length > 0 && (
+          <section className="rounded-2xl border border-line bg-surface p-4">
+            <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold"><Trophy size={15} className="text-warn" /> Pequenas conquistas do mês</h3>
+            <ul className="flex flex-col gap-1 text-[13px]">{conquistas.filter((e) => !ocultos.includes(e.id)).map((e) => <li key={e.id}>• {e.texto ?? e.titulo}</li>)}</ul>
+          </section>
+        )}
         {erro && <p className="nao-imprimir rounded-xl border border-bad/30 bg-bad/5 px-3 py-2 text-[13px] text-bad">{erro}</p>}
 
         {!itens ? (
@@ -256,7 +298,8 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
           <Vazio>Nenhum dia para mostrar neste mês.</Vazio>
         ) : (
           <div className="flex flex-col gap-2">{dias.map((dia) => {
-            const doDia = entradas.filter((e) => e.dia === dia);
+            const doDia = entradas.filter((e) => e.dia === dia && (!paraCliente || e.regTipo !== "conquista"));
+            const doDiaVis = paraCliente ? doDia.filter((e) => !ocultos.includes(e.id)) : doDia;
             if (doDia.length === 0)
               return (
                 <div key={dia} className="diario-dia flex items-center gap-2 rounded-xl border border-dashed border-line px-4 py-2 text-[12.5px] text-muted">
@@ -265,10 +308,10 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
                 </div>
               );
             return (
-              <section key={dia} className="diario-dia rounded-2xl border border-line bg-surface">
+              <section key={dia} className={`diario-dia rounded-2xl border border-line bg-surface ${paraCliente && doDiaVis.length === 0 ? "nao-imprimir opacity-50" : ""}`}>
                 <h3 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-[13px] font-semibold">
                   {rotuloDia(dia)}
-                  <span className="num ml-auto text-[12px] font-normal text-muted">{doDia.length ? `${doDia.length} registro${doDia.length > 1 ? "s" : ""}` : ""}</span>
+                  <span className="num ml-auto text-[12px] font-normal text-muted">{doDiaVis.length ? `${doDiaVis.length} registro${doDiaVis.length > 1 ? "s" : ""}` : ""}</span>
                 </h3>
                 {doDia.length === 0 ? (
                   <p className="px-4 py-3 text-[12.5px] text-muted">Sem movimentação registrada.</p>
@@ -276,8 +319,9 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
                   <ul className="divide-y divide-line">
                     {doDia.map((e) => {
                       const I = ICONE[e.tipo];
+                      const oculto = paraCliente && ocultos.includes(e.id);
                       return (
-                        <li key={e.id} className="flex gap-3 px-4 py-2.5 text-[13px] leading-snug">
+                        <li key={e.id} className={`flex gap-3 px-4 py-2.5 text-[13px] leading-snug ${oculto ? "nao-imprimir opacity-40" : ""}`}>
                           <span className="num w-10 shrink-0 pt-px text-[12px] text-muted">{horaSP(e.quando)}</span>
                           <I size={14} className="mt-0.5 shrink-0" style={{ color: e.cor ?? "rgb(var(--muted-c))" }} />
                           <div className="min-w-0 flex-1">
@@ -288,6 +332,11 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
                             {e.detalhes?.map((x, k) => <p key={k} className="text-[12.5px] text-muted">{x}</p>)}
                             {e.texto && <p className="whitespace-pre-wrap break-words">{e.texto}</p>}
                           </div>
+                          {paraCliente && (
+                            <button onClick={() => alternarOculto(e.id)} className="nao-imprimir shrink-0 self-start text-muted hover:text-fg" title={oculto ? "Mostrar na versão do cliente" : "Tirar da versão do cliente"} aria-label={oculto ? "Mostrar" : "Ocultar"}>
+                              {oculto ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          )}
                         </li>
                       );
                     })}
