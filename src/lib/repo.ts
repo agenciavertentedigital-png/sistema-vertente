@@ -59,6 +59,7 @@ function erro(e: { message: string } | null) {
 // ------------------------------------------------------------------
 const CAMPOS_TAREFA =
   "id, cliente_id, titulo, descricao, pilar, canal, responsavel_id, prazo, prioridade, status, triagem, cliente_rotina_id, origem, clickup_id, concluida_em, processo_aplicado_id, estimativa_min, tempo_min, fazendo_desde, lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id, tarefa_checklist(feito)";
+const CAMPOS_TAREFA_LEGADO = CAMPOS_TAREFA.replace(", lado, aguardando_motivo, contato_cliente, reuniao_id, registro_id", "");
 
 type LinhaTarefa = Omit<Tarefa, "checklist_total" | "checklist_feitos"> & { tarefa_checklist: { feito: boolean }[] };
 
@@ -76,11 +77,16 @@ const repoSupabase = (): Repo => {
   return {
     async carregar() {
       const corte = `${somarDias(hoje(), -30)}T00:00:00Z`;
+      // Enquanto o banco não tiver as colunas novas das demandas, cai para a lista antiga sem quebrar.
+      const tarefas = async (filtro: (campos: string) => PromiseLike<{ data: unknown; error: { message: string } | null }>) => {
+        const r = await filtro(CAMPOS_TAREFA);
+        return r.error && /lado|aguardando_motivo|contato_cliente|reuniao_id|registro_id/i.test(r.error.message) ? filtro(CAMPOS_TAREFA_LEGADO) : r;
+      };
       const [cl, me, ab, fe, ro, cr, rg, no] = await Promise.all([
         sb.from("clientes").select("id, nome, origem, marca").eq("status", "ativo").order("nome"),
         sb.from("membros").select("id, nome, acesso").eq("ativo", true).order("nome"),
-        sb.from("tarefas").select(CAMPOS_TAREFA).in("status", ["a_fazer", "fazendo", "aguardando"]),
-        sb.from("tarefas").select(CAMPOS_TAREFA).in("status", ["feita", "nao_feita"]).gte("concluida_em", corte),
+        tarefas((c) => sb.from("tarefas").select(c).in("status", ["a_fazer", "fazendo", "aguardando"])),
+        tarefas((c) => sb.from("tarefas").select(c).in("status", ["feita", "nao_feita"]).gte("concluida_em", corte)),
         sb.from("rotinas").select("id, nome, pilar, frequencia_padrao, prioridade, checklist, mensagem, ativa").order("nome"),
         sb.from("cliente_rotinas").select("id, cliente_id, rotina_id, canal, responsavel_id, frequencia, dia_semana, dia_mes, ativa, ultima_data, criado_em"),
         sb.from("registros").select(CAMPOS_REGISTRO).gte("data", somarDias(hoje(), -40)).order("criado_em", { ascending: false }),
