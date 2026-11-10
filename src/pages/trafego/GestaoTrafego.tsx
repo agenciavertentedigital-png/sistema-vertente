@@ -7,6 +7,7 @@ import { VisaoGeral } from "./VisaoGeral";
 import { Contas } from "./Contas";
 import { DashboardCliente } from "./DashboardCliente";
 import { ListaDashboards } from "./ListaDashboards";
+import { Rastreamento } from "./Rastreamento";
 import { useTrafego } from "../../lib/trafego";
 import { Botao, COR_SITUACAO, Iniciais, Painel, PontoSituacao, Selecao, Vazio } from "../../components/ui";
 
@@ -15,6 +16,7 @@ const ABAS = [
   { id: "trafego-dashboards", nome: "Dashboards dos clientes" },
   { id: "trafego-saude", nome: "Saúde das contas" },
   { id: "trafego-alteracoes", nome: "Histórico de alterações" },
+  { id: "trafego-rastreamento", nome: "Rastreamento" },
   { id: "trafego-contas", nome: "Contas" },
 ];
 
@@ -59,6 +61,8 @@ export function GestaoTrafego({ rota, ir }: { rota: string; ir: (r: string) => v
         <ListaDashboards trafego={trafego} ir={ir} />
       ) : aba === "trafego-saude" ? (
         <Saude ir={ir} />
+      ) : aba === "trafego-rastreamento" ? (
+        <Rastreamento />
       ) : aba === "trafego-contas" ? (
         <Contas trafego={trafego} />
       ) : (

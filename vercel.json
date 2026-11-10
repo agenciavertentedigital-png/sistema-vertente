@@ -1,4 +1,36 @@
 {
   "cleanUrls": true,
-  "rewrites": [{ "source": "/crm", "destination": "/" }, { "source": "/diagnostico", "destination": "/" }]
+  "rewrites": [
+    {
+      "source": "/r",
+      "destination": "https://phtbhawdzewrzaiegheo.supabase.co/functions/v1/r"
+    },
+    {
+      "source": "/r/:slug",
+      "destination": "https://phtbhawdzewrzaiegheo.supabase.co/functions/v1/r?s=:slug"
+    },
+    {
+      "source": "/crm",
+      "destination": "/"
+    },
+    {
+      "source": "/diagnostico",
+      "destination": "/"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/rastreio.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
+  ]
 }

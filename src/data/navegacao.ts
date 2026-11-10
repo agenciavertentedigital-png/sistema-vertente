@@ -67,7 +67,7 @@ export const SECOES: Secao[] = [
       {
         id: "trafego", nome: "Gestão de Tráfego", icone: TrendingUp, rota: "trafego", prefixos: ["trafego"], cor: "#1d4ed8",
         descricao: "Meta e Google Ads: contas, dashboards e saúde",
-        atalhos: [{ nome: "Visão geral", rota: "trafego" }, { nome: "Dashboards", rota: "trafego-dashboards" }, { nome: "Saúde das contas", rota: "trafego-saude" }, { nome: "Alterações", rota: "trafego-alteracoes" }],
+        atalhos: [{ nome: "Visão geral", rota: "trafego" }, { nome: "Dashboards", rota: "trafego-dashboards" }, { nome: "Saúde das contas", rota: "trafego-saude" }, { nome: "Alterações", rota: "trafego-alteracoes" }, { nome: "Rastreamento", rota: "trafego-rastreamento" }],
       },
       {
         id: "gmn", nome: "Google Meu Negócio", icone: MapPin, rota: "gmn", prefixos: ["gmn"], cor: "#16a34a",
