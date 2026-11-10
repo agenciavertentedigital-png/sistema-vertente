@@ -7,7 +7,6 @@ import {
   GRUPOS,
   divisao,
   resumirRelatorio,
-  variacao,
   type AnuncioResumo,
   type CampanhaResumo,
   type GrupoResumo,
@@ -15,8 +14,14 @@ import {
   type RelatorioMeta,
 } from "../../lib/relatorio";
 import { Botao, Entrada, Vazio } from "../../components/ui";
-import { FunilComercial } from "./FunilComercial";
-import { GoogleAdsCliente } from "./GoogleAdsCliente";
+import { GoogleAdsCliente, useRelatorioGoogle } from "./GoogleAdsCliente";
+import { CATALOGO, FUNIL_PADRAO, PADRAO, defFormula, metricasDoFunil, valorEtapa, variaveis, type ConfigFunil, type Contexto } from "../../lib/painel";
+import { PainelMetricas, type ConfigPainel } from "./painel/PainelMetricas";
+import { PainelGraficos } from "./painel/Graficos";
+import { useConfigDashboard } from "./painel/config";
+import { FunilVendas, somarLancamentos, useLancamentosFunil } from "./painel/FunilVendas";
+import { GRAFICOS_GERAL_PADRAO, useGraficosGeral } from "./painel/AbaGeral";
+import { AnaliseFunil } from "./painel/AnaliseFunil";
 import { supabase } from "../../lib/supabase";
 
 // ------------------------------------------------------------------
@@ -68,18 +73,56 @@ const ATALHOS: { id: Atalho; nome: string }[] = [
 // ------------------------------------------------------------------
 // Página
 // ------------------------------------------------------------------
+type AbaDash = "geral" | "meta" | "google" | "funil";
+const ABAS_DASH: { id: AbaDash; nome: string }[] = [
+  { id: "geral", nome: "Geral" },
+  { id: "meta", nome: "Meta Ads" },
+  { id: "google", nome: "Google Ads" },
+  { id: "funil", nome: "Funil de Vendas" },
+];
+type CfgAba = ConfigPainel;
+type CfgFunilAba = ConfigFunil & ConfigPainel;
+
 export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
   const cliente = d.cliente(clienteId);
-  const [atalho, setAtalho] = useState<Atalho>("7");
-  const [custom, setCustom] = useState({ ini: somarDias(hoje(), -7), fim: somarDias(hoje(), -1) });
+  const [atalho, setAtalho] = useState<Atalho>("30");
+  const [custom, setCustom] = useState({ ini: somarDias(hoje(), -30), fim: somarDias(hoje(), -1) });
   const per = intervalo(atalho, custom);
+  const nDias = Math.round((Date.parse(`${per.fim}T12:00:00Z`) - Date.parse(`${per.ini}T12:00:00Z`)) / 86400000) + 1;
+  const ant = { ini: somarDias(per.ini, -nDias), fim: somarDias(per.ini, -1) };
+
+  // Plataformas do cliente
+  const [plats, setPlats] = useState<{ meta: boolean; google: boolean } | null>(supabase ? null : { meta: true, google: true });
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from("contas_anuncio").select("plataforma").eq("cliente_id", clienteId).eq("ativa", true).then(({ data }) => {
+      const ps = new Set((data ?? []).map((x: { plataforma: string }) => x.plataforma));
+      setPlats({ meta: ps.has("meta"), google: ps.has("google") });
+    });
+  }, [clienteId]);
+  const [aba, setAba] = useState<AbaDash>(() => {
+    try {
+      return (localStorage.getItem("vertente.dash-aba") as AbaDash) || "geral";
+    } catch {
+      return "geral";
+    }
+  });
+  const escolherAba = (a: AbaDash) => {
+    setAba(a);
+    try {
+      localStorage.setItem("vertente.dash-aba", a);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
+
+  // Meta (ao vivo)
   const [rel, setRel] = useState<RelatorioMeta | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-
   const buscar = useCallback(async () => {
-    if (!per.ini || !per.fim || per.ini > per.fim) return;
+    if (!per.ini || !per.fim || per.ini > per.fim || plats?.meta === false) return setCarregando(false);
     setCarregando(true);
     setErro("");
     try {
@@ -89,25 +132,77 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
     } finally {
       setCarregando(false);
     }
-  }, [clienteId, per.ini, per.fim]);
-
+  }, [clienteId, per.ini, per.fim, plats?.meta]);
   useEffect(() => {
-    buscar();
-  }, [buscar]);
-
+    if (plats) buscar();
+  }, [buscar, plats]);
   const r = useMemo(() => (rel ? resumirRelatorio(rel) : null), [rel]);
 
-  // Plataformas do cliente: Meta e/ou Google Ads
-  const [temGoogle, setTemGoogle] = useState(!supabase);
-  const [plataforma, setPlataforma] = useState<"meta" | "google">("meta");
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.from("contas_anuncio").select("plataforma").eq("cliente_id", clienteId).eq("ativa", true).then(({ data }) => {
-      const ps = new Set((data ?? []).map((x: { plataforma: string }) => x.plataforma));
-      setTemGoogle(ps.has("google"));
-      if (ps.has("google") && !ps.has("meta")) setPlataforma("google");
-    });
-  }, [clienteId]);
+  // Google (ao vivo)
+  const g = useRelatorioGoogle(clienteId, per.ini, per.fim, !!plats?.google);
+
+  // Lançamentos e configuração
+  const lanc = useLancamentosFunil();
+  const doCliente = lanc.linhas.filter((l) => l.cliente_id === clienteId);
+  const cGeral = useConfigDashboard<CfgAba>(clienteId, "geral", { cards: PADRAO.geral, formulas: [], graficos: GRAFICOS_GERAL_PADRAO });
+  const cMeta = useConfigDashboard<CfgAba>(clienteId, "meta", { cards: PADRAO.meta, formulas: [], graficos: [] });
+  const cGoogle = useConfigDashboard<CfgAba>(clienteId, "google", { cards: PADRAO.google, formulas: [], graficos: [] });
+  const cFunil = useConfigDashboard<CfgFunilAba>(clienteId, "funil", { ...FUNIL_PADRAO, cards: ["investimento", "contatos", "custo_contato", "f_vendas", "f_custo_final", "f_faturamento", "f_roas", "f_ticket"], formulas: [], graficos: ["evolucao", "taxas", "receita", "custo_final"] });
+  const funilCfg: ConfigFunil = { etapas: cFunil.config.etapas, valores: cFunil.config.valores };
+
+  const ctx: Contexto = useMemo(() => {
+    const mAtual = somarLancamentos(doCliente, per.ini, per.fim);
+    const mAnt = somarLancamentos(doCliente, ant.ini, ant.fim);
+    return {
+      atual: { meta: r ? r.total : null, metaContatos: r ? contatosDe(r) : 0, google: g.r && g.r.contas.length ? g.r.total : null, manual: mAtual.manual, temManual: mAtual.temManual },
+      anterior: { meta: r ? r.anterior : null, metaContatos: r ? r.anterior.conversas + r.anterior.leads : 0, google: g.r && g.r.contas.length ? g.r.anterior : null, manual: mAnt.manual, temManual: mAnt.temManual },
+    };
+  }, [r, g.r, doCliente, per.ini, per.fim, ant.ini, ant.fim]);
+
+  // Fórmulas criadas em qualquer aba ficam disponíveis em todas
+  const todasFormulas = [...cGeral.config.formulas, ...cMeta.config.formulas, ...cGoogle.config.formulas, ...cFunil.config.formulas].filter((f, i, xs) => xs.findIndex((y) => y.id === f.id) === i);
+  const catalogoTodo = [...CATALOGO, ...metricasDoFunil(funilCfg), ...todasFormulas.map(defFormula)];
+  const catalogo = (_f?: unknown) => catalogoTodo;
+  const vars = variaveis(funilCfg);
+  const graficosGeral = useGraficosGeral(clienteId, per.ini, per.fim, ctx);
+
+  const painel = (titulo: string, c: ReturnType<typeof useConfigDashboard<CfgAba>>, extra?: React.ReactNode) => (
+    <PainelMetricas titulo={titulo} ctx={ctx} catalogo={catalogo(c.config.formulas)} config={c.config} salvar={c.salvar} restaurar={c.restaurar} personalizado={c.personalizado} variaveis={vars} extra={extra} />
+  );
+
+  const montarResumo = () => {
+    const etapas = funilCfg.etapas.map((e) => ({ etapa: e.nome, fonte: e.fonte, atual: valorEtapa(e, ctx.atual), anterior: valorEtapa(e, ctx.anterior) }));
+    const kpis = Object.fromEntries(catalogo(cFunil.config.formulas).map((m) => [m.nome, { atual: m.calc(ctx.atual), anterior: m.calc(ctx.anterior) }]).filter(([, v]) => (v as { atual: number | null }).atual !== null));
+    return {
+      periodo: { inicio: per.ini, fim: per.fim, anterior_inicio: ant.ini, anterior_fim: ant.fim },
+      funil: etapas,
+      valores_lancados: funilCfg.valores.map((v) => ({ nome: v.nome, atual: ctx.atual.temManual ? ctx.atual.manual[v.id] ?? null : null, anterior: ctx.anterior.temManual ? ctx.anterior.manual[v.id] ?? null : null })),
+      indicadores: kpis,
+      meta: r
+        ? {
+            por_objetivo: r.grupos.map((x) => ({ objetivo: x.id, gasto: x.m.gasto, resultados: x.resultados, custo: x.resultados ? x.m.gasto / x.resultados : null })),
+            campanhas: r.grupos.flatMap((x) => x.campanhas).slice(0, 25).map((c) => ({ nome: c.nome, status: c.status, objetivo: c.grupo, gasto: c.m.gasto, resultados: c.resultados, tipo: c.tipo, ctr_link: c.m.impressoes ? c.m.cliquesLink / c.m.impressoes : null, cpm: c.m.impressoes ? (c.m.gasto * 1000) / c.m.impressoes : null, frequencia: c.m.frequencia })),
+            anuncios: [...r.anuncios].sort((a, b) => b.m.gasto - a.m.gasto).slice(0, 25).map((a) => ({ anuncio: a.nome, conjunto: a.conjunto, campanha: a.campanha, formato: a.tipoCriativo, texto: a.texto?.slice(0, 280) ?? null, gasto: a.m.gasto, resultados: a.resultados, tipo: a.tipo, ctr_link: a.m.impressoes ? a.m.cliquesLink / a.m.impressoes : null, custo_resultado: a.resultados ? a.m.gasto / a.resultados : null })),
+            diario: r.dias,
+          }
+        : null,
+      google: g.r && g.r.contas.length
+        ? {
+            campanhas: g.r.campanhas.slice(0, 15).map((c) => ({ nome: c.nome, tipo: c.tipo, gasto: c.gasto, cliques: c.cliques, conversoes: c.conversoes, parcela: c.parcela, perdida_orcamento: c.perdida_orcamento, perdida_ranking: c.perdida_ranking })),
+            termos: g.r.termos.slice(0, 30),
+            palavras: g.r.palavras.slice(0, 20),
+            acoes: g.r.acoes,
+            dispositivos: g.r.dispositivos,
+            parcela_impressoes: g.r.parcela_impressoes,
+          }
+        : null,
+    };
+  };
+
+  const abas = ABAS_DASH.filter((x) => !plats || (x.id === "meta" ? plats.meta : x.id === "google" ? plats.google : true));
+  const abaAtual = abas.some((x) => x.id === aba) ? aba : "geral";
+  const periodoTexto = `${dataBR(per.ini)} a ${dataBR(per.fim)}, comparado com ${dataBR(ant.ini)} a ${dataBR(ant.fim)}.`;
+  const ocupado = carregando || g.carregando;
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
@@ -117,82 +212,98 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="eyebrow">Dashboard de tráfego · {plataforma === "google" ? "Google Ads" : "Meta Ads"}</div>
+          <div className="eyebrow">Dashboard de tráfego · {ABAS_DASH.find((x) => x.id === abaAtual)?.nome}</div>
           <h1 className="mt-1 text-[28px] font-semibold leading-tight">{cliente?.nome ?? "Cliente"}</h1>
-          <p className="mt-1 text-[13px] text-muted">
-            {dataBR(per.ini)} a {dataBR(per.fim)}
-            {rel && plataforma === "meta" && <> · comparado com {dataBR(rel.anterior.since)} a {dataBR(rel.anterior.until)}</>}
-            {plataforma === "google" && <> · comparado com o período anterior de mesmo tamanho</>}
-          </p>
+          <p className="mt-1 text-[13px] text-muted">{periodoTexto}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Botao variante="fantasma" onClick={() => ir(`cliente-${clienteId}`)}>Tarefas do cliente</Botao>
-          <Botao onClick={buscar} disabled={carregando}>
-            <RefreshCw size={14} className={carregando ? "animate-spin" : ""} /> {carregando ? "Buscando na Meta…" : "Atualizar"}
+          <Botao onClick={() => { buscar(); g.buscar(); }} disabled={ocupado}>
+            <RefreshCw size={14} className={ocupado ? "animate-spin" : ""} /> {ocupado ? "Buscando…" : "Atualizar"}
           </Botao>
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {temGoogle && (
-          <div role="tablist" aria-label="Plataforma" className="flex gap-1 rounded-xl border border-line bg-surface p-1">
-            {(["meta", "google"] as const).map((p) => (
-              <button key={p} role="tab" aria-selected={plataforma === p} onClick={() => setPlataforma(p)} className={`rounded-lg px-3 py-1 text-[12.5px] font-medium ${plataforma === p ? (p === "google" ? "bg-[#e2701c] text-white" : "bg-accent text-accent-fg") : "text-muted hover:text-fg"}`}>
-                {p === "google" ? "Google Ads" : "Meta Ads"}
-              </button>
-            ))}
-          </div>
-        )}
-        <div role="tablist" aria-label="Período" className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
-          {ATALHOS.map((a) => (
-            <button key={a.id} role="tab" aria-selected={atalho === a.id} onClick={() => setAtalho(a.id)} className={`rounded-lg px-3 py-1 text-[12.5px] ${atalho === a.id ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"}`}>
-              {a.nome}
+      <div className="flex flex-col gap-2">
+        <div role="tablist" aria-label="Visão" className="flex w-fit flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
+          {abas.map((x) => (
+            <button key={x.id} role="tab" aria-selected={abaAtual === x.id} onClick={() => escolherAba(x.id)} className={`rounded-lg px-3.5 py-1.5 text-[13px] font-medium ${abaAtual === x.id ? (x.id === "google" ? "bg-[#e2701c] text-white" : x.id === "funil" ? "bg-ok text-white" : "bg-accent text-accent-fg") : "text-muted hover:text-fg"}`}>
+              {x.nome}
             </button>
           ))}
         </div>
-        {atalho === "custom" && (
-          <div className="flex items-center gap-2">
-            <Entrada id="dash-ini" type="date" aria-label="De" value={custom.ini} max={custom.fim} onChange={(e) => setCustom((c) => ({ ...c, ini: e.target.value }))} className="!w-auto" />
-            <span className="text-muted">a</span>
-            <Entrada id="dash-fim" type="date" aria-label="Até" value={custom.fim} min={custom.ini} max={hoje()} onChange={(e) => setCustom((c) => ({ ...c, fim: e.target.value }))} className="!w-auto" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="tablist" aria-label="Período" className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
+            {ATALHOS.map((a) => (
+              <button key={a.id} role="tab" aria-selected={atalho === a.id} onClick={() => setAtalho(a.id)} className={`rounded-lg px-3 py-1 text-[12.5px] ${atalho === a.id ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"}`}>
+                {a.nome}
+              </button>
+            ))}
           </div>
-        )}
+          {atalho === "custom" && (
+            <div className="flex items-center gap-2">
+              <Entrada id="dash-ini" type="date" aria-label="De" value={custom.ini} max={custom.fim} onChange={(e) => setCustom((c) => ({ ...c, ini: e.target.value }))} className="!w-auto" />
+              <span className="text-muted">a</span>
+              <Entrada id="dash-fim" type="date" aria-label="Até" value={custom.fim} min={custom.ini} max={hoje()} onChange={(e) => setCustom((c) => ({ ...c, fim: e.target.value }))} className="!w-auto" />
+            </div>
+          )}
+        </div>
       </div>
 
-      {plataforma === "google" ? (
-        <GoogleAdsCliente clienteId={clienteId} ini={per.ini} fim={per.fim} />
-      ) : (
-      <>
-      {erro && <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar na Meta: {erro}</div>}
+      {erro && abaAtual !== "google" && <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar na Meta: {erro}</div>}
 
-      {!r && carregando ? (
-        <Esqueleto />
-      ) : !r || !rel ? null : rel.contas.length === 0 ? (
-        <Vazio>Este cliente não tem conta de anúncio acompanhada. Vincule na aba Contas da Gestão de Tráfego.</Vazio>
-      ) : (
-        <div className={`flex flex-col gap-6 transition-opacity ${carregando ? "opacity-50" : ""}`}>
-          <Contas rel={rel} />
-          {r.contasComErro.map((c) => (
-            <div key={c.conta.id} className="rounded-xl border border-warn bg-warn-soft px-4 py-2.5 text-[13px] text-warn">
-              {c.conta.nome}: {c.erro}
-            </div>
-          ))}
-          <VisaoGeral r={r} />
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-            <Cartao titulo="Funil geral" subtitulo="Do anúncio visto ao contato e à venda">
-              <FunilGeral r={r} />
-            </Cartao>
-            <Cartao titulo="Dia a dia" subtitulo="Investimento (barras) e contatos (linha)">
-              <GraficoDiario dias={r.dias} />
-            </Cartao>
-          </section>
-          <FunilComercial clienteId={clienteId} ini={per.ini} fim={per.fim} contatos={contatosDe(r)} gasto={r.total.gasto} />
-          <PorObjetivo grupos={r.grupos} total={r.total.gasto} />
-          <Criativos anuncios={r.anuncios} />
-          <Campanhas grupos={r.grupos} />
+      {abaAtual === "geral" && (
+        <div className={`flex flex-col gap-6 transition-opacity ${ocupado ? "opacity-60" : ""}`}>
+          {painel("Visão geral · Meta + Google", cGeral)}
+          <PainelGraficos titulo="Gráficos" catalogo={graficosGeral} ids={cGeral.config.graficos} salvar={(ids) => cGeral.salvar({ ...cGeral.config, graficos: ids })} />
         </div>
       )}
-      </>
+
+      {abaAtual === "meta" &&
+        (!r && carregando ? (
+          <Esqueleto />
+        ) : !r || !rel ? null : rel.contas.length === 0 ? (
+          <Vazio>Este cliente não tem conta de anúncio acompanhada. Vincule na aba Contas da Gestão de Tráfego.</Vazio>
+        ) : (
+          <div className={`flex flex-col gap-6 transition-opacity ${carregando ? "opacity-50" : ""}`}>
+            <Contas rel={rel} />
+            {r.contasComErro.map((c) => (
+              <div key={c.conta.id} className="rounded-xl border border-warn bg-warn-soft px-4 py-2.5 text-[13px] text-warn">
+                {c.conta.nome}: {c.erro}
+              </div>
+            ))}
+            {painel("Visão geral", cMeta)}
+            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+              <Cartao titulo="Funil geral" subtitulo="Do anúncio visto ao contato e à venda">
+                <FunilGeral r={r} />
+              </Cartao>
+              <Cartao titulo="Dia a dia" subtitulo="Investimento (barras) e contatos (linha)">
+                <GraficoDiario dias={r.dias} />
+              </Cartao>
+            </section>
+            <PorObjetivo grupos={r.grupos} total={r.total.gasto} />
+            <Criativos anuncios={r.anuncios} />
+            <Campanhas grupos={r.grupos} />
+          </div>
+        ))}
+
+      {abaAtual === "google" && <GoogleAdsCliente clienteId={clienteId} ini={per.ini} fim={per.fim} dados={g} painel={painel("Visão geral", cGoogle)} />}
+
+      {abaAtual === "funil" && (
+        <div className={`flex flex-col gap-6 transition-opacity ${ocupado ? "opacity-60" : ""}`}>
+          {painel("Indicadores do funil", cFunil as unknown as ReturnType<typeof useConfigDashboard<CfgAba>>)}
+          <FunilVendas
+            clienteId={clienteId}
+            ctx={ctx}
+            cfg={funilCfg}
+            salvarCfg={(c) => cFunil.salvar({ ...cFunil.config, ...c })}
+            lanc={lanc}
+            graficos={cFunil.config.graficos}
+            salvarGraficos={(ids) => cFunil.salvar({ ...cFunil.config, graficos: ids })}
+            periodoTexto={periodoTexto}
+          />
+          <AnaliseFunil clienteId={clienteId} ini={per.ini} fim={per.fim} montarResumo={montarResumo} />
+        </div>
       )}
     </div>
   );
@@ -270,45 +381,6 @@ export function Kpi({ rotulo, valor, v, inverso, destaque, dica }: { rotulo: str
           {v > 0 ? "▲" : "▼"} {Math.abs(Math.round(v * 100))}% <span className="font-normal text-muted">vs período anterior</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function VisaoGeral({ r }: { r: Resumo }) {
-  const t = r.total;
-  const a = r.anterior;
-  const ct = contatosDe(r);
-  const ctAnt = a.conversas + a.leads;
-  const temVendas = t.compras > 0 || t.valor > 0;
-  const cpc = divisao(t.gasto, t.cliquesLink);
-  const cpcAnt = divisao(a.gasto, a.cliquesLink);
-  const ctr = divisao(t.cliquesLink, t.impressoes);
-  const ctrAnt = divisao(a.cliquesLink, a.impressoes);
-  const cpm = divisao(t.gasto * 1000, t.impressoes);
-  const cpmAnt = divisao(a.gasto * 1000, a.impressoes);
-  return (
-    <div className="flex flex-col gap-3">
-      <h2 className="text-[15px] font-semibold">Visão geral</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi rotulo="Investimento" valor={brl(t.gasto)} v={variacao(t.gasto, a.gasto)} destaque />
-        <Kpi rotulo="Contatos (conversas + leads)" valor={int(ct)} v={variacao(ct, ctAnt)} destaque dica="Conversas iniciadas no WhatsApp/Direct + leads das campanhas de cadastro, formulário ou contato pelo site" />
-        <Kpi rotulo="Custo por contato" valor={brl(divisao(t.gasto, ct))} v={variacao(divisao(t.gasto, ct), divisao(a.gasto, ctAnt))} inverso destaque />
-        {temVendas ? (
-          <Kpi rotulo="Retorno (ROAS)" valor={`${dec(divisao(t.valor, t.gasto))}x`} v={variacao(divisao(t.valor, t.gasto), divisao(a.valor, a.gasto))} destaque dica="Valor das compras ÷ investimento" />
-        ) : (
-          <Kpi rotulo="Cliques no link" valor={int(t.cliquesLink)} v={variacao(t.cliquesLink, a.cliquesLink)} destaque />
-        )}
-        <Kpi rotulo="Alcance (pessoas)" valor={int(t.alcance)} v={variacao(t.alcance, a.alcance)} />
-        <Kpi rotulo="Impressões" valor={int(t.impressoes)} v={variacao(t.impressoes, a.impressoes)} />
-        <Kpi rotulo="Frequência" valor={dec(t.frequencia)} v={null} dica="Quantas vezes, em média, cada pessoa viu os anúncios" />
-        <Kpi rotulo="CTR do link" valor={pct(ctr)} v={variacao(ctr, ctrAnt)} />
-        <Kpi rotulo="CPC do link" valor={brl(cpc)} v={variacao(cpc, cpcAnt)} inverso />
-        <Kpi rotulo="CPM" valor={brl(cpm)} v={variacao(cpm, cpmAnt)} inverso dica="Custo por mil impressões" />
-        {temVendas && <Kpi rotulo="Compras" valor={int(t.compras)} v={variacao(t.compras, a.compras)} />}
-        {temVendas && <Kpi rotulo="Valor em vendas" valor={brl(t.valor)} v={variacao(t.valor, a.valor)} />}
-        {!temVendas && <Kpi rotulo="Visualizações da página" valor={int(t.lpViews)} v={variacao(t.lpViews, a.lpViews)} />}
-        {!temVendas && <Kpi rotulo="ThruPlays (vídeo)" valor={int(t.thruplays)} v={variacao(t.thruplays, a.thruplays)} dica="Vídeos assistidos até o fim ou por pelo menos 15 segundos" />}
-      </div>
     </div>
   );
 }

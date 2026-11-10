@@ -35,13 +35,24 @@ const CATEGORIA: Record<string, string> = { CONTACT: "Contato", PHONE_CALL_LEAD:
 const formatarConta = (id: string) => id.replace(/^(\d{3})(\d{3})(\d{4})$/, "$1-$2-$3");
 
 /** Dashboard do Google Ads do cliente, buscado ao vivo na API (pesquisa local: termos, palavras, parcela de impressões). */
-export function GoogleAdsCliente({ clienteId, ini, fim }: { clienteId: string; ini: string; fim: string }) {
+export function GoogleAdsCliente({ clienteId, ini, fim, dados, painel }: { clienteId: string; ini: string; fim: string; dados?: { r: RelatorioGoogle | null; carregando: boolean; erro: string }; painel?: React.ReactNode }) {
+  const proprio = useRelatorioGoogle(clienteId, ini, fim, !dados);
+  const { r, carregando, erro } = dados ?? proprio;
+
+  if (erro) return <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar no Google Ads: {erro}</div>;
+  if (!r) return <div className="flex flex-col gap-3">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-28 rounded-2xl" />)}</div>;
+  if (r.contas.length === 0) return <Vazio>Este cliente não tem conta do Google Ads vinculada. Vincule em Tráfego → Contas.</Vazio>;
+  return <CorpoGoogle r={r} carregando={carregando} painel={painel} />;
+}
+
+/** Busca o relatório do Google Ads do cliente (ao vivo). */
+export function useRelatorioGoogle(clienteId: string, ini: string, fim: string, ativo = true) {
   const [r, setR] = useState<RelatorioGoogle | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
 
   const buscar = useCallback(async () => {
-    if (!ini || !fim || ini > fim) return;
+    if (!ativo || !ini || !fim || ini > fim) return;
     setCarregando(true);
     setErro("");
     try {
@@ -51,12 +62,12 @@ export function GoogleAdsCliente({ clienteId, ini, fim }: { clienteId: string; i
     } finally {
       setCarregando(false);
     }
-  }, [clienteId, ini, fim]);
+  }, [clienteId, ini, fim, ativo]);
   useEffect(() => void buscar(), [buscar]);
+  return { r, carregando, erro, buscar };
+}
 
-  if (erro) return <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar no Google Ads: {erro}</div>;
-  if (!r) return <div className="flex flex-col gap-3">{[0, 1, 2].map((i) => <div key={i} className="esqueleto h-28 rounded-2xl" />)}</div>;
-  if (r.contas.length === 0) return <Vazio>Este cliente não tem conta do Google Ads vinculada. Vincule em Tráfego → Contas.</Vazio>;
+function CorpoGoogle({ r, carregando, painel }: { r: RelatorioGoogle; carregando: boolean; painel?: React.ReactNode }) {
 
   const t = r.total;
   const a = r.anterior;
@@ -82,6 +93,8 @@ export function GoogleAdsCliente({ clienteId, ini, fim }: { clienteId: string; i
       </div>
       {r.avisos.length > 0 && <div className="rounded-xl border border-warn bg-warn-soft px-4 py-2.5 text-[12.5px] text-warn">Parte dos dados não veio: {r.avisos.join(" · ")}</div>}
 
+      {painel ?? (
+      <>
       {/* Visão geral */}
       <div className="flex flex-col gap-3">
         <h2 className="text-[15px] font-semibold">Visão geral</h2>
@@ -100,6 +113,9 @@ export function GoogleAdsCliente({ clienteId, ini, fim }: { clienteId: string; i
           <Kpi rotulo="CPC médio" valor={brl(cpc)} v={variacao(cpc, divisao(a.gasto, a.cliques))} inverso />
         </div>
       </div>
+
+      </>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
         <Cartao titulo="Funil do Google" subtitulo="Da busca ao contato">
