@@ -1,3 +1,4 @@
+import { Anexos, PdfsPendentes, enviarAnexos } from "./Anexos";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ClipboardList, Copy, ExternalLink, Loader2, Plus, Sparkles, Users2, X } from "lucide-react";
@@ -100,6 +101,7 @@ export function Reunioes({ clienteId }: { clienteId: string }) {
                   {!x.enviado_em && supabase && <Botao onClick={async () => { await supabase!.from("reunioes").update({ enviado_em: new Date().toISOString() }).eq("id", x.id); r.recarregar(); }}><Check size={13} /> Marcar como enviado</Botao>}
                   {x.link_transcricao && <a href={x.link_transcricao} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 px-2 text-[12.5px] text-accent hover:underline"><ExternalLink size={12} /> Transcrição completa</a>}
                 </div>
+                <Anexos alvo={{ cliente_id: clienteId, reuniao_id: x.id }} coluna="reuniao_id" />
               </div>
             )}
           </div>
@@ -129,6 +131,7 @@ function Janela({ titulo, fechar, children, largura = 720 }: { titulo: string; f
 
 function NovaReuniao({ clienteId, fechar, aoSalvar }: { clienteId: string; fechar: () => void; aoSalvar: () => void }) {
   const d = useDados();
+  const [pdfs, setPdfs] = useState<File[]>([]);
   const nomeCli = d.cliente(clienteId)?.nome ?? "";
   const carol = d.membros.find((m) => /^carol/i.test(m.nome))?.id ?? d.eu ?? "";
   const [data, setData] = useState(hoje());
@@ -162,6 +165,7 @@ function NovaReuniao({ clienteId, fechar, aoSalvar }: { clienteId: string; fecha
       const { data: reu, error } = await supabase.from("reunioes").insert({ cliente_id: clienteId, data, titulo, link_transcricao: link.trim() || null, transcricao: transcricao.trim() || null, resumo, itens: itens.map(({ criar: _c, ...i }) => i) }).select("id").single();
       if (error) throw new Error(error.message);
       const id = (reu as { id: string }).id;
+      if (pdfs.length) await enviarAnexos(pdfs, { cliente_id: clienteId, reuniao_id: id });
       let criadas = 0;
       for (const i of itens.filter((x) => x.criar && x.texto.trim())) {
         const semDono = i.lado === "vertente" && !i.responsavel_id;
@@ -210,6 +214,7 @@ function NovaReuniao({ clienteId, fechar, aoSalvar }: { clienteId: string; fecha
             <Entrada value={link} onChange={(e) => setLink(e.target.value)} placeholder="Link da transcrição no Google Docs (opcional)" />
           </div>
           <textarea value={transcricao} onChange={(e) => setTranscricao(e.target.value)} rows={14} placeholder="Cole aqui a transcrição completa do Tactiq…" className={`${campo} !text-[12.5px]`} />
+          <PdfsPendentes arquivos={pdfs} mudar={setPdfs} />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button onClick={() => { setResumo(`📌 *RESUMO DA REUNIÃO — ${nomeCli.toUpperCase()} | ${data.split("-").reverse().slice(0, 2).join("/")}*\n\n`); setItens([]); }} className="text-[12.5px] text-muted hover:text-fg">Escrever o resumo eu mesmo</button>
             <Botao variante="primario" onClick={gerar} disabled={ocupado === "ia" || transcricao.trim().length < 200}>{ocupado === "ia" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {ocupado === "ia" ? "Gerando o resumo…" : "Gerar resumo com IA"}</Botao>

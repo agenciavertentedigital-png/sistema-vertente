@@ -1,3 +1,4 @@
+import { Anexos, PdfsPendentes, enviarAnexos } from "../Anexos";
 import { useCallback, useEffect, useState } from "react";
 import { Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
 import { repo } from "../../lib/repo";
@@ -38,6 +39,8 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
   const [novoItem, setNovoItem] = useState("");
   const [coments, setComents] = useState<Comentario[]>([]);
   const [novoComent, setNovoComent] = useState("");
+  const [pdfsComent, setPdfsComent] = useState<File[]>([]);
+  const [versaoAnexos, setVersaoAnexos] = useState(0);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [registrando, setRegistrando] = useState(false);
 
@@ -211,6 +214,7 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
           onBlur={() => descricao !== (t.descricao ?? "") && salvar({ descricao: descricao || null })}
           className={`${campo} resize-y leading-relaxed`}
         />
+        <Anexos key={versaoAnexos} alvo={{ cliente_id: t.cliente_id, tarefa_id: t.id }} coluna="tarefa_id" />
         {t.clickup_id && (
           <a href={`https://app.clickup.com/t/${t.clickup_id}`} target="_blank" rel="noreferrer" className="flex w-fit items-center gap-1 text-[12px] text-muted hover:text-fg">
             <ExternalLink size={12} /> Ver a tarefa original no ClickUp
@@ -284,14 +288,22 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
           className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!novoComent.trim()) return;
-            const texto = novoComent.trim();
+            if (!novoComent.trim() && !pdfsComent.length) return;
+            const arquivos = pdfsComent;
+            const texto = [novoComent.trim(), ...arquivos.map((f) => `📎 ${f.name}`)].filter(Boolean).join("\n");
             setNovoComent("");
-            mudarItem(() => repo.comentar(t.id, texto));
+            setPdfsComent([]);
+            mudarItem(async () => {
+              if (arquivos.length) { await enviarAnexos(arquivos, { cliente_id: t.cliente_id, tarefa_id: t.id }); setVersaoAnexos((v) => v + 1); }
+              await repo.comentar(t.id, texto);
+            });
           }}
         >
           <CampoMencao id="novo-comentario" rows={2} valor={novoComent} mudar={setNovoComent} placeholder="Escreva um comentário. Use @Nome para avisar alguém" />
-          <Botao type="submit" className="self-end">Comentar</Botao>
+          <div className="flex items-center justify-between gap-2">
+            <PdfsPendentes arquivos={pdfsComent} mudar={setPdfsComent} />
+            <Botao type="submit" className="shrink-0">Comentar</Botao>
+          </div>
         </form>
       </section>
 

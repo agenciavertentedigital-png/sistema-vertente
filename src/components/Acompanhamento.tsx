@@ -1,3 +1,4 @@
+import { PdfsPendentes, enviarAnexos } from "./Anexos";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { CalendarClock, Check, Copy, Handshake, Hourglass, MessageSquareReply, Plus, Send, SlidersHorizontal, Trophy, Users2, X } from "lucide-react";
@@ -232,6 +233,7 @@ function FormRapido({ tipo, clienteId, fechar, aoSalvar }: { tipo: Exclude<Form,
   const [esperado, setEsperado] = useState("");
   const [revisar, setRevisar] = useState(somarDias(hoje(), 7));
   const [salvando, setSalvando] = useState(false);
+  const [pdfs, setPdfs] = useState<File[]>([]);
   const titulos: Record<Exclude<Form, null>, string> = {
     vertente: "Vertente deve",
     cliente: "Cliente deve",
@@ -254,7 +256,7 @@ function FormRapido({ tipo, clienteId, fechar, aoSalvar }: { tipo: Exclude<Form,
     setSalvando(true);
     try {
       if (tipo === "vertente" || tipo === "cliente") {
-        await repo.salvarTarefa(null, {
+        const idTarefa = await repo.salvarTarefa(null, {
           cliente_id: clienteId,
           titulo: texto.trim(),
           pilar,
@@ -266,15 +268,17 @@ function FormRapido({ tipo, clienteId, fechar, aoSalvar }: { tipo: Exclude<Form,
           status: tipo === "cliente" ? "aguardando" : "a_fazer",
           aguardando_motivo: tipo === "cliente" && motivoAg ? motivoAg : null,
         });
+        if (pdfs.length) await enviarAnexos(pdfs, { cliente_id: clienteId, tarefa_id: idTarefa });
         await d.recarregar();
       } else {
-        await repo.registrar({
+        const idReg = await repo.registrar({
           cliente_id: clienteId,
           tipo,
           nota: texto.trim(),
           canal: tipo === "otimizacao" ? canal : null,
           dados: tipo === "otimizacao" ? { motivo: motivo.trim() || undefined, hipotese: hipotese.trim() || undefined, esperado: esperado.trim() || undefined, revisar_em: revisar || undefined } : {},
         });
+        if (idReg && pdfs.length) await enviarAnexos(pdfs, { cliente_id: clienteId, registro_id: idReg });
         aoSalvar();
       }
       d.avisar("Registrado");
@@ -293,6 +297,7 @@ function FormRapido({ tipo, clienteId, fechar, aoSalvar }: { tipo: Exclude<Form,
         <div className="mb-3 flex items-center justify-between"><h2 className="text-[15px] font-semibold">{titulos[tipo]} · {d.cliente(clienteId)?.nome}</h2><button onClick={fechar} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-raised" aria-label="Fechar"><X size={16} /></button></div>
         <div className="flex flex-col gap-3">
           <textarea autoFocus value={texto} onChange={(e) => setTexto(e.target.value)} rows={tipo === "otimizacao" ? 3 : 2} placeholder={dicas[tipo]} className={`${campo} !text-[14px]`} />
+          <PdfsPendentes arquivos={pdfs} mudar={setPdfs} />
           {(tipo === "vertente" || tipo === "cliente") && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {tipo === "cliente" && <Rotulo texto="Quem do cliente"><Entrada value={contato} onChange={(e) => setContato(e.target.value)} placeholder="Ex.: Polyanne / Gestão" /></Rotulo>}

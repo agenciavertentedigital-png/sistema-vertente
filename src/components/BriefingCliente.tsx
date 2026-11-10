@@ -1,3 +1,4 @@
+import { Anexos } from "./Anexos";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, ClipboardCopy, Compass, Link2, Lock, Target, Users, Wallet } from "lucide-react";
 import { useDados } from "../lib/dados";
@@ -115,6 +116,11 @@ export function BriefingCliente({ clienteId }: { clienteId: string }) {
         </div>
       )}
       {aviso && <div className="rounded-lg bg-raised px-3 py-2 text-[12.5px]">{aviso}</div>}
+
+      <div className="rounded-2xl bg-surface p-4" style={{ boxShadow: "var(--sombra)" }}>
+        <Anexos alvo={{ cliente_id: clienteId }} coluna="cliente_id" titulo="Arquivos do cliente (PDF)" />
+        <p className="mt-1 text-[11.5px] text-muted">Contratos, apresentações, materiais do cliente. Aqui aparecem também os PDFs anexados em tarefas, notas e reuniões dele.</p>
+      </div>
 
       {/* Resumo em 1 minuto */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

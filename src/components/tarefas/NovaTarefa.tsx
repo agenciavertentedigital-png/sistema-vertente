@@ -1,3 +1,4 @@
+import { PdfsPendentes, enviarAnexos } from "../Anexos";
 import { useState, type FormEvent } from "react";
 import { repo } from "../../lib/repo";
 import { useDados } from "../../lib/dados";
@@ -20,6 +21,7 @@ export function NovaTarefa({
   const d = useDados();
   const [f, setF] = useState<CamposTarefa>({});
   const [salvando, setSalvando] = useState(false);
+  const [pdfs, setPdfs] = useState<File[]>([]);
   const set = (c: CamposTarefa) => setF((v) => ({ ...v, ...c }));
 
   async function enviar(e: FormEvent) {
@@ -39,6 +41,10 @@ export function NovaTarefa({
         descricao: f.descricao ?? null,
         triagem: caixaEntrada,
       });
+      if (pdfs.length) {
+        try { await enviarAnexos(pdfs, { cliente_id, tarefa_id: id }); } catch (err) { d.avisar(`Tarefa criada, mas o PDF não subiu: ${(err as Error).message}`); }
+        setPdfs([]);
+      }
       await d.recarregar();
       d.avisar(caixaEntrada ? "Demanda na caixa de entrada" : "Tarefa criada");
       setF({});
@@ -109,6 +115,7 @@ export function NovaTarefa({
         <Rotulo texto="Descrição (opcional)">
           <textarea id="nova-descricao" rows={3} value={f.descricao ?? ""} onChange={(e) => set({ descricao: e.target.value })} className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] outline-none focus:border-accent" />
         </Rotulo>
+        <PdfsPendentes arquivos={pdfs} mudar={setPdfs} />
         {caixaEntrada && <p className="text-[12px] text-muted">A demanda entra sem responsável e sem prazo. Na triagem você define os dois.</p>}
         <Botao variante="primario" type="submit" disabled={salvando}>
           {salvando ? "Salvando…" : caixaEntrada ? "Mandar para a caixa de entrada" : "Criar tarefa"}

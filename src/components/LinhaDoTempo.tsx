@@ -1,3 +1,4 @@
+import { ChipsAnexos, PdfsPendentes, enviarAnexos, useAnexos, type Anexo } from "./Anexos";
 import { useCallback, useEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
 import { CheckCircle2, Gavel, Handshake, MessageSquare, NotebookPen, SlidersHorizontal, Trophy, Users2, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -102,6 +103,8 @@ export function LinhaDoTempo({ clienteId }: { clienteId: string }) {
   const [texto, setTexto] = useState("");
   const [filtro, setFiltro] = useState<"tudo" | "trafego" | "conversas">("tudo");
   const [salvando, setSalvando] = useState(false);
+  const [pdfs, setPdfs] = useState<File[]>([]);
+  const anexos = useAnexos("cliente_id", clienteId);
 
   const carregar = useCallback(async () => {
     try {
@@ -117,12 +120,14 @@ export function LinhaDoTempo({ clienteId }: { clienteId: string }) {
   }, [carregar, d.registros.length]);
 
   async function publicar() {
-    if (!texto.trim()) return;
+    if (!texto.trim() && !pdfs.length) return;
     setSalvando(true);
     try {
-      await repo.registrar({ cliente_id: clienteId, tipo, nota: texto.trim() });
+      const id = await repo.registrar({ cliente_id: clienteId, tipo, nota: texto.trim() || (pdfs.length === 1 ? `PDF: ${pdfs[0].name}` : `${pdfs.length} PDFs anexados`) });
+      if (id && pdfs.length) await enviarAnexos(pdfs, { cliente_id: clienteId, registro_id: id });
       setTexto("");
-      await Promise.all([carregar(), d.recarregar()]);
+      setPdfs([]);
+      await Promise.all([carregar(), d.recarregar(), anexos.carregar()]);
       d.avisar(texto.includes("@") ? "Publicado. Quem foi mencionado recebe no sininho." : "Publicado na linha do tempo");
     } catch (e) {
       d.avisar(`Não foi possível publicar: ${(e as Error).message}`);
@@ -160,7 +165,7 @@ export function LinhaDoTempo({ clienteId }: { clienteId: string }) {
               <h3 className="eyebrow first-letter:uppercase">{rotuloDia(dia)}</h3>
               <ol className="relative flex flex-col gap-2 border-l border-line pl-4">
                 {lista.map((i) => (
-                  <ItemTimeline key={`${i.tipo}-${i.id}`} i={i} />
+                  <ItemTimeline key={`${i.tipo}-${i.id}`} i={i} anexos={i.registro ? anexos.lista.filter((a) => a.registro_id === i.registro!.id) : []} />
                 ))}
               </ol>
             </section>
@@ -177,7 +182,8 @@ export function LinhaDoTempo({ clienteId }: { clienteId: string }) {
           ))}
         </div>
         <CampoMencao id="linha-texto" rows={4} valor={texto} mudar={setTexto} placeholder={tipo === "reuniao" ? "O que foi falado e combinado na reunião" : tipo === "decisao" ? "O que ficou decidido" : "Escreva para o time. Use @Nome para avisar alguém"} />
-        <Botao variante="primario" disabled={!texto.trim() || salvando} onClick={publicar}>
+        <PdfsPendentes arquivos={pdfs} mudar={setPdfs} />
+        <Botao variante="primario" disabled={(!texto.trim() && !pdfs.length) || salvando} onClick={publicar}>
           {salvando ? "Publicando…" : "Publicar"}
         </Botao>
       </aside>
@@ -185,7 +191,7 @@ export function LinhaDoTempo({ clienteId }: { clienteId: string }) {
   );
 }
 
-function ItemTimeline({ i }: { i: ItemLinha }) {
+function ItemTimeline({ i, anexos }: { i: ItemLinha; anexos: Anexo[] }) {
   const hora = new Date(i.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
   let Icone: LucideIcon = MessageSquare;
   let titulo = "";
@@ -232,6 +238,7 @@ function ItemTimeline({ i }: { i: ItemLinha }) {
           <span className="ml-auto num">{hora} · {i.autor ?? "Alguém"}</span>
         </div>
         {corpo}
+        {anexos.length > 0 && <div className="mt-1.5"><ChipsAnexos lista={anexos} /></div>}
       </div>
     </li>
   );

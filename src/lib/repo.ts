@@ -41,7 +41,7 @@ export interface Repo {
   comentar(tarefaId: string, texto: string): Promise<void>;
   salvarRotina(id: string, campos: Partial<Omit<Rotina, "id">>): Promise<void>;
   salvarClienteRotina(id: string | null, campos: Partial<Omit<ClienteRotina, "id" | "ultima_data">>): Promise<void>;
-  registrar(r: NovoRegistro): Promise<void>;
+  registrar(r: NovoRegistro): Promise<string | null>;
   linhaDoTempo(clienteId: string): Promise<ItemLinha[]>;
   /** Tudo o que aconteceu com o cliente entre duas datas (AAAA-MM-DD, inclusivas): base do Diário de Bordo */
   diario(clienteId: string, de: string, ate: string): Promise<ItemLinha[]>;
@@ -154,7 +154,9 @@ const repoSupabase = (): Repo => {
       else erro((await sb.from("cliente_rotinas").insert(campos)).error);
     },
     async registrar(r) {
-      erro((await sb.from("registros").insert(r)).error);
+      const res = await sb.from("registros").insert(r).select("id").single();
+      erro(res.error);
+      return (res.data as { id: string } | null)?.id ?? null;
     },
     async linhaDoTempo(clienteId) {
       const [rg, co, fe] = await Promise.all([
@@ -392,7 +394,9 @@ const repoMemoria = (): Repo => {
       else clienteRotinas.push({ id: novoId(), canal: null, responsavel_id: null, dia_semana: null, dia_mes: null, ativa: true, ultima_data: null, frequencia: "semanal", cliente_id: "", rotina_id: "", ...campos });
     },
     async registrar(r) {
-      registros.push({ id: novoId(), tarefa_id: null, canal: null, situacao: null, acoes: [], nota: null, alteracoes: [], dados: {}, data: hoje(), autor_id: rener.id, criado_em: new Date().toISOString(), ...r });
+      const id = novoId();
+      registros.push({ id, tarefa_id: null, canal: null, situacao: null, acoes: [], nota: null, alteracoes: [], dados: {}, data: hoje(), autor_id: rener.id, criado_em: new Date().toISOString(), ...r });
+      return id;
     },
     async linhaDoTempo(clienteId) {
       const nome = (id: string | null) => membros.find((m) => m.id === id)?.nome;
