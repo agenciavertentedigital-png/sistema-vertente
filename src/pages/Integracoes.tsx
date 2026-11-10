@@ -162,6 +162,14 @@ export function Integracoes() {
       </div>
 
       <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold"><Plug size={17} className="text-accent" /> Meta Ads e Instagram</h2>
+        <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
+          <Campo rotulo="Token do usuário do sistema (Gerenciador de Negócios)" ok={status.meta_access_token} onSalvar={(v) => salvar("meta_access_token", v)} />
+        </div>
+        <p className="mt-2 text-[12px] text-muted">Gere em business.facebook.com → Configurações → Usuários do sistema → Gerar token (app Vertente Dashboard, expiração "Nunca"). Ao salvar, a sincronização das contas volta a funcionar na próxima rodada.</p>
+      </section>
+
+      <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
         <h2 className="flex items-center gap-2 text-[16px] font-semibold"><BarChart3 size={17} className="text-accent" /> Google Ads e Perfil da Empresa</h2>
         <p className="mt-1 text-[12.5px] text-muted">O acesso à API agora fica no projeto do Google Cloud: ative a Google Ads API, peça o nível Explorer na página dela e crie a credencial OAuth (Aplicativo da Web) com o endereço abaixo.</p>
         <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
