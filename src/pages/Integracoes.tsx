@@ -136,7 +136,7 @@ export function Integracoes() {
     { icone: Bot, nome: "IA do Assistente", ok: status.openai_api_key || status.anthropic_api_key, texto: status.anthropic_api_key ? "Usando Claude (Anthropic)." : "Usando ChatGPT (OpenAI)." },
     { icone: MapPin, nome: "Google Places (GBP Check)", ok: status.google_places_key, texto: "Busca nota, avaliações e fotos dos perfis do Google." },
     { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
-    { icone: MessageCircle, nome: evoOk ? "WhatsApp (Evolution)" : "WhatsApp", ok: !!whatsOk, texto: "Lê os grupos dos clientes e responde no grupo do time." },
+    { icone: MessageCircle, nome: evoOk ? "WhatsApp (Evolution)" : "WhatsApp (Z-API)", ok: !!whatsOk, texto: "Lê os grupos dos clientes e responde no grupo do time." },
     { icone: FolderOpen, nome: "Google Drive", ok: true, texto: "Pasta de cada cliente aparece na ficha (aba Pasta no Drive)." },
   ];
 
@@ -197,24 +197,26 @@ export function Integracoes() {
         <h2 className="flex items-center gap-2 text-[16px] font-semibold"><MessageCircle size={17} className="text-accent" /> WhatsApp do time</h2>
         <ol className="mt-3 grid gap-4 text-[13px] lg:grid-cols-2">
           <li className="flex flex-col gap-2">
-            <b>1. Evolution API (conexão por QR code)</b>
-            <Campo rotulo="Endereço da Evolution (https://…)" ok={!!status.evolution_url} onSalvar={(v) => salvar("evolution_url", v)} />
-            <Campo rotulo="Chave da API (AUTHENTICATION_API_KEY)" ok={!!status.evolution_apikey} onSalvar={(v) => salvar("evolution_apikey", v)} />
-            <Campo rotulo="Nome da instância" ok={!!status.evolution_instancia} onSalvar={(v) => salvar("evolution_instancia", v)} />
-            <button onClick={ligarEvolution} disabled={!evoOk || configurando} className="mt-1 inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg disabled:opacity-40">
-              <Link2 size={14} /> {configurando ? "Ligando…" : "Ligar webhook e testar conexão"}
-            </button>
+            <b>1. Z-API (conexão por QR code)</b>
+            <p className="text-[12px] text-muted">No painel da Z-API, abra a instância conectada e copie os dados abaixo. O Client-Token fica em Segurança, na conta. Tudo vai direto para o cofre.</p>
+            <Campo rotulo="ID da instância" ok={status.zapi_instancia} onSalvar={(v) => salvar("zapi_instancia", v)} />
+            <Campo rotulo="Token da instância" ok={status.zapi_token} onSalvar={(v) => salvar("zapi_token", v)} />
+            <Campo rotulo="Client-Token (Segurança da conta)" ok={status.zapi_client_token} onSalvar={(v) => salvar("zapi_client_token", v)} />
+            <b className="mt-2">Webhook "Ao receber"</b>
+            <p className="text-[12px] text-muted">Na instância da Z-API, em Webhooks, cole este endereço no campo "Ao receber" e salve. Deixe desligada a opção de receber as mensagens enviadas por você.</p>
+            <div className="flex gap-2">
+              <input readOnly value={webhook || "(disponível no sistema publicado)"} className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px]" />
+              <button onClick={() => { navigator.clipboard?.writeText(webhook); setAviso("Endereço copiado."); }} className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 text-[12.5px] hover:bg-raised"><Copy size={14} /> Copiar</button>
+            </div>
             <details className="mt-2 text-[12px] text-muted">
-              <summary className="cursor-pointer">Usar Z-API clássica em vez da Evolution</summary>
+              <summary className="cursor-pointer">Usar Evolution API em vez da Z-API</summary>
               <div className="mt-2 flex flex-col gap-2">
-                <Campo rotulo="ID da instância" ok={status.zapi_instancia} onSalvar={(v) => salvar("zapi_instancia", v)} />
-                <Campo rotulo="Token da instância" ok={status.zapi_token} onSalvar={(v) => salvar("zapi_token", v)} />
-                <Campo rotulo="Client-Token (Segurança da conta)" ok={status.zapi_client_token} onSalvar={(v) => salvar("zapi_client_token", v)} />
-                <span>Webhook "Ao receber" da Z-API:</span>
-                <div className="flex gap-2">
-                  <input readOnly value={webhook || "(disponível no sistema publicado)"} className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-2 font-mono text-[11.5px]" />
-                  <button onClick={() => { navigator.clipboard?.writeText(webhook); setAviso("Endereço copiado."); }} className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 text-[12.5px] hover:bg-raised"><Copy size={14} /> Copiar</button>
-                </div>
+                <Campo rotulo="Endereço da Evolution (https://…)" ok={!!status.evolution_url} onSalvar={(v) => salvar("evolution_url", v)} />
+                <Campo rotulo="Chave da API (AUTHENTICATION_API_KEY)" ok={!!status.evolution_apikey} onSalvar={(v) => salvar("evolution_apikey", v)} />
+                <Campo rotulo="Nome da instância" ok={!!status.evolution_instancia} onSalvar={(v) => salvar("evolution_instancia", v)} />
+                <button onClick={ligarEvolution} disabled={!evoOk || configurando} className="mt-1 inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-lg bg-accent px-3 text-[12.5px] font-medium text-accent-fg disabled:opacity-40">
+                  <Link2 size={14} /> {configurando ? "Ligando…" : "Ligar webhook e testar conexão"}
+                </button>
               </div>
             </details>
           </li>
