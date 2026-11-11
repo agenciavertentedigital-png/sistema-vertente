@@ -97,26 +97,23 @@ Deno.serve(async (req) => {
   const pedido = `Você é o GESTOR OTIMIZADOR da Vertente Digital, gestor de tráfego sênior. Cliente: "${cli.nome}"${cli.segmento ? ` (${cli.segmento}${cli.cidade ? `, ${cli.cidade}` : ""})` : ""}. Período: ${dataBR(inicio)} a ${dataBR(fim)}, comparado com o período anterior de mesmo tamanho.
 
 Use SÓ os dados abaixo. Não invente números. Português do Brasil, Markdown.
+ESTILO: curto, simples e objetivo. Frases curtas, bullets de uma linha, sem introduções, sem repetir números, sem jargão desnecessário. Só o que muda decisão. Se uma seção não tiver nada relevante, omita a seção.
 
 Entregue DUAS PARTES, exatamente com estes marcadores em linhas próprias:
 
 ===ESTRATEGIA===
-(Documento interno para o time, direto e acionável)
-## Resumo do período
-## Campanhas
-(o que entrega e o que desperdiça, com números; orçamento: onde aumentar, manter, reduzir)
-## Públicos e segmentação
-(conjuntos/públicos, idade, gênero, posicionamentos e dispositivos: onde concentrar e onde cortar)
-## Criativos
-(melhores e piores com números, padrões, fadiga; próximos testes: ângulos, ganchos, formatos)
-## Google Ads
-(só se houver dados)
-## Ideias de melhoria (prioridade)
-(6 a 10 ações numeradas: o quê, por quê, impacto esperado, quem faz — Vertente ou cliente)
-## Riscos e o que acompanhar
+(Documento interno para o time. Máximo de ~250 palavras no total.)
+## Resumo
+(2 linhas: como foi o período e o número principal x período anterior)
+## O que funciona
+(até 3 bullets: campanha, público ou criativo que traz resultado barato, com o número)
+## O que corrigir
+(até 3 bullets: onde há dinheiro gasto sem retorno ou piora relevante, com o número)
+## Próximas ações
+(3 a 5 ações numeradas, por prioridade, uma linha cada: o quê + por quê + quem faz — Vertente ou cliente)
 
 ===CLIENTE===
-(Texto "Análise de Campanhas" que fica no dashboard e pode ser mostrado ao cliente: tom POSITIVO, profissional e honesto; destaque resultados, crescimentos, melhores campanhas e criativos, custos que caíram, e as pequenas conquistas do período. Sem jargão pesado, sem críticas ao cliente, sem expor problemas internos; se algo piorou, apresente como próximo passo de melhoria. 2 a 4 parágrafos curtos e, no fim, uma lista "Destaques do período" com 3 a 5 itens com números.)
+(Texto "Análise de Campanhas" para o dashboard, que pode ser mostrado ao cliente. Máximo de ~120 palavras. Tom POSITIVO, profissional e honesto, linguagem simples para quem não é da área. 1 parágrafo curto sobre o resultado do período, citando pequenas conquistas se houver, e depois "### Destaques do período" com 3 bullets curtos com números. Se algo piorou, no máximo 1 frase como próximo passo de melhoria. Sem críticas ao cliente e sem expor problemas internos.)
 
 Contexto do cliente (briefing):
 ${contexto || "(sem briefing preenchido)"}
