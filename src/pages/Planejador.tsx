@@ -157,6 +157,41 @@ export function Planejador() {
       </header>
       {agenda.erro && <p className="rounded-xl border border-warn bg-warn-soft px-3 py-2 text-[12.5px] text-warn">Google Agenda: {agenda.erro}</p>}
 
+      {(() => {
+        // Indicadores da semana da pessoa
+        const feitas = minhas.filter((t) => t.status === "feita" && t.concluida_em && dataLocal(new Date(t.concluida_em)) >= semana && dataLocal(new Date(t.concluida_em)) <= fimSemana);
+        const previstas = minhas.filter((t) => (t.prazo && t.prazo >= semana && t.prazo <= fimSemana) || idsGrade.has(t.id));
+        const planejadoMin = naGrade.reduce((s, t) => s + duracao(t), 0);
+        const reunioesMin = dias.reduce((s, dia) => s + eventosDia(dia).reduce((x, e) => x + e.dur, 0), 0);
+        const capacidade = dias.filter((dia) => !["0", "6"].includes(String(new Date(`${dia}T12:00:00Z`).getUTCDay()))).length * JORNADA * META - reunioesMin * META;
+        const comTempo = feitas.filter((t) => t.estimativa_min && t.tempo_min);
+        const estSoma = comTempo.reduce((s, t) => s + (t.estimativa_min ?? 0), 0), realSoma = comTempo.reduce((s, t) => s + (t.tempo_min ?? 0), 0);
+        const desvio = estSoma ? (realSoma - estSoma) / estSoma : null;
+        const porPilar = new Map<string, number>();
+        for (const t of feitas) porPilar.set(t.pilar, (porPilar.get(t.pilar) ?? 0) + (t.tempo_min || t.estimativa_min || 0));
+        const totalPilar = [...porPilar.values()].reduce((s, v) => s + v, 0);
+        const NOME_P: Record<string, string> = { trafego: "Tráfego", social: "Social", gmn: "GMN", cs: "CS", interno: "Interno" };
+        const COR_P: Record<string, string> = { trafego: "#3b6fe0", social: "#c2508a", gmn: "#2ba58b", cs: "#e07a3b", interno: "#8a63d2" };
+        const cel = "flex flex-col gap-0.5 px-4 py-3";
+        return (
+          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface md:grid-cols-5">
+            <div className={cel}><span className="text-[11.5px] text-muted">Concluídas na semana</span><span className="num text-[18px] font-semibold">{feitas.length}<span className="text-[13px] font-normal text-muted"> / {previstas.length} previstas</span></span></div>
+            <div className={`${cel} border-l border-line`}><span className="text-[11.5px] text-muted">Planejado na grade</span><span className="num text-[18px] font-semibold">{duracaoTxt(planejadoMin)}<span className="text-[13px] font-normal text-muted"> de {duracaoTxt(Math.max(0, Math.round(capacidade)))}</span></span></div>
+            <div className={`${cel} border-t border-line md:border-l md:border-t-0`}><span className="text-[11.5px] text-muted">Reuniões na agenda</span><span className="num text-[18px] font-semibold">{duracaoTxt(reunioesMin)}</span></div>
+            <div className={`${cel} border-l border-t border-line md:border-t-0`}><span className="text-[11.5px] text-muted">Estimado x real</span><span className={`num text-[18px] font-semibold ${desvio === null ? "" : Math.abs(desvio) <= 0.15 ? "text-ok" : "text-warn"}`}>{desvio === null ? "—" : `${desvio > 0 ? "+" : ""}${Math.round(desvio * 100)}%`}</span><span className="text-[11px] text-muted">{desvio === null ? "sem tempo medido" : `${duracaoTxt(estSoma)} → ${duracaoTxt(realSoma)}`}</span></div>
+            <div className={`${cel} col-span-2 border-t border-line md:col-span-1 md:border-l md:border-t-0`}>
+              <span className="text-[11.5px] text-muted">Tempo por pilar</span>
+              {totalPilar ? (
+                <>
+                  <div className="mt-1 flex h-2 overflow-hidden rounded-full">{[...porPilar.entries()].map(([k, v]) => <span key={k} title={`${NOME_P[k] ?? k}: ${duracaoTxt(v)}`} style={{ width: `${(v / totalPilar) * 100}%`, background: COR_P[k] ?? "#a3a8b4" }} />)}</div>
+                  <div className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-muted">{[...porPilar.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => <span key={k}>{NOME_P[k] ?? k} {Math.round((v / totalPilar) * 100)}%</span>)}</div>
+                </>
+              ) : <span className="text-[12px] text-muted">nada concluído ainda</span>}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="grid gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="flex max-h-[calc(100dvh-200px)] flex-col gap-3 overflow-y-auto rounded-2xl border border-line bg-surface p-3 lg:sticky lg:top-4" onDragOver={(e) => e.preventDefault()} onDrop={soltarCaixa}>
           <div>
