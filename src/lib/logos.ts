@@ -19,7 +19,7 @@ export function useLogos() {
     if (f.size > 2 * 1024 * 1024) throw new Error("A logo passa de 2 MB.");
     const ext = f.name.split(".").pop()?.toLowerCase() || "png";
     const caminho = `${clienteId}/logo-${Date.now()}.${ext}`;
-    const up = await supabase.storage.from("logos").upload(caminho, f, { contentType: f.type, upsert: true });
+    const up = await supabase.storage.from("logos").upload(caminho, f, { contentType: f.type, upsert: false });
     if (up.error) throw new Error(/bucket/i.test(up.error.message) ? "Falta aplicar a atualização do banco das logos." : up.error.message);
     const url = supabase.storage.from("logos").getPublicUrl(caminho).data.publicUrl;
     const u = await supabase.from("clientes").update({ logo_url: url }).eq("id", clienteId);
