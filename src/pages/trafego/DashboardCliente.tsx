@@ -1,3 +1,4 @@
+import { AnaliseCampanhas, BotaoGestorOtimizador, ProgressoOtimizador, useGestorOtimizador } from "./painel/GestorOtimizador";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ExternalLink, Image as ImagemIcone, PlayCircle, RefreshCw, Wallet } from "lucide-react";
 import { useDados } from "../../lib/dados";
@@ -206,6 +207,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
     };
   };
 
+  const go = useGestorOtimizador(clienteId, per.ini, per.fim, montarResumo);
+
   const abas = ABAS_DASH.filter((x) => !plats || (x.id === "meta" ? plats.meta : x.id === "google" ? plats.google : true));
   const abaAtual = abas.some((x) => x.id === aba) ? aba : "geral";
   const periodoTexto = `${dataBR(per.ini)} a ${dataBR(per.fim)}, comparado com ${dataBR(ant.ini)} a ${dataBR(ant.fim)}.`;
@@ -227,6 +230,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
             <p className="mt-0.5 truncate text-[12.5px] text-muted">{dataBR(per.ini)} – {dataBR(per.fim)} <span className="opacity-70">· vs. {dataBR(ant.ini)} – {dataBR(ant.fim)}</span></p>
           </div>
           <div className="flex items-center gap-1.5">
+            <BotaoGestorOtimizador g={go} />
             <CompartilharPainel clienteId={clienteId} />
             <select aria-label="Período" value={atalho} onChange={(e) => setAtalho(e.target.value as Atalho)} className="h-9 rounded-xl border border-line bg-surface px-3 text-[13px] font-medium outline-none hover:border-line-forte focus:border-accent">
               {ATALHOS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
@@ -257,6 +261,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
           </nav>
         </div>
       </header>
+
+      <ProgressoOtimizador g={go} />
 
       {erro && abaAtual !== "google" && <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar na Meta: {erro}</div>}
 
@@ -319,6 +325,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
           <AnaliseFunil clienteId={clienteId} ini={per.ini} fim={per.fim} montarResumo={montarResumo} />
         </div>
       )}
+
+      <AnaliseCampanhas g={go} />
     </div>
   );
 }
