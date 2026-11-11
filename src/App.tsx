@@ -5,6 +5,7 @@ import { Marca } from "./components/Marca";
 import { useRota } from "./lib/rota";
 import { MODULOS } from "./data/modulos";
 import { DashboardVertente } from "./pages/Central";
+import { PortalCliente } from "./pages/PortalCliente";
 import { Planejador } from "./pages/Planejador";
 import { CentralVertente } from "./pages/CentralVertente";
 import { PaginaModulo } from "./pages/PaginaModulo";
@@ -98,6 +99,8 @@ export default function App() {
   // Link público de cadastro: abre sem login
   if (rota.startsWith("cadastro-publico-")) return <CadastroPublico token={rota.slice(17)} />;
   if (rota.startsWith("briefing-publico-")) return <BriefingPublico token={rota.slice(17)} />;
+  // Painel do cliente (link + senha), sem login do sistema
+  if (rota.startsWith("painel-")) return <PortalCliente slug={rota.slice(7)} />;
   // Diagnóstico Digital: página pública para anúncios (/diagnostico), sem login
   if (rota === "diagnostico") return <DiagnosticoPublico />;
 

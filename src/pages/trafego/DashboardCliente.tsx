@@ -25,6 +25,7 @@ import { AnaliseFunil } from "./painel/AnaliseFunil";
 import { supabase } from "../../lib/supabase";
 import { useLogos } from "../../lib/logos";
 import { LogoCliente } from "../../components/LogoCliente";
+import { CompartilharPainel } from "../../components/CompartilharPainel";
 
 // ------------------------------------------------------------------
 // Formatação
@@ -222,6 +223,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
             <p className="mt-0.5 truncate text-[12.5px] text-muted">{dataBR(per.ini)} – {dataBR(per.fim)} <span className="opacity-70">· vs. {dataBR(ant.ini)} – {dataBR(ant.fim)}</span></p>
           </div>
           <div className="flex items-center gap-1.5">
+            <CompartilharPainel clienteId={clienteId} />
             <select aria-label="Período" value={atalho} onChange={(e) => setAtalho(e.target.value as Atalho)} className="h-9 rounded-xl border border-line bg-surface px-3 text-[13px] font-medium outline-none hover:border-line-forte focus:border-accent">
               {ATALHOS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>

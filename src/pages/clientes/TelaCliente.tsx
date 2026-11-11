@@ -1,3 +1,4 @@
+import { CompartilharPainel } from "../../components/CompartilharPainel";
 import { useState } from "react";
 import { ArrowLeft, Plus, Repeat } from "lucide-react";
 import { useDados } from "../../lib/dados";
@@ -97,6 +98,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
         <div className="flex flex-wrap gap-2">
           <Botao onClick={() => setAplicar(true)}><ListChecks size={14} /> Aplicar onboarding</Botao>
           <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}>Dashboard de tráfego</Botao>
+          <CompartilharPainel clienteId={c.id} />
           <Botao onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
           <Botao variante="primario" onClick={() => setNova(true)}>
             <Plus size={14} /> Nova tarefa
