@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { arrastavelFavorito, useFavoritos } from "../../lib/favoritos";
 import { ArrowUpRight, Search } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { useTrafego } from "../../lib/trafego";
@@ -10,6 +11,7 @@ import { Vazio } from "../../components/ui";
 export function ListaDashboards({ trafego, ir }: { trafego: ReturnType<typeof useTrafego>; ir: (r: string) => void }) {
   const d = useDados();
   const lg = useLogos();
+  const fav = useFavoritos();
   const [busca, setBusca] = useState("");
 
   const porCliente = new Map<string, { meta: boolean; google: boolean; problema: boolean }>();
@@ -41,6 +43,7 @@ export function ListaDashboards({ trafego, ir }: { trafego: ReturnType<typeof us
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
         {cartoes.map((c) => (
           <div key={c.clienteId} role="button" tabIndex={0}
+            {...(fav.ativo ? arrastavelFavorito({ tipo: "rota", alvo: `trafego-cliente-${c.clienteId}`, nome: `Dash · ${c.nome}` }) : {})}
             onClick={() => ir(`trafego-cliente-${c.clienteId}`)}
             onKeyDown={(e) => { if (e.key === "Enter") ir(`trafego-cliente-${c.clienteId}`); }}
             className="group relative flex cursor-pointer flex-col items-center gap-3 rounded-2xl border border-line bg-surface px-3 pb-4 pt-6 text-center transition-all hover:-translate-y-0.5 hover:border-line-forte hover:shadow-[var(--sombra)] focus-visible:border-accent focus-visible:outline-none">

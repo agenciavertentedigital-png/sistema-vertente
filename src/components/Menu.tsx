@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { arrastavelFavorito, useFavoritos } from "../lib/favoritos";
 import { LayoutGrid, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plug, Search, Sun } from "lucide-react";
 import { Sininho } from "./Sininho";
 import { ASSISTENTE, DASHBOARD, SECOES, ativo } from "../data/navegacao";
@@ -24,6 +25,7 @@ function Item({
   rotulo,
   apagado,
   recolhido,
+  rotaFav,
 }: {
   ativo: boolean;
   onClick: () => void;
@@ -31,9 +33,12 @@ function Item({
   rotulo: string;
   apagado?: boolean;
   recolhido?: boolean;
+  rotaFav?: string;
 }) {
+  const fav = useFavoritos();
   return (
     <button
+      {...(fav.ativo && rotaFav ? arrastavelFavorito({ tipo: "rota", alvo: rotaFav, nome: rotulo }) : {})}
       onClick={onClick}
       aria-current={ativo ? "page" : undefined}
       title={recolhido ? rotulo : undefined}
@@ -84,9 +89,9 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
       )}
 
       <div className="flex flex-col gap-0.5">
-        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={LayoutGrid} rotulo="Central Vertente" recolhido={recolhido} />
-        <Item ativo={ativo(DASHBOARD, rota)} onClick={() => ir(DASHBOARD.rota)} icone={DASHBOARD.icone} rotulo={DASHBOARD.nome} recolhido={recolhido} />
-        <Item ativo={ativo(ASSISTENTE, rota)} onClick={() => ir(ASSISTENTE.rota)} icone={ASSISTENTE.icone} rotulo={ASSISTENTE.nome} recolhido={recolhido} />
+        <Item ativo={rota === "inicio"} onClick={() => ir("inicio")} icone={LayoutGrid} rotulo="Central Vertente" recolhido={recolhido} rotaFav="inicio" />
+        <Item ativo={ativo(DASHBOARD, rota)} onClick={() => ir(DASHBOARD.rota)} icone={DASHBOARD.icone} rotulo={DASHBOARD.nome} recolhido={recolhido} rotaFav={DASHBOARD.rota} />
+        <Item ativo={ativo(ASSISTENTE, rota)} onClick={() => ir(ASSISTENTE.rota)} icone={ASSISTENTE.icone} rotulo={ASSISTENTE.nome} recolhido={recolhido} rotaFav={ASSISTENTE.rota} />
         {recolhido ? <div className="flex justify-center"><Sininho ir={ir} compacto /></div> : <Sininho ir={ir} />}
       </div>
 
@@ -94,7 +99,7 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
         <div key={s.id} className="flex flex-col gap-0.5">
           {recolhido ? <div className="mx-2 mb-1 border-t border-line" /> : <div className="px-2.5 pb-1 text-[11.5px] font-medium text-muted/80">{s.nome}</div>}
           {s.topicos.map((t) => (
-            <Item key={t.id} ativo={ativo(t, rota)} onClick={() => ir(t.rota)} icone={t.icone} rotulo={t.nome} recolhido={recolhido} />
+            <Item key={t.id} ativo={ativo(t, rota)} onClick={() => ir(t.rota)} icone={t.icone} rotulo={t.nome} recolhido={recolhido} rotaFav={t.rota} />
           ))}
         </div>
       ))}

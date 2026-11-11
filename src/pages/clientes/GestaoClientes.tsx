@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { arrastavelFavorito, useFavoritos } from "../../lib/favoritos";
 import { Inbox, Plus, RefreshCw } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { repo } from "../../lib/repo";
@@ -125,6 +126,7 @@ export function Chip({ ativo, onClick, children }: { ativo: boolean; onClick: ()
 // ------------------------------------------------------------------
 function Carteira({ ir }: { ir: (r: string) => void }) {
   const d = useDados();
+  const fav = useFavoritos();
   const h = hoje();
   const linhas = d.clientes.map((c) => {
     const abertas = d.tarefas.filter((t) => t.cliente_id === c.id && STATUS_ABERTOS.includes(t.status));
@@ -152,7 +154,7 @@ function Carteira({ ir }: { ir: (r: string) => void }) {
         </thead>
         <tbody>
           {linhas.map((l) => (
-            <tr key={l.c.id} onClick={() => ir(`cliente-${l.c.id}`)} className="cursor-pointer border-b border-line last:border-0 hover:bg-raised">
+            <tr key={l.c.id} {...(fav.ativo ? arrastavelFavorito({ tipo: "rota", alvo: `cliente-${l.c.id}`, nome: l.c.nome }) : {})} onClick={() => ir(`cliente-${l.c.id}`)} className="cursor-pointer border-b border-line last:border-0 hover:bg-raised">
               <td className="px-3 py-2.5">
                 <div className="font-medium">{l.c.nome}</div>
                 {l.c.origem === "parceria_marcone" && <div className="text-[11px] text-warn">Parceria Marcone</div>}

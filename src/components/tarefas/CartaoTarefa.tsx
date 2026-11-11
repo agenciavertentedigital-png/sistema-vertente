@@ -1,4 +1,6 @@
 import { CalendarDays, CheckSquare, Repeat } from "lucide-react";
+import { arrastavelFavorito, useFavoritos } from "../../lib/favoritos";
+import { horaDaTarefa } from "../../lib/ordenacao";
 import { useDados } from "../../lib/dados";
 import { CANAL, STATUS, atrasada, dataCurta, type Tarefa } from "../../lib/tipos";
 import { COR_PILAR, Iniciais, MarcaPrioridade, SeloStatus } from "../ui";
@@ -7,8 +9,10 @@ export function CartaoTarefa({ tarefa: t, abrir, mostrarCliente = true }: { tare
   const { cliente, membro } = useDados();
   const atraso = atrasada(t);
   const fechada = t.status === "feita" || t.status === "nao_feita";
+  const fav = useFavoritos();
   return (
     <button
+      {...(fav.ativo ? arrastavelFavorito({ tipo: "tarefa", alvo: t.id, nome: t.titulo }) : {})}
       onClick={() => abrir(t.id)}
       className={`group flex w-full flex-col gap-2 rounded-xl border border-line bg-surface p-3 text-left transition-colors hover:border-accent ${fechada ? "opacity-60" : ""}`}
       style={{ borderLeft: `3px solid ${COR_PILAR[t.pilar]}` }}
@@ -38,6 +42,7 @@ export function CartaoTarefa({ tarefa: t, abrir, mostrarCliente = true }: { tare
         <span className={`num ml-auto flex items-center gap-1 ${atraso ? "font-semibold text-warn" : "text-muted"}`}>
           <CalendarDays size={12} />
           {dataCurta(t.prazo)}
+          {horaDaTarefa(t) && <span className="rounded bg-accent-soft px-1 text-accent">{horaDaTarefa(t)}</span>}
         </span>
       </div>
     </button>

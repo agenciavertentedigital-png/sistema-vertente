@@ -20,7 +20,7 @@ import { CartaoTarefa } from "../../components/tarefas/CartaoTarefa";
 import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
 import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, COR_PILAR, Selecao, Vazio } from "../../components/ui";
-import { ordenar } from "./GestaoClientes";
+import { SeletorOrdem, comparador, useOrdem } from "../../lib/ordenacao";
 import { LinhaDoTempo } from "../../components/LinhaDoTempo";
 import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
@@ -81,6 +81,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
   const [aplicar, setAplicar] = useState(false);
   const proc = useProcessos();
   const c = d.cliente(clienteId);
+  const [ordem, setOrdem] = useOrdem("cliente");
 
   if (d.carregando) return <Vazio>Carregando…</Vazio>;
   if (!c)
@@ -93,7 +94,7 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
   const doCliente = d.tarefas.filter((t) => t.cliente_id === c.id);
   const abertas = doCliente.filter((t) => STATUS_ABERTOS.includes(t.status));
   const atrasadas = abertas.filter((t) => atrasada(t)).length;
-  const visiveis = (verConcluidas ? doCliente : abertas).slice().sort(ordenar);
+  const visiveis = (verConcluidas ? doCliente : abertas).slice().sort(comparador(ordem));
   const pilaresUsados = PILARES.filter((p) => p !== "interno" || visiveis.some((t) => t.pilar === "interno"));
 
   return (
@@ -167,7 +168,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
 
       {aba === "tarefas" && (
       <>
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <SeletorOrdem ordem={ordem} mudar={setOrdem} />
         <Botao variante="fantasma" onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
       </div>
       <div className="-mx-1 overflow-x-auto px-1 pb-2">

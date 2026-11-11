@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { ProvedorFavoritos } from "./lib/favoritos";
+import { BarraFavoritos } from "./components/BarraFavoritos";
+import { MapaPendencias } from "./components/MapaPendencias";
+import { PainelTarefa } from "./components/tarefas/PainelTarefa";
 import { Menu as MenuIcone, X } from "lucide-react";
 import { Menu } from "./components/Menu";
 import { Marca } from "./components/Marca";
@@ -119,6 +123,7 @@ export default function App() {
 
   const modulo = MODULOS.find((m) => m.id === rota);
   const naCentral = rota === "inicio" || (!modulo && !rotaConhecida(rota));
+  const souRener = sessao.tipo === "logado" ? sessao.membro.email.toLowerCase() === "renerdotrafego@gmail.com" : sessao.tipo === "demonstracao";
   let pagina = <CentralVertente ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
   if (rota === "dashboard") pagina = <DashboardVertente ir={navegar} />;
   if (rota === "planejador") pagina = <Planejador />;
@@ -155,6 +160,7 @@ export default function App() {
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
     <ProvedorEscritorio membro={sessao.tipo === "logado" ? { id: sessao.membro.id, nome: sessao.membro.nome } : { id: "demo", nome: "Rener Anício" }}>
+    <ProvedorFavoritos membroId={sessao.tipo === "logado" ? sessao.membro.id : null} ativo={souRener}>
     <div className="flex h-full">
       <aside className={`menu-lateral hidden shrink-0 transition-[width] duration-200 ${naCentral ? "" : "lg:block"} ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
         <Menu
@@ -204,6 +210,7 @@ export default function App() {
           </button>
           </div>
         </div>
+        {!naCentral && <div className="hidden lg:block"><BarraFavoritos rota={rota} ir={navegar} /></div>}
         <main
           id="area-principal"
           className={`min-h-0 flex-1 ${naCentral ? "overflow-y-auto" : "pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] lg:pl-8 lg:pr-[max(32px,env(safe-area-inset-right,0px))]"} ${
@@ -223,7 +230,10 @@ export default function App() {
       <Aviso />
       {novaSenha && <NovaSenha fechar={() => setNovaSenha(false)} />}
       <Comando aberto={comando} fechar={() => setComando(false)} ir={navegar} alternarTema={alternarTema} />
+      {souRener && !rota.startsWith("cadastro-publico") && <MapaPendencias />}
+      <PainelGlobal />
     </div>
+    </ProvedorFavoritos>
     </ProvedorEscritorio>
     </ProvedorDados>
   );
@@ -276,6 +286,17 @@ function NovaSenha({ fechar }: { fechar: () => void }) {
       </form>
     </div>
   );
+}
+
+/** Abre qualquer tarefa por cima da tela atual (favoritos, mapa de pendências). */
+function PainelGlobal() {
+  const [id, setId] = useState<string | null>(null);
+  useEffect(() => {
+    const ao = (e: Event) => setId((e as CustomEvent<string>).detail);
+    window.addEventListener("vertente:abrir-tarefa", ao);
+    return () => window.removeEventListener("vertente:abrir-tarefa", ao);
+  }, []);
+  return <PainelTarefa id={id} fechar={() => setId(null)} />;
 }
 
 function Aviso() {

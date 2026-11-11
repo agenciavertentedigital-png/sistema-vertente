@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { SeletorOrdem, comparador, useOrdem } from "../../lib/ordenacao";
 import { Columns3, List, Search, X } from "lucide-react";
 import { MenuFiltro } from "../Filtro";
 import { useDados } from "../../lib/dados";
@@ -93,6 +94,7 @@ export function ordenarTarefas(a: Tarefa, b: Tarefa) {
 export function QuadroTarefas({ abrir }: { abrir: (id: string) => void }) {
   const d = useDados();
   const [f, setF] = useState<Filtros>(lerFiltros);
+  const [ordem, setOrdem] = useOrdem("quadro");
   const h = hoje();
   const set = (p: Partial<Filtros>) => setF((v) => ({ ...v, ...p }));
 
@@ -119,7 +121,7 @@ export function QuadroTarefas({ abrir }: { abrir: (id: string) => void }) {
     [d.tarefas, f.resp, f.pilar, f.cliente, f.busca], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const abertasBase = base.filter((t) => STATUS_ABERTOS.includes(t.status));
-  const abertas = abertasBase.filter((t) => noPeriodo(t, f.periodo, h)).sort(ordenarTarefas);
+  const abertas = abertasBase.filter((t) => noPeriodo(t, f.periodo, h)).sort(comparador(ordem));
   const feitas = base
     .filter((t) => t.status === "feita" && t.concluida_em && t.concluida_em.slice(0, 10) >= somarDias(h, -7))
     .sort((a, b) => (b.concluida_em ?? "").localeCompare(a.concluida_em ?? ""));
@@ -183,6 +185,7 @@ export function QuadroTarefas({ abrir }: { abrir: (id: string) => void }) {
           </button>
         )}
         <div className="ml-auto flex items-center gap-2">
+            <SeletorOrdem ordem={ordem} mudar={setOrdem} />
             {f.visao === "kanban" && (
               <Selecao id="agrupar" aria-label="Agrupar colunas por" value={f.agrupar} onChange={(e) => set({ agrupar: e.target.value as Agrupar })} className="!w-auto">
                 <option value="status">Colunas: status</option>

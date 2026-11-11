@@ -1,4 +1,6 @@
 import { Anexos, PdfsPendentes, enviarAnexos } from "../Anexos";
+import { horaDaTarefa, inicioEm } from "../../lib/ordenacao";
+import { hoje } from "../../lib/tipos";
 import { useCallback, useEffect, useState } from "react";
 import { Bot, Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
@@ -169,8 +171,13 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
             ))}
           </Selecao>
         </Rotulo>
-        <Rotulo texto="Prazo">
-          <Entrada id="tarefa-prazo" type="date" value={t.prazo ?? ""} onChange={(e) => salvar({ prazo: e.target.value || null })} />
+        <Rotulo texto="Prazo · horário (opcional)">
+          <div className="flex gap-1.5">
+            <Entrada id="tarefa-prazo" type="date" value={t.prazo ?? ""} className="min-w-0 flex-1"
+              onChange={(e) => { const dia = e.target.value || null; const h = horaDaTarefa(t); salvar({ prazo: dia, planejado_inicio: dia && h ? inicioEm(dia, h) : h ? null : t.planejado_inicio ?? null }); }} />
+            <Entrada id="tarefa-hora" type="time" step={900} aria-label="Horário" value={horaDaTarefa(t) ?? ""} className="!w-[92px]" title="Horário: a tarefa aparece nesse horário no Planejador"
+              onChange={(e) => { const h = e.target.value; salvar(h ? { planejado_inicio: inicioEm(t.prazo ?? hoje(), h), ...(t.prazo ? {} : { prazo: hoje() }) } : { planejado_inicio: null }); }} />
+          </div>
         </Rotulo>
         <Rotulo texto="Responsável">
           <Selecao id="tarefa-responsavel" value={t.responsavel_id ?? ""} onChange={(e) => salvar({ responsavel_id: e.target.value || null })}>

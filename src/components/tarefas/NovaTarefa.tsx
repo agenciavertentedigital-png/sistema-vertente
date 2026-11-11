@@ -1,4 +1,6 @@
 import { PdfsPendentes, enviarAnexos } from "../Anexos";
+import { inicioEm } from "../../lib/ordenacao";
+import { hoje } from "../../lib/tipos";
 import { useState, type FormEvent } from "react";
 import { repo } from "../../lib/repo";
 import { useDados } from "../../lib/dados";
@@ -23,6 +25,7 @@ export function NovaTarefa({
   const [salvando, setSalvando] = useState(false);
   const [pdfs, setPdfs] = useState<File[]>([]);
   const set = (c: CamposTarefa) => setF((v) => ({ ...v, ...c }));
+  const [hora, setHora] = useState("");
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -36,7 +39,8 @@ export function NovaTarefa({
         pilar: f.pilar ?? "trafego",
         canal: f.canal ?? null,
         responsavel_id: caixaEntrada ? null : f.responsavel_id ?? d.eu,
-        prazo: caixaEntrada ? null : f.prazo ?? null,
+        prazo: caixaEntrada ? null : f.prazo ?? (hora ? hoje() : null),
+        planejado_inicio: !caixaEntrada && hora ? inicioEm(f.prazo ?? hoje(), hora) : null,
         prioridade: f.prioridade ?? "normal",
         descricao: f.descricao ?? null,
         triagem: caixaEntrada,
@@ -48,6 +52,7 @@ export function NovaTarefa({
       await d.recarregar();
       d.avisar(caixaEntrada ? "Demanda na caixa de entrada" : "Tarefa criada");
       setF({});
+      setHora("");
       fechar();
       aoCriar?.(id);
     } catch (err) {
@@ -99,8 +104,11 @@ export function NovaTarefa({
                   ))}
                 </Selecao>
               </Rotulo>
-              <Rotulo texto="Prazo">
-                <Entrada id="nova-prazo" type="date" value={f.prazo ?? ""} onChange={(e) => set({ prazo: e.target.value || null })} />
+              <Rotulo texto="Prazo · horário (opcional)">
+                <div className="flex gap-1.5">
+                  <Entrada id="nova-prazo" type="date" value={f.prazo ?? ""} className="min-w-0 flex-1" onChange={(e) => set({ prazo: e.target.value || null })} />
+                  <Entrada id="nova-hora" type="time" step={900} aria-label="Horário" value={hora} className="!w-[92px]" onChange={(e) => setHora(e.target.value)} />
+                </div>
               </Rotulo>
             </>
           )}

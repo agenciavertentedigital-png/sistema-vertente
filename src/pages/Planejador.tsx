@@ -95,7 +95,7 @@ export function Planejador() {
     for (const o of ocupados) if (min < o.min + o.dur && min + dur > o.min) min = o.min + o.dur;
     min = Math.min(min, FIM_H * 60 - PASSO);
     const quando = new Date(`${dia}T${hhmm(min)}:00`).toISOString();
-    salvar(id, { planejado_inicio: quando, ...(t.prazo ? {} : { prazo: dia }) });
+    salvar(id, { planejado_inicio: quando, prazo: dia }, `Horário ${hhmm(min)} vinculado à tarefa`);
   }
   function soltarDia(e: DragEvent, dia: string) {
     e.preventDefault();
@@ -140,7 +140,7 @@ export function Planejador() {
       <header className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-2 text-[22px] font-semibold"><CalendarRange size={20} className="text-accent" /> Planejador</h1>
-          <p className="text-[13px] text-muted">Tarefas com data já aparecem no dia; arraste para um horário. Puxe a borda de baixo do bloco para mudar o tempo estimado.</p>
+          <p className="text-[13px] text-muted">Arraste a tarefa para um horário e ele fica gravado nela (também dá para digitar o horário na própria tarefa). Puxe a borda de baixo do bloco para mudar o tempo estimado.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {pessoa === d.eu && <BotaoAgenda agenda={agenda} />}
