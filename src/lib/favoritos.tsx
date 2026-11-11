@@ -51,6 +51,12 @@ export function ProvedorFavoritos({ membroId, ativo, children }: { membroId: str
       banco.current = true;
       const remoto = (data as { itens: Favorito[] } | null)?.itens;
       if (remoto && remoto.length) setItens(remoto);
+      else {
+        // Primeira vez com o banco: leva para lá o que já estava fixado neste navegador
+        let locais: Favorito[] = [];
+        try { locais = JSON.parse(localStorage.getItem(CHAVE(m)) ?? "[]") as Favorito[]; } catch { /* */ }
+        if (locais.length && supabase) supabase.from("favoritos").upsert({ membro_id: membroId, itens: locais, atualizado_em: new Date().toISOString() }).then(() => null);
+      }
     });
   }, [ativo, membroId]);
 
