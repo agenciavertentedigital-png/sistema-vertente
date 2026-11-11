@@ -12,8 +12,6 @@ import {
   STATUS_ABERTOS,
   atrasada,
   dataCurta,
-  hoje,
-  somarDias,
   type Canal,
   type ClienteRotina,
   type Frequencia,
@@ -22,9 +20,8 @@ import { CartaoTarefa } from "../../components/tarefas/CartaoTarefa";
 import { PainelTarefa } from "../../components/tarefas/PainelTarefa";
 import { NovaTarefa } from "../../components/tarefas/NovaTarefa";
 import { Botao, COR_PILAR, Selecao, Vazio } from "../../components/ui";
-import { Numero, ordenar } from "./GestaoClientes";
+import { ordenar } from "./GestaoClientes";
 import { LinhaDoTempo } from "../../components/LinhaDoTempo";
-import { NumerosDaConta } from "../../components/NumerosDaConta";
 import { PontoSituacao } from "../../components/ui";
 import { SITUACAO } from "../../lib/tipos";
 import { RoteirosIA } from "../../components/RoteirosIA";
@@ -34,37 +31,52 @@ import { FichaEstrategica } from "../../components/FichaEstrategica";
 import { DiarioBordo } from "../../components/DiarioBordo";
 import { PastaDrive } from "../../components/PastaDrive";
 import { AplicarProcesso, ProgressoProcessos, useProcessos } from "./Processos";
-import { AtSign, FileText, FolderOpen, ListChecks, MapPin, MessageCircle, Pin, Target } from "lucide-react";
+import { AtSign, BarChart3, FileText, FolderOpen, HardDrive, KeyRound, ListChecks, MapPin, MessageCircle, Paperclip, Target } from "lucide-react";
+import { Anexos } from "../../components/Anexos";
+import { Reunioes } from "../../components/Reunioes";
 import { BriefingCliente } from "../../components/BriefingCliente";
-import { MarcarTemperatura } from "../../components/Temperatura";
+import { MarcarTemperatura, SeloTemperatura } from "../../components/Temperatura";
 import { Anotacoes } from "../../components/Anotacoes";
-import { completudeBriefing, useBriefings, useNotas } from "../../lib/briefing";
 import { useFichas } from "../../lib/cadastro";
 
-type Aba = "acompanhamento" | "tarefas" | "briefing" | "notas" | "roteiros" | "acessos" | "diario" | "linha" | "drive";
+type Aba = "acompanhamento" | "tarefas" | "documentos" | "historico";
+type SubDoc = "notas" | "arquivos" | "briefing" | "roteiros" | "acessos" | "drive";
+type SubHist = "diario" | "reunioes" | "linha";
+const ABAS: { id: Aba; nome: string }[] = [
+  { id: "acompanhamento", nome: "Acompanhamento" },
+  { id: "tarefas", nome: "Tarefas e rotinas" },
+  { id: "documentos", nome: "Documentos" },
+  { id: "historico", nome: "Histórico" },
+];
+const SUB_DOC: { id: SubDoc; nome: string; icone: typeof FileText }[] = [
+  { id: "notas", nome: "Anotações", icone: FolderOpen },
+  { id: "arquivos", nome: "Arquivos (PDF)", icone: Paperclip },
+  { id: "briefing", nome: "Briefing e estratégia", icone: Target },
+  { id: "roteiros", nome: "Roteiros", icone: FileText },
+  { id: "acessos", nome: "Acessos e links", icone: KeyRound },
+  { id: "drive", nome: "Pasta no Drive", icone: HardDrive },
+];
+const SUB_HIST: { id: SubHist; nome: string }[] = [
+  { id: "diario", nome: "Diário de Bordo" },
+  { id: "reunioes", nome: "Reuniões" },
+  { id: "linha", nome: "Linha do tempo" },
+];
+function lembrar<T extends string>(chave: string, padrao: T, validos: readonly T[]) {
+  try { const v = localStorage.getItem(chave) as T | null; return v && validos.includes(v) ? v : padrao; } catch { return padrao; }
+}
+function guardar(chave: string, v: string) { try { localStorage.setItem(chave, v); } catch { /* sem armazenamento */ } }
 
 export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: string) => void }) {
   const d = useDados();
   const [aberta, setAberta] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
   const [verConcluidas, setVerConcluidas] = useState(false);
-  const [aba, setAbaEstado] = useState<Aba>(() => {
-    try {
-      return (localStorage.getItem("vertente.aba-cliente2") as Aba) || "acompanhamento";
-    } catch {
-      return "acompanhamento";
-    }
-  });
-  const setAba = (a: Aba) => {
-    setAbaEstado(a);
-    try {
-      localStorage.setItem("vertente.aba-cliente2", a);
-    } catch {
-      /* sem armazenamento */
-    }
-  };
-  const briefings = useBriefings();
-  const notas = useNotas();
+  const [aba, setAbaEstado] = useState<Aba>(() => lembrar("vertente.cli.aba", "acompanhamento", ABAS.map((a) => a.id)));
+  const [subDoc, setSubDocEstado] = useState<SubDoc>(() => lembrar("vertente.cli.doc", "notas", SUB_DOC.map((a) => a.id)));
+  const [subHist, setSubHistEstado] = useState<SubHist>(() => lembrar("vertente.cli.hist", "diario", SUB_HIST.map((a) => a.id)));
+  const setAba = (a: Aba) => { setAbaEstado(a); guardar("vertente.cli.aba", a); };
+  const setSubDoc = (a: SubDoc) => { setSubDocEstado(a); guardar("vertente.cli.doc", a); };
+  const setSubHist = (a: SubHist) => { setSubHistEstado(a); guardar("vertente.cli.hist", a); };
   const { fichas } = useFichas();
   const [aplicar, setAplicar] = useState(false);
   const proc = useProcessos();
@@ -80,84 +92,84 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
 
   const doCliente = d.tarefas.filter((t) => t.cliente_id === c.id);
   const abertas = doCliente.filter((t) => STATUS_ABERTOS.includes(t.status));
+  const atrasadas = abertas.filter((t) => atrasada(t)).length;
   const visiveis = (verConcluidas ? doCliente : abertas).slice().sort(ordenar);
   const pilaresUsados = PILARES.filter((p) => p !== "interno" || visiveis.some((t) => t.pilar === "interno"));
-  const feitas7 = doCliente.filter((t) => t.status === "feita" && t.concluida_em && t.concluida_em.slice(0, 10) >= somarDias(hoje(), -7)).length;
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-5">
-      <button onClick={() => ir("clientes-carteira")} className="flex w-fit items-center gap-1.5 text-[13px] text-muted hover:text-fg">
-        <ArrowLeft size={14} /> Carteira
-      </button>
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="eyebrow">{c.origem === "parceria_marcone" ? "Parceria Marcone" : "Cliente Vertente"}</div>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight">{c.nome}</h1>
-          <Atalhos ficha={fichas.find((f) => f.id === c.id)} />
+      <header className="flex flex-col gap-3">
+        <button onClick={() => ir("clientes-carteira")} className="flex w-fit items-center gap-1.5 text-[12.5px] text-muted hover:text-fg">
+          <ArrowLeft size={13} /> Carteira
+        </button>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[26px] font-semibold leading-tight tracking-tight">{c.nome}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-muted">
+              <span>{c.origem === "parceria_marcone" ? "Parceria Marcone" : "Cliente Vertente"}</span>
+              <span><b className="num text-fg">{abertas.length}</b> abertas</span>
+              {atrasadas > 0 && <span className="text-bad"><b className="num">{atrasadas}</b> atrasadas</span>}
+              <SaudeResumo clienteId={c.id} />
+            </div>
+            <Atalhos ficha={fichas.find((f) => f.id === c.id)} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <details className="relative">
+              <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] hover:border-line-forte [&::-webkit-details-marker]:hidden">
+                Temperatura <SeloTemperatura clienteId={c.id} vazio="definir" />
+              </summary>
+              <div className="absolute right-0 z-30 mt-1 rounded-xl border border-line bg-surface p-2 shadow-lg"><MarcarTemperatura clienteId={c.id} compacto /></div>
+            </details>
+            <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}><BarChart3 size={14} /> Dashboard</Botao>
+            <CompartilharPainel clienteId={c.id} />
+            <Botao variante="primario" onClick={() => setNova(true)}><Plus size={14} /> Nova tarefa</Botao>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Botao onClick={() => setAplicar(true)}><ListChecks size={14} /> Aplicar onboarding</Botao>
-          <Botao onClick={() => ir(`trafego-cliente-${c.id}`)}>Dashboard de tráfego</Botao>
-          <CompartilharPainel clienteId={c.id} />
-          <Botao onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
-          <Botao variante="primario" onClick={() => setNova(true)}>
-            <Plus size={14} /> Nova tarefa
-          </Botao>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Numero rotulo="Abertas" valor={abertas.length} />
-        <Numero rotulo="Atrasadas" valor={abertas.filter((t) => atrasada(t)).length} alerta={abertas.some((t) => atrasada(t))} />
-        <Numero rotulo="Rotinas ativas" valor={d.clienteRotinas.filter((r) => r.cliente_id === c.id && r.ativa).length} />
-        <Numero rotulo="Concluídas em 7 dias" valor={feitas7} />
-      </div>
-
-      <FichaEstrategica clienteId={c.id} abrirBriefing={() => setAba("briefing")} />
-
-      <ResumoEstrategico
-        b={briefings.linhas.find((x) => x.cliente_id === c.id)}
-        fixadas={notas.linhas.filter((n) => n.cliente_id === c.id && n.fixada).map((n) => n.titulo || n.texto)}
-        ir={setAba}
-      />
-
-      <section className="rounded-2xl border border-line bg-surface p-4">
-        <MarcarTemperatura clienteId={c.id} />
-      </section>
-
-      <ProgressoProcessos clienteId={c.id} aplicados={proc.aplicados.linhas} />
-
-      <NumerosDaConta clienteId={c.id} />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="tablist" className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1">
-          {([["acompanhamento", "Acompanhamento"], ["tarefas", "Tarefas e rotinas"], ["briefing", "Briefing"], ["notas", "Anotações"], ["roteiros", "Roteiros"], ["acessos", "Acessos e links"], ["diario", "Diário de Bordo"], ["linha", "Linha do tempo"], ["drive", "Pasta no Drive"]] as const).map(([v, n]) => (
-            <button key={v} role="tab" aria-selected={aba === v} onClick={() => setAba(v)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
-              {n}
+        <nav role="tablist" className="abas-linha -mb-1 flex gap-6 overflow-x-auto border-b border-line">
+          {ABAS.map((a) => (
+            <button key={a.id} role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)} className={`whitespace-nowrap border-b-2 pb-2.5 text-[14px] font-medium ${aba === a.id ? "border-accent text-fg" : "border-transparent text-muted hover:text-fg"}`}>
+              {a.nome}
             </button>
           ))}
-        </div>
-        <SaudeResumo clienteId={c.id} />
-      </div>
+        </nav>
+      </header>
 
-      {aba === "acompanhamento" ? (
-        <Acompanhamento clienteId={c.id} />
-      ) : aba === "briefing" ? (
-        <BriefingCliente clienteId={c.id} />
-      ) : aba === "notas" ? (
-        <Anotacoes clienteId={c.id} />
-      ) : aba === "roteiros" ? (
-        <RoteirosIA clienteId={c.id} />
-      ) : aba === "acessos" ? (
-        <AcessosCliente clienteId={c.id} />
-      ) : aba === "diario" ? (
-        <DiarioBordo clienteId={c.id} />
-      ) : aba === "linha" ? (
-        <LinhaDoTempo clienteId={c.id} />
-      ) : aba === "drive" ? (
-        <PastaDrive clienteId={c.id} />
-      ) : (
+      {aba === "acompanhamento" && <Acompanhamento clienteId={c.id} />}
+
+      {aba === "documentos" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-1.5">
+            {SUB_DOC.map((x) => (
+              <button key={x.id} onClick={() => setSubDoc(x.id)} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12.5px] ${subDoc === x.id ? "border-accent bg-accent-soft font-medium text-accent" : "border-line bg-surface text-muted hover:text-fg"}`}>
+                <x.icone size={13} /> {x.nome}
+              </button>
+            ))}
+          </div>
+          {subDoc === "notas" ? <Anotacoes clienteId={c.id} />
+            : subDoc === "arquivos" ? <div className="rounded-2xl border border-line bg-surface p-4"><Anexos alvo={{ cliente_id: c.id }} coluna="cliente_id" titulo="Arquivos do cliente (PDF)" /><p className="mt-2 text-[12px] text-muted">Contratos, apresentações e materiais. Aparecem aqui também os PDFs anexados em tarefas, notas e reuniões do cliente.</p></div>
+            : subDoc === "briefing" ? <div className="flex flex-col gap-4"><FichaEstrategica clienteId={c.id} abrirBriefing={() => document.getElementById("briefing-inicio")?.scrollIntoView({ behavior: "smooth" })} /><div id="briefing-inicio"><BriefingCliente clienteId={c.id} /></div></div>
+            : subDoc === "roteiros" ? <RoteirosIA clienteId={c.id} />
+            : subDoc === "acessos" ? <AcessosCliente clienteId={c.id} />
+            : <PastaDrive clienteId={c.id} />}
+        </div>
+      )}
+
+      {aba === "historico" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-1.5">
+            {SUB_HIST.map((x) => (
+              <button key={x.id} onClick={() => setSubHist(x.id)} className={`rounded-full border px-3 py-1.5 text-[12.5px] ${subHist === x.id ? "border-accent bg-accent-soft font-medium text-accent" : "border-line bg-surface text-muted hover:text-fg"}`}>{x.nome}</button>
+            ))}
+          </div>
+          {subHist === "diario" ? <DiarioBordo clienteId={c.id} /> : subHist === "reunioes" ? <Reunioes clienteId={c.id} /> : <LinhaDoTempo clienteId={c.id} />}
+        </div>
+      )}
+
+      {aba === "tarefas" && (
       <>
+      <div className="flex justify-end">
+        <Botao variante="fantasma" onClick={() => setVerConcluidas((v) => !v)}>{verConcluidas ? "Esconder concluídas" : "Ver concluídas (30 dias)"}</Botao>
+      </div>
       <div className="-mx-1 overflow-x-auto px-1 pb-2">
         <div className="grid min-w-[880px] gap-3" style={{ gridTemplateColumns: `repeat(${pilaresUsados.length}, minmax(0, 1fr))` }}>
           {pilaresUsados.map((p) => {
@@ -179,6 +191,14 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
       </div>
 
       <RotinasDoCliente clienteId={c.id} />
+
+      <details className="rounded-2xl border border-line bg-surface px-4 py-3">
+        <summary className="cursor-pointer text-[13px] font-semibold">Processos e onboarding <span className="font-normal text-muted">· aplicados uma vez, viram tarefas</span></summary>
+        <div className="mt-3 flex flex-col gap-3">
+          <ProgressoProcessos clienteId={c.id} aplicados={proc.aplicados.linhas} />
+          <Botao onClick={() => setAplicar(true)} className="w-fit"><ListChecks size={14} /> Aplicar um processo (onboarding)</Botao>
+        </div>
+      </details>
       </>
       )}
 
@@ -415,40 +435,3 @@ function Atalhos({ ficha }: { ficha?: import("../../lib/cadastro").Ficha }) {
 }
 
 /** Faixa com o essencial do briefing e as notas fixadas, sempre visível na tela do cliente. */
-function ResumoEstrategico({ b, fixadas, ir }: { b?: import("../../lib/briefing").Briefing; fixadas: string[]; ir: (a: Aba) => void }) {
-  const comp = completudeBriefing(b);
-  const v = (k: string) => b?.campos?.[k]?.trim();
-  const itens = [
-    { rotulo: "Objetivo", texto: v("objetivo_principal") },
-    { rotulo: "KPI", texto: v("kpi_principal") },
-    { rotulo: "Verba", texto: v("verba_midia") },
-  ];
-  return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-      <button onClick={() => ir("briefing")} className="flex flex-col gap-2 rounded-2xl bg-surface p-4 text-left hover:ring-1 hover:ring-accent/30 sm:flex-row sm:items-center sm:gap-5" style={{ boxShadow: "var(--sombra)" }}>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Target size={17} /></span>
-          <div>
-            <div className="text-[13px] font-semibold">Briefing</div>
-            <div className={`num text-[12px] ${comp.pct >= 80 ? "text-ok" : comp.pct >= 40 ? "text-warn" : "text-muted"}`}>{comp.pct}% preenchido</div>
-          </div>
-        </div>
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
-          {itens.map((i) => (
-            <div key={i.rotulo} className="min-w-0">
-              <div className="text-[11.5px] text-muted">{i.rotulo}</div>
-              <div className={`truncate text-[13px] ${i.texto ? "font-medium" : "text-muted"}`}>{i.texto || "Definir no briefing"}</div>
-            </div>
-          ))}
-        </div>
-      </button>
-      <button onClick={() => ir("notas")} className="flex items-center gap-3 rounded-2xl bg-surface p-4 text-left hover:ring-1 hover:ring-accent/30 lg:w-[300px]" style={{ boxShadow: "var(--sombra)" }}>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">{fixadas.length ? <Pin size={16} /> : <FileText size={16} />}</span>
-        <div className="min-w-0">
-          <div className="text-[13px] font-semibold">{fixadas.length ? `${fixadas.length} nota${fixadas.length > 1 ? "s" : ""} fixada${fixadas.length > 1 ? "s" : ""}` : "Anotações"}</div>
-          <div className="truncate text-[12px] text-muted">{fixadas[0] ?? "Combinados, ideias e aprendizados"}</div>
-        </div>
-      </button>
-    </div>
-  );
-}

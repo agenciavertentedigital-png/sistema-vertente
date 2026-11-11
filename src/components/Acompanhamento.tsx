@@ -1,7 +1,7 @@
 import { PdfsPendentes, enviarAnexos } from "./Anexos";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CalendarClock, Check, Copy, Handshake, Hourglass, MessageSquareReply, Plus, Send, SlidersHorizontal, Trophy, Users2, X } from "lucide-react";
+import { CalendarClock, Check, Copy, Hourglass, Plus, Send, SlidersHorizontal, Trophy, Users2, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { repo } from "../lib/repo";
@@ -9,7 +9,6 @@ import { supabase } from "../lib/supabase";
 import { AGUARDANDO, PILAR, PILARES, STATUS_ABERTOS, atrasada, dataCurta, hoje, somarDias, type AguardandoMotivo, type Canal, type Pilar, type Registro, type Tarefa } from "../lib/tipos";
 import { Botao, Entrada, Rotulo, Selecao, Vazio, campo } from "./ui";
 import { PainelTarefa } from "./tarefas/PainelTarefa";
-import { Reunioes } from "./Reunioes";
 
 type Form = "vertente" | "cliente" | "retorno" | "combinado" | "conquista" | "otimizacao" | null;
 
@@ -55,8 +54,6 @@ export function Acompanhamento({ clienteId }: { clienteId: string }) {
   const ordenar = (a: Tarefa, b: Tarefa) => (a.prazo ?? "9999").localeCompare(b.prazo ?? "9999");
   const vertente = abertas.filter((t) => (t.lado ?? "vertente") === "vertente").sort(ordenar);
   const cliente = abertas.filter((t) => t.lado === "cliente").sort(ordenar);
-  const combinados = reg.lista.filter((r) => r.tipo === "combinado" && !r.dados?.encerrado_em);
-  const retornos = reg.lista.filter((r) => r.tipo === "retorno").slice(0, 8);
   const conquistas = reg.lista.filter((r) => r.tipo === "conquista" && !r.dados?.enviado_em);
   const revisar = reg.lista.filter((r) => r.tipo === "otimizacao" && r.dados?.revisar_em && !r.dados?.resultado && r.dados.revisar_em <= somarDias(hoje(), 2));
   const otimizacoes = reg.lista.filter((r) => r.tipo === "otimizacao").slice(0, 6);
@@ -68,8 +65,6 @@ export function Acompanhamento({ clienteId }: { clienteId: string }) {
       <div className="flex flex-wrap gap-2">
         <BotaoAcao icone={Plus} onClick={() => setForm("vertente")}>Vertente deve</BotaoAcao>
         <BotaoAcao icone={Hourglass} onClick={() => setForm("cliente")}>Cliente deve</BotaoAcao>
-        <BotaoAcao icone={MessageSquareReply} onClick={() => setForm("retorno")}>Retorno do cliente</BotaoAcao>
-        <BotaoAcao icone={Handshake} onClick={() => setForm("combinado")}>Combinado</BotaoAcao>
         <BotaoAcao icone={SlidersHorizontal} onClick={() => setForm("otimizacao")}>Otimização</BotaoAcao>
         <BotaoAcao icone={Trophy} onClick={() => setForm("conquista")}>Pequena conquista</BotaoAcao>
       </div>
@@ -95,22 +90,8 @@ export function Acompanhamento({ clienteId }: { clienteId: string }) {
         </Coluna>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Bloco titulo="Combinados vigentes" icone={Handshake} qtd={combinados.length}>
-          {combinados.length === 0 ? <p className="text-[12.5px] text-muted">Nenhum combinado registrado.</p> : combinados.map((r) => (
-            <div key={r.id} className="group flex items-start gap-2 rounded-lg px-1 py-1.5 text-[13px]">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-              <div className="min-w-0 flex-1"><p className="whitespace-pre-wrap">{r.nota}</p><span className="text-[11px] text-muted">{dataCurta(r.data)}</span></div>
-              <button onClick={() => reg.atualizarDados(r, { encerrado_em: hoje() })} title="Não vale mais" className="text-[11px] text-muted opacity-0 hover:text-bad group-hover:opacity-100">encerrar</button>
-            </div>
-          ))}
-        </Bloco>
-        <Bloco titulo="Retornos do cliente" icone={MessageSquareReply} qtd={retornos.length}>
-          {retornos.length === 0 ? <p className="text-[12.5px] text-muted">Nenhum retorno registrado.</p> : retornos.map((r) => (
-            <div key={r.id} className="rounded-lg px-1 py-1.5 text-[13px]"><p className="line-clamp-3 whitespace-pre-wrap">{r.nota}</p><span className="text-[11px] text-muted">{dataCurta(r.data)} · {nome(r.autor_id)}</span></div>
-          ))}
-        </Bloco>
-        <Bloco titulo="Para comunicar" icone={Send} qtd={conquistas.length}>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Bloco titulo="Pequenas conquistas para comunicar" icone={Send} qtd={conquistas.length}>
           {conquistas.length === 0 ? <p className="text-[12.5px] text-muted">Nenhuma conquista esperando envio. A Carol envia toda semana.</p> : (
             <>
               {conquistas.map((r) => (
@@ -123,15 +104,12 @@ export function Acompanhamento({ clienteId }: { clienteId: string }) {
             </>
           )}
         </Bloco>
+        <Bloco titulo="Últimas otimizações" icone={SlidersHorizontal} qtd={otimizacoes.length}>
+          {otimizacoes.length === 0 ? <p className="text-[12.5px] text-muted">Nenhuma otimização registrada. As alterações feitas na Meta já aparecem sozinhas no Diário de Bordo; aqui fica o porquê.</p> : (
+            <div className="flex flex-col gap-2">{otimizacoes.slice(0, 4).map((r) => <CartaoOtimizacao key={r.id} r={r} autor={nome(r.autor_id)} />)}</div>
+          )}
+        </Bloco>
       </div>
-
-      <Bloco titulo="Últimas otimizações" icone={SlidersHorizontal} qtd={otimizacoes.length}>
-        {otimizacoes.length === 0 ? <p className="text-[12.5px] text-muted">Nenhuma otimização registrada. As alterações feitas na Meta já aparecem sozinhas no Diário de Bordo; aqui fica o porquê.</p> : (
-          <div className="grid gap-2 md:grid-cols-2">{otimizacoes.map((r) => <CartaoOtimizacao key={r.id} r={r} autor={nome(r.autor_id)} />)}</div>
-        )}
-      </Bloco>
-
-      <Reunioes clienteId={clienteId} />
 
       {form && <FormRapido tipo={form} clienteId={clienteId} fechar={() => setForm(null)} aoSalvar={reg.recarregar} />}
       {aberta && <PainelTarefa id={aberta} fechar={() => setAberta(null)} />}

@@ -87,6 +87,7 @@ export interface Nota {
   texto: string;
   etiqueta: Etiqueta;
   fixada: boolean;
+  pasta_id?: string | null;
   autor_id: string | null;
   criado_em: string;
   atualizado_em: string;
@@ -105,5 +106,15 @@ function notasDemo(): Nota[] {
 }
 
 export function useNotas() {
-  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, etiqueta, fixada, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
+  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, etiqueta, fixada, pasta_id, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
+}
+
+// ------------------------------------------------------------------
+// Pastas das anotações (por cliente ou da agência), com subpastas
+// ------------------------------------------------------------------
+export interface Pasta { id: string; cliente_id: string | null; pai_id: string | null; nome: string; cor: string | null; ordem: number; criado_em: string }
+export const PASTAS_SUGERIDAS = ["Estratégia", "Reuniões", "Criativos e roteiros", "Campanhas", "Relatórios", "Combinados e contratos"];
+const pastasDemo = (): Pasta[] => [];
+export function usePastas() {
+  return useTabela<Pasta>("pastas", "id, cliente_id, pai_id, nome, cor, ordem, criado_em", pastasDemo, { ordem: { coluna: "nome", asc: true } });
 }
