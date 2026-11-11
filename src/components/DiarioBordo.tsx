@@ -1,3 +1,4 @@
+import { supabase } from "../lib/supabase";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronLeft, Eye, EyeOff, Megaphone, Trophy, ChevronRight, FileDown, MessageSquare, NotebookPen, SlidersHorizontal, Thermometer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -148,16 +149,31 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
   const [paraCliente, setParaCliente] = useState(false);
   const chaveOcultos = `vertente.diario-oculto.${clienteId}.${mes}`;
   const [ocultos, setOcultos] = useState<string[]>([]);
+  // Itens escondidos da versão do cliente ficam no sistema (valem também no Painel do cliente)
+  const [ocultosNoBanco, setOcultosNoBanco] = useState(Boolean(supabase));
   useEffect(() => {
-    try {
-      setOcultos(JSON.parse(localStorage.getItem(chaveOcultos) ?? "[]") as string[]);
-    } catch {
-      setOcultos([]);
-    }
-  }, [chaveOcultos]);
+    let local: string[] = [];
+    try { local = JSON.parse(localStorage.getItem(chaveOcultos) ?? "[]") as string[]; } catch { /* */ }
+    if (!supabase) return setOcultos(local);
+    supabase.from("diario_ocultos").select("item_id").eq("cliente_id", clienteId).then(({ data, error }) => {
+      if (error) { setOcultosNoBanco(false); return setOcultos(local); }
+      setOcultosNoBanco(true);
+      const doBanco = ((data ?? []) as { item_id: string }[]).map((x) => x.item_id);
+      // leva os que só estavam no navegador para o sistema
+      const faltam = local.filter((x) => !doBanco.includes(x));
+      if (faltam.length) supabase!.from("diario_ocultos").upsert(faltam.map((item_id) => ({ cliente_id: clienteId, item_id }))).then(() => null);
+      setOcultos([...new Set([...doBanco, ...local])]);
+    });
+  }, [chaveOcultos, clienteId]);
   const alternarOculto = (id: string) => {
-    const novo = ocultos.includes(id) ? ocultos.filter((x) => x !== id) : [...ocultos, id];
+    const tirar = ocultos.includes(id);
+    const novo = tirar ? ocultos.filter((x) => x !== id) : [...ocultos, id];
     setOcultos(novo);
+    const bruto = id.replace(/^f-/, "");
+    if (supabase && ocultosNoBanco) {
+      const q = tirar ? supabase.from("diario_ocultos").delete().eq("cliente_id", clienteId).in("item_id", [id, bruto]) : supabase.from("diario_ocultos").upsert([{ cliente_id: clienteId, item_id: id }, ...(bruto !== id ? [{ cliente_id: clienteId, item_id: bruto }] : [])]);
+      q.then(({ error }) => error && d.avisar(error.message));
+    }
     try {
       localStorage.setItem(chaveOcultos, JSON.stringify(novo));
     } catch {
@@ -283,7 +299,7 @@ export function DiarioBordo({ clienteId }: { clienteId: string }) {
           </div>
         </header>
 
-        {paraCliente && <p className="nao-imprimir -mt-2 rounded-xl bg-accent-soft px-3 py-2 text-[12.5px] text-accent">Versão do cliente: anotações internas, temperatura, comentários e checagens de rotina ficam de fora. Clique no olho de um item para tirá-lo também; o PDF sai como está na tela.</p>}
+        {paraCliente && <p className="nao-imprimir -mt-2 rounded-xl bg-accent-soft px-3 py-2 text-[12.5px] text-accent">Versão do cliente: anotações internas, temperatura, comentários e checagens de rotina ficam de fora. Clique no olho de um item para tirá-lo também (vale no PDF e no Painel do cliente).</p>}
         {paraCliente && conquistas.filter((e) => !ocultos.includes(e.id)).length > 0 && (
           <section className="rounded-2xl border border-line bg-surface p-4">
             <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold"><Trophy size={15} className="text-warn" /> Pequenas conquistas do mês</h3>

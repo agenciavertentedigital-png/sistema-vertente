@@ -62,6 +62,8 @@ Deno.serve(async (req) => {
     const mesIni = `${mes}-01`, mesFim = new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 
     const saida: Json = { cliente: await dadosCliente(id), mostrar, periodo: { ini, fim, antIni, antFim }, mes };
+    const { data: oc } = await admin.from("diario_ocultos").select("item_id").eq("cliente_id", id);
+    const ocultos = new Set(((oc ?? []) as { item_id: string }[]).map((x) => x.item_id));
 
     // Tráfego (Meta + Google, do banco sincronizado 3x ao dia)
     if (mostrar.trafego) {
@@ -110,16 +112,16 @@ Deno.serve(async (req) => {
       type T = { id: string; titulo: string; concluida_em: string; pilar: string; lado: string | null };
       type M = { id: string; quando: string; evento_texto: string | null; evento: string; objeto_tipo: string | null; objeto_nome: string | null };
       const itens = [
-        ...((rg.data ?? []) as R[]).filter((r) => r.tipo !== "conquista").map((r) => ({
+        ...((rg.data ?? []) as R[]).filter((r) => r.tipo !== "conquista" && !ocultos.has(r.id)).map((r) => ({
           id: `r-${r.id}`, dia: r.data, quando: r.criado_em, tipo: r.tipo,
           titulo: `${TIPO[r.tipo] ?? r.tipo}${r.canal ? ` · ${r.canal === "google" ? "Google Ads" : "Meta Ads"}` : ""}`,
           texto: r.nota ?? "",
           detalhes: [...(r.acoes?.length ? [r.acoes.join(" · ")] : []), ...(r.alteracoes ?? []).map((x) => `${x.tipo}: ${x.descricao}`)],
         })),
-        ...((tf.data ?? []) as T[]).filter((t) => !["interno", "cs"].includes(t.pilar) && t.lado !== "cliente" && !/^revis[aã]o/i.test(t.titulo)).map((t) => ({
+        ...((tf.data ?? []) as T[]).filter((t) => !ocultos.has(t.id) && !["interno", "cs"].includes(t.pilar) && t.lado !== "cliente" && !/^revis[aã]o/i.test(t.titulo)).map((t) => ({
           id: `t-${t.id}`, dia: diaSP(t.concluida_em), quando: t.concluida_em, tipo: "entrega", titulo: "Entrega concluída", texto: t.titulo, detalhes: [] as string[],
         })),
-        ...((mt.data ?? []) as M[]).map((x) => ({
+        ...((mt.data ?? []) as M[]).filter((x) => !ocultos.has(String(x.id))).map((x) => ({
           id: `m-${x.id}`, dia: diaSP(x.quando), quando: x.quando, tipo: "ajuste", titulo: `Ajuste na Meta · ${x.evento_texto ?? x.evento}`,
           texto: [x.objeto_tipo ? OBJ[x.objeto_tipo] ?? "" : "", x.objeto_nome ? `"${x.objeto_nome}"` : ""].filter(Boolean).join(" "), detalhes: [] as string[],
         })),
@@ -146,7 +148,7 @@ Deno.serve(async (req) => {
     // Pequenas conquistas (últimos 6 meses)
     if (mostrar.conquistas) {
       const { data } = await admin.from("registros").select("id, data, nota").eq("cliente_id", id).eq("tipo", "conquista").gte("data", somarDias(hojeBR(), -183)).order("data", { ascending: false }).limit(30);
-      saida.conquistas = ((data ?? []) as { id: string; data: string; nota: string | null }[]).filter((c) => c.nota?.trim());
+      saida.conquistas = ((data ?? []) as { id: string; data: string; nota: string | null }[]).filter((c) => c.nota?.trim() && !ocultos.has(c.id));
     }
     return responder(saida);
   }
