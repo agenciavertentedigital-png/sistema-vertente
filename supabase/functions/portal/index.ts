@@ -127,6 +127,22 @@ Deno.serve(async (req) => {
       saida.diario = itens;
     }
 
+    // Instagram (resumo do mesmo período, pela função instagram com a chave do servidor)
+    if (mostrar.instagram !== false) {
+      const { count } = await admin.from("instagram_contas").select("ig_id", { count: "exact", head: true }).eq("cliente_id", id).eq("ativa", true);
+      if (count) {
+        try {
+          const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/instagram`, { method: "POST", headers: { "Content-Type": "application/json", "x-chave-cron": chave }, body: JSON.stringify({ acao: "relatorio", cliente_id: id, ini, fim }) });
+          const j = (await r.json()) as { perfis?: Json[] };
+          saida.instagram = (j.perfis ?? []).filter((p) => !p.erro).map((p) => ({
+            username: p.username, foto_url: p.foto_url, seguidores: p.seguidores, atual: p.atual, anterior: p.anterior,
+            novos: ((p.dias as { novos?: number }[] | undefined) ?? []).reduce((s, x) => s + (x.novos ?? 0), 0),
+            posts: ((p.posts as { alcance: number | null; curtidas: number }[] | undefined) ?? []).sort((x, y) => (y.alcance ?? y.curtidas) - (x.alcance ?? x.curtidas)).slice(0, 4),
+          }));
+        } catch { /* Instagram fora do ar: o painel segue sem ele */ }
+      }
+    }
+
     // Pequenas conquistas (últimos 6 meses)
     if (mostrar.conquistas) {
       const { data } = await admin.from("registros").select("id, data, nota").eq("cliente_id", id).eq("tipo", "conquista").gte("data", somarDias(hojeBR(), -183)).order("data", { ascending: false }).limit(30);

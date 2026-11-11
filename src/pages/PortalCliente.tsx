@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowDownRight, ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Lock, LogOut, Sparkles, Trophy } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarDays, Camera, ChevronLeft, ChevronRight, Lock, LogOut, Sparkles, Trophy } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import simbolo from "../assets/simbolo-azul.png";
 import { LogoCliente } from "../components/LogoCliente";
@@ -17,6 +17,7 @@ interface Dados {
   trafego?: { plataformas: string[]; total: Par; meta: Par; google: Par; dias: { data: string; gasto: number; contatos: number }[]; campanhas: { nome: string; plataforma: string; gasto: number; contatos: number; cliques: number }[] };
   diario?: { id: string; dia: string; quando: string; tipo: string; titulo: string; texto: string; detalhes: string[] }[];
   conquistas?: { id: string; data: string; nota: string }[];
+  instagram?: { username: string; foto_url: string | null; seguidores: number | null; novos: number; atual: Record<string, number>; anterior: Record<string, number> | null; posts: { id: string; link: string; imagem: string | null; tipo: string; legenda: string; alcance: number | null; curtidas: number; comentarios: number }[] }[];
 }
 
 const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -132,6 +133,7 @@ export function PortalCliente({ slug }: { slug: string }) {
 
       <main className={`mx-auto flex max-w-[1080px] flex-col gap-10 px-4 py-8 sm:px-8 ${carregando ? "opacity-70 transition-opacity" : ""}`}>
         {dados.mostrar.trafego && dados.trafego && <Trafego t={dados.trafego} periodo={periodo} setPeriodo={setPeriodo} p={dados.periodo} />}
+        {dados.instagram && dados.instagram.length > 0 && <Instagram perfis={dados.instagram} />}
         {dados.mostrar.conquistas && dados.conquistas && dados.conquistas.length > 0 && <Conquistas lista={dados.conquistas} />}
         {dados.mostrar.diario && dados.diario && <Diario itens={dados.diario} mes={mes} setMes={setMes} />}
         <footer className="flex items-center justify-center gap-2 pb-6 pt-4 text-[12px] text-muted"><img src={simbolo} alt="" className="h-4 w-4 opacity-70" /> Feito pela Vertente Digital</footer>
@@ -251,6 +253,53 @@ function Grafico({ dias }: { dias: { data: string; gasto: number; contatos: numb
   );
 }
 
+function Instagram({ perfis }: { perfis: NonNullable<Dados["instagram"]> }) {
+  return (
+    <section>
+      <Titulo icone={<Camera size={17} style={{ color: "#c2508a" }} />}>Instagram</Titulo>
+      <div className="flex flex-col gap-4">
+        {perfis.map((p) => {
+          const k = [["Alcance", "reach"], ["Visualizações", "views"], ["Interações", "total_interactions"], ["Visitas ao perfil", "profile_views"]] as const;
+          return (
+            <div key={p.username} className="overflow-hidden rounded-3xl border border-line bg-surface">
+              <div className="flex items-center gap-3 px-5 pt-5">
+                {p.foto_url ? <img src={p.foto_url} alt="" className="h-10 w-10 rounded-full object-cover" /> : <span className="h-10 w-10 rounded-full bg-raised" />}
+                <div className="min-w-0">
+                  <div className="text-[14px] font-semibold">@{p.username}</div>
+                  <div className="num text-[12.5px] text-muted"><b className="text-fg">{int(p.seguidores ?? 0)}</b> seguidores{p.novos > 0 ? <span className="text-ok"> · +{int(p.novos)} no período</span> : null}</div>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 border-t border-line md:grid-cols-4">
+                {k.map(([nome, chave], i) => {
+                  const v = p.atual?.[chave] ?? 0, b = p.anterior?.[chave] ?? 0;
+                  const vr = b ? (v - b) / b : null;
+                  return (
+                    <div key={chave} className={`flex flex-col gap-1.5 px-5 py-5 ${i % 2 ? "border-l border-line" : ""} ${i >= 2 ? "border-t border-line md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`}>
+                      <span className="text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted">{nome}</span>
+                      <span className="num text-[26px] font-semibold leading-none tracking-tight">{int(v)}</span>
+                      {vr !== null && Math.abs(vr) >= 0.005 ? <span className={`num inline-flex w-fit items-center gap-0.5 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${vr > 0 ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>{vr > 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}{Math.abs(Math.round(vr * 100))}%</span> : <span className="text-[11.5px] text-muted">estável</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {p.posts.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 border-t border-line p-5 md:grid-cols-4">
+                  {p.posts.map((x) => (
+                    <a key={x.id} href={x.link} target="_blank" rel="noreferrer" className="overflow-hidden rounded-2xl border border-line bg-bg hover:border-line-forte">
+                      <div className="aspect-square bg-raised">{x.imagem ? <img src={x.imagem} alt="" loading="lazy" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-[12px] text-muted">{x.tipo}</div>}</div>
+                      <div className="num flex items-center gap-2 px-3 py-2 text-[12px]"><b>{int(x.alcance ?? 0)}</b><span className="text-muted">alcance</span><span className="ml-auto text-muted">♥ {int(x.curtidas)}</span></div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function Conquistas({ lista }: { lista: NonNullable<Dados["conquistas"]> }) {
   return (
     <section>
@@ -333,6 +382,7 @@ function demo(ini: string, fim: string, mes: string): Dados {
     periodo: { ini, fim, antIni: somarDias(ini, -n), antFim: somarDias(ini, -1) },
     mes,
     trafego: { plataformas: ["meta", "google"], total: { atual: s(1), anterior: s(0.86) }, meta: { atual: s(0.66), anterior: s(0.6) }, google: { atual: s(0.34), anterior: s(0.3) }, dias, campanhas: [{ nome: "[VD] Mensagens - Implante capilar", plataforma: "meta", gasto: 1984, contatos: 176, cliques: 1648 }, { nome: "[VD] Cadastro - Avaliação gratuita", plataforma: "meta", gasto: 1202, contatos: 68, cliques: 933 }, { nome: "Pesquisa - Transplante capilar", plataforma: "google", gasto: 1785, contatos: 90, cliques: 555 }] },
+    instagram: [{ username: "clinicanobrefio", foto_url: null, seguidores: 8432, novos: 174, atual: { reach: 18420, views: 64210, total_interactions: 2380, profile_views: 1530 }, anterior: { reach: 15100, views: 58800, total_interactions: 2510, profile_views: 1290 }, posts: [{ id: "p1", link: "https://instagram.com", imagem: null, tipo: "Reels", legenda: "", alcance: 2400, curtidas: 40, comentarios: 3 }, { id: "p2", link: "https://instagram.com", imagem: null, tipo: "Carrossel", legenda: "", alcance: 2120, curtidas: 51, comentarios: 4 }, { id: "p3", link: "https://instagram.com", imagem: null, tipo: "Imagem", legenda: "", alcance: 1840, curtidas: 62, comentarios: 5 }, { id: "p4", link: "https://instagram.com", imagem: null, tipo: "Reels", legenda: "", alcance: 1560, curtidas: 73, comentarios: 6 }] }],
     conquistas: [{ id: "1", data: somarDias(fim, -2), nota: "Custo por contato caiu 22% na semana com os novos criativos de depoimento." }, { id: "2", data: somarDias(fim, -9), nota: "Recorde de 31 conversas em um único dia." }, { id: "3", data: somarDias(fim, -20), nota: "Campanha de avaliação gratuita trouxe 14 agendamentos no primeiro mês." }],
     diario: [
       { id: "a", dia: somarDias(fim, 0), quando: `${fim}T15:00:00Z`, tipo: "otimizacao", titulo: "Otimização · Meta Ads", texto: "Pausamos 3 anúncios com CTR baixo e subimos 2 criativos novos no remarketing.", detalhes: [] },

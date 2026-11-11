@@ -22,6 +22,7 @@ import { useConfigDashboard } from "./painel/config";
 import { FunilVendas, somarLancamentos, useLancamentosFunil } from "./painel/FunilVendas";
 import { GRAFICOS_GERAL_PADRAO, useGraficosGeral } from "./painel/AbaGeral";
 import { AnaliseFunil } from "./painel/AnaliseFunil";
+import { AbaInstagram, useRelatorioIG } from "./painel/AbaInstagram";
 import { supabase } from "../../lib/supabase";
 import { useLogos } from "../../lib/logos";
 import { LogoCliente } from "../../components/LogoCliente";
@@ -76,11 +77,12 @@ const ATALHOS: { id: Atalho; nome: string }[] = [
 // ------------------------------------------------------------------
 // Página
 // ------------------------------------------------------------------
-type AbaDash = "geral" | "meta" | "google" | "funil";
+type AbaDash = "geral" | "meta" | "google" | "instagram" | "funil";
 const ABAS_DASH: { id: AbaDash; nome: string }[] = [
   { id: "geral", nome: "Geral" },
   { id: "meta", nome: "Meta Ads" },
   { id: "google", nome: "Google Ads" },
+  { id: "instagram", nome: "Instagram" },
   { id: "funil", nome: "Funil de Vendas" },
 ];
 type CfgAba = ConfigPainel;
@@ -143,6 +145,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 
   // Google (ao vivo)
   const g = useRelatorioGoogle(clienteId, per.ini, per.fim, !!plats?.google);
+  // Instagram (ao vivo, só quando a aba está aberta)
+  const ig = useRelatorioIG(clienteId, per.ini, per.fim, aba === "instagram");
 
   // Lançamentos e configuração
   const lanc = useLancamentosFunil();
@@ -227,7 +231,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
             <select aria-label="Período" value={atalho} onChange={(e) => setAtalho(e.target.value as Atalho)} className="h-9 rounded-xl border border-line bg-surface px-3 text-[13px] font-medium outline-none hover:border-line-forte focus:border-accent">
               {ATALHOS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
-            <button onClick={() => { buscar(); g.buscar(); }} disabled={ocupado} className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted hover:border-line-forte hover:text-fg disabled:opacity-60" aria-label="Atualizar" title="Atualizar">
+            <button onClick={() => { buscar(); g.buscar(); if (abaAtual === "instagram") ig.buscar(); }} disabled={ocupado} className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted hover:border-line-forte hover:text-fg disabled:opacity-60" aria-label="Atualizar" title="Atualizar">
               <RefreshCw size={15} className={ocupado ? "animate-spin" : ""} />
             </button>
           </div>
@@ -240,7 +244,7 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
           )}
           <nav role="tablist" aria-label="Visão" className="abas-linha -mb-px flex w-full gap-6 overflow-x-auto pt-2">
             {abas.map((x) => {
-              const cor = x.id === "google" ? "#e2701c" : x.id === "funil" ? "var(--ok)" : "var(--accent)";
+              const cor = x.id === "google" ? "#e2701c" : x.id === "funil" ? "var(--ok)" : x.id === "instagram" ? "#c2508a" : "var(--accent)";
               return (
                 <button key={x.id} role="tab" aria-selected={abaAtual === x.id} onClick={() => escolherAba(x.id)}
                   className={`whitespace-nowrap border-b-2 pb-3 pt-1 text-[13.5px] font-medium transition-colors ${abaAtual === x.id ? "text-fg" : "border-transparent text-muted hover:text-fg"}`}
@@ -296,6 +300,8 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
         ))}
 
       {abaAtual === "google" && <GoogleAdsCliente clienteId={clienteId} ini={per.ini} fim={per.fim} dados={g} painel={painel("Visão geral", cGoogle)} />}
+
+      {abaAtual === "instagram" && <AbaInstagram clienteId={clienteId} dados={ig} />}
 
       {abaAtual === "funil" && (
         <div className={`flex flex-col gap-6 transition-opacity ${ocupado ? "opacity-60" : ""}`}>

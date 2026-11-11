@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useDados } from "../lib/dados";
 import { Botao } from "./ui";
 
-type Portal = { slug: string; ativo: boolean; mostrar: { trafego?: boolean; diario?: boolean; conquistas?: boolean }; ultimo_acesso: string | null };
+type Portal = { slug: string; ativo: boolean; mostrar: { trafego?: boolean; diario?: boolean; conquistas?: boolean; instagram?: boolean }; ultimo_acesso: string | null };
 const SITE = "https://sistema.agenciavertente.com.br";
 const slugDe = (nome: string) => nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "cliente";
 
@@ -106,7 +106,7 @@ function Janela({ clienteId, fechar }: { clienteId: string; fechar: () => void }
                 </div>
                 <div className="flex flex-col gap-1.5 text-[13px]">
                   <span className="text-[12.5px] font-medium">O que o cliente vê</span>
-                  {([["trafego", "Resultados das campanhas"], ["conquistas", "Pequenas conquistas"], ["diario", "Diário de Bordo"]] as const).map(([k, n]) => (
+                  {([["trafego", "Resultados das campanhas"], ["instagram", "Instagram (se o perfil estiver ligado)"], ["conquistas", "Pequenas conquistas"], ["diario", "Diário de Bordo"]] as const).map(([k, n]) => (
                     <label key={k} className="flex items-center gap-2">
                       <input type="checkbox" checked={p.mostrar?.[k] !== false} onChange={(e) => mudar({ mostrar: { ...p.mostrar, [k]: e.target.checked } })} className="h-4 w-4 accent-[var(--accent)]" /> {n}
                     </label>
