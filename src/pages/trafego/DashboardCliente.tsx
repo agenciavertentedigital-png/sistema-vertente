@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ExternalLink, Image as ImagemIcone, PlayCircle, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, Image as ImagemIcone, PlayCircle, RefreshCw, Wallet } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { hoje, somarDias } from "../../lib/tipos";
 import { STATUS_CONTA, repoTrafego } from "../../lib/trafego";
@@ -13,7 +13,7 @@ import {
   type Metricas,
   type RelatorioMeta,
 } from "../../lib/relatorio";
-import { Botao, Entrada, Vazio } from "../../components/ui";
+import { Entrada, Vazio } from "../../components/ui";
 import { GoogleAdsCliente, useRelatorioGoogle } from "./GoogleAdsCliente";
 import { CATALOGO, FUNIL_PADRAO, PADRAO, defFormula, metricasDoFunil, valorEtapa, variaveis, type ConfigFunil, type Contexto } from "../../lib/painel";
 import { PainelMetricas, type ConfigPainel } from "./painel/PainelMetricas";
@@ -23,6 +23,8 @@ import { FunilVendas, somarLancamentos, useLancamentosFunil } from "./painel/Fun
 import { GRAFICOS_GERAL_PADRAO, useGraficosGeral } from "./painel/AbaGeral";
 import { AnaliseFunil } from "./painel/AnaliseFunil";
 import { supabase } from "../../lib/supabase";
+import { useLogos } from "../../lib/logos";
+import { LogoCliente } from "../../components/LogoCliente";
 
 // ------------------------------------------------------------------
 // Formatação
@@ -203,52 +205,52 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
   const abaAtual = abas.some((x) => x.id === aba) ? aba : "geral";
   const periodoTexto = `${dataBR(per.ini)} a ${dataBR(per.fim)}, comparado com ${dataBR(ant.ini)} a ${dataBR(ant.fim)}.`;
   const ocupado = carregando || g.carregando;
+  const lg = useLogos();
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
-      <button onClick={() => ir("trafego-dashboards")} className="flex w-fit items-center gap-1.5 text-[13px] text-muted hover:text-fg">
-        <ArrowLeft size={14} /> Dashboards
-      </button>
-
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <div className="eyebrow">Dashboard de tráfego · {ABAS_DASH.find((x) => x.id === abaAtual)?.nome}</div>
-          <h1 className="mt-1 text-[28px] font-semibold leading-tight">{cliente?.nome ?? "Cliente"}</h1>
-          <p className="mt-1 text-[13px] text-muted">{periodoTexto}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Botao variante="fantasma" onClick={() => ir(`cliente-${clienteId}`)}>Tarefas do cliente</Botao>
-          <Botao onClick={() => { buscar(); g.buscar(); }} disabled={ocupado}>
-            <RefreshCw size={14} className={ocupado ? "animate-spin" : ""} /> {ocupado ? "Buscando…" : "Atualizar"}
-          </Botao>
-        </div>
-      </header>
-
-      <div className="flex flex-col gap-2">
-        <div role="tablist" aria-label="Visão" className="flex w-fit flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
-          {abas.map((x) => (
-            <button key={x.id} role="tab" aria-selected={abaAtual === x.id} onClick={() => escolherAba(x.id)} className={`rounded-lg px-3.5 py-1.5 text-[13px] font-medium ${abaAtual === x.id ? (x.id === "google" ? "bg-[#e2701c] text-white" : x.id === "funil" ? "bg-ok text-white" : "bg-accent text-accent-fg") : "text-muted hover:text-fg"}`}>
-              {x.nome}
+      <header className="relative overflow-hidden rounded-3xl border border-line bg-surface">
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ background: "radial-gradient(120% 140% at 0% 0%, var(--accent) 0%, transparent 55%)" }} />
+        <div className="relative flex flex-wrap items-center gap-4 px-5 pb-0 pt-5 sm:px-6">
+          <button onClick={() => ir("trafego-dashboards")} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-raised hover:text-fg" aria-label="Voltar aos dashboards" title="Dashboards">
+            <ArrowLeft size={16} />
+          </button>
+          <LogoCliente nome={cliente?.nome ?? "Cliente"} url={lg.logos[clienteId]} tamanho={52}
+            trocar={lg.disponivel ? async (f) => { try { await lg.enviar(clienteId, f); d.avisar("Logo atualizada"); } catch (e) { d.avisar((e as Error).message); } } : undefined} />
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[24px] font-semibold leading-tight tracking-tight">{cliente?.nome ?? "Cliente"}</h1>
+            <p className="mt-0.5 truncate text-[12.5px] text-muted">{dataBR(per.ini)} – {dataBR(per.fim)} <span className="opacity-70">· vs. {dataBR(ant.ini)} – {dataBR(ant.fim)}</span></p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <select aria-label="Período" value={atalho} onChange={(e) => setAtalho(e.target.value as Atalho)} className="h-9 rounded-xl border border-line bg-surface px-3 text-[13px] font-medium outline-none hover:border-line-forte focus:border-accent">
+              {ATALHOS.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <button onClick={() => { buscar(); g.buscar(); }} disabled={ocupado} className="grid h-9 w-9 place-items-center rounded-xl border border-line text-muted hover:border-line-forte hover:text-fg disabled:opacity-60" aria-label="Atualizar" title="Atualizar">
+              <RefreshCw size={15} className={ocupado ? "animate-spin" : ""} />
             </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Período" className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1">
-            {ATALHOS.map((a) => (
-              <button key={a.id} role="tab" aria-selected={atalho === a.id} onClick={() => setAtalho(a.id)} className={`rounded-lg px-3 py-1 text-[12.5px] ${atalho === a.id ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"}`}>
-                {a.nome}
-              </button>
-            ))}
           </div>
           {atalho === "custom" && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center justify-end gap-2">
               <Entrada id="dash-ini" type="date" aria-label="De" value={custom.ini} max={custom.fim} onChange={(e) => setCustom((c) => ({ ...c, ini: e.target.value }))} className="!w-auto" />
               <span className="text-muted">a</span>
               <Entrada id="dash-fim" type="date" aria-label="Até" value={custom.fim} min={custom.ini} max={hoje()} onChange={(e) => setCustom((c) => ({ ...c, fim: e.target.value }))} className="!w-auto" />
             </div>
           )}
+          <nav role="tablist" aria-label="Visão" className="abas-linha -mb-px flex w-full gap-6 overflow-x-auto pt-2">
+            {abas.map((x) => {
+              const cor = x.id === "google" ? "#e2701c" : x.id === "funil" ? "var(--ok)" : "var(--accent)";
+              return (
+                <button key={x.id} role="tab" aria-selected={abaAtual === x.id} onClick={() => escolherAba(x.id)}
+                  className={`whitespace-nowrap border-b-2 pb-3 pt-1 text-[13.5px] font-medium transition-colors ${abaAtual === x.id ? "text-fg" : "border-transparent text-muted hover:text-fg"}`}
+                  style={abaAtual === x.id ? { borderColor: cor } : undefined}>
+                  {x.nome}
+                </button>
+              );
+            })}
+            <button onClick={() => ir(`cliente-${clienteId}`)} className="ml-auto whitespace-nowrap pb-3 pt-1 text-[12.5px] text-muted hover:text-fg">Tarefas do cliente →</button>
+          </nav>
         </div>
-      </div>
+      </header>
 
       {erro && abaAtual !== "google" && <div className="rounded-xl border border-bad bg-bad-soft px-4 py-3 text-[13px] text-bad">Não foi possível buscar na Meta: {erro}</div>}
 
@@ -274,16 +276,20 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
             ))}
             {painel("Visão geral", cMeta)}
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-              <Cartao titulo="Funil geral" subtitulo="Do anúncio visto ao contato e à venda">
+              <Cartao titulo="Funil">
                 <FunilGeral r={r} />
               </Cartao>
-              <Cartao titulo="Dia a dia" subtitulo="Investimento (barras) e contatos (linha)">
+              <Cartao titulo="Dia a dia" subtitulo="Investimento e contatos">
                 <GraficoDiario dias={r.dias} />
               </Cartao>
             </section>
-            <PorObjetivo grupos={r.grupos} total={r.total.gasto} />
             <Criativos anuncios={r.anuncios} />
-            <Campanhas grupos={r.grupos} />
+            <Recolhivel id="objetivos" titulo="Por objetivo das campanhas" resumo={`${r.grupos.length} ${r.grupos.length === 1 ? "objetivo" : "objetivos"}`}>
+              <PorObjetivo grupos={r.grupos} total={r.total.gasto} />
+            </Recolhivel>
+            <Recolhivel id="campanhas" titulo="Campanhas" resumo={`${r.grupos.reduce((n, x) => n + x.campanhas.length, 0)} com entrega no período`}>
+              <Campanhas grupos={r.grupos} />
+            </Recolhivel>
           </div>
         ))}
 
@@ -312,16 +318,33 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
 // ------------------------------------------------------------------
 // Blocos
 // ------------------------------------------------------------------
+/** Seção que abre e fecha (lembra a escolha). Deixa a tela limpa e o detalhe a um clique. */
+export function Recolhivel({ id, titulo, resumo, children }: { id: string; titulo: string; resumo?: string; children: React.ReactNode }) {
+  const chave = `vertente.dash-abre.${id}`;
+  const [aberto, setAberto] = useState(() => { try { return localStorage.getItem(chave) === "1"; } catch { return false; } });
+  const mudar = () => { const v = !aberto; setAberto(v); try { localStorage.setItem(chave, v ? "1" : "0"); } catch { /* sem armazenamento */ } };
+  return (
+    <section className="flex flex-col gap-3">
+      <button onClick={mudar} aria-expanded={aberto} className="group flex items-center gap-3 rounded-2xl border border-line bg-surface px-5 py-3.5 text-left hover:border-line-forte">
+        <span className="text-[14px] font-semibold">{titulo}</span>
+        {resumo && <span className="text-[12.5px] text-muted">{resumo}</span>}
+        <ChevronDown size={16} className={`ml-auto text-muted transition-transform ${aberto ? "rotate-180" : ""}`} />
+      </button>
+      {aberto && <div className="anim-entrar">{children}</div>}
+    </section>
+  );
+}
+
 export function Cartao({ titulo, subtitulo, children, direita }: { titulo: string; subtitulo?: string; children: React.ReactNode; direita?: React.ReactNode }) {
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      {(titulo || direita) && <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-[15px] font-semibold">{titulo}</h2>
+          {titulo && <h2 className="text-[15px] font-semibold">{titulo}</h2>}
           {subtitulo && <p className="text-[12.5px] text-muted">{subtitulo}</p>}
         </div>
         {direita}
-      </div>
+      </div>}
       {children}
     </section>
   );
@@ -556,10 +579,6 @@ function PorObjetivo({ grupos, total }: { grupos: GrupoResumo[]; total: number }
   if (grupos.length === 0) return null;
   return (
     <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-[15px] font-semibold">Por objetivo das campanhas</h2>
-        <p className="text-[12.5px] text-muted">Cada bloco junta as campanhas pelo resultado que elas buscam, com o funil próprio daquele objetivo.</p>
-      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {grupos.map((g) => {
           const info = GRUPOS[g.id];
@@ -648,11 +667,13 @@ function Criativos({ anuncios }: { anuncios: AnuncioResumo[] }) {
       return b.m.gasto - a.m.gasto;
     })
     .slice(0, 8);
+  const [todos, setTodos] = useState(false);
+  const visiveis = todos ? lista : lista.slice(0, 4);
 
   return (
     <Cartao
       titulo="Melhores criativos"
-      subtitulo="Anúncios que rodaram no período, com o resultado de cada um"
+      subtitulo="Os que mais entregaram no período"
       direita={
         <div className="flex flex-wrap gap-2">
           <select aria-label="Objetivo" value={grupo} onChange={(e) => setGrupo(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1 text-[12.5px]">
@@ -675,10 +696,15 @@ function Criativos({ anuncios }: { anuncios: AnuncioResumo[] }) {
         <p className="text-[12.5px] text-muted">Nenhum anúncio com resultado suficiente nesse filtro.</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-          {lista.map((a, i) => (
+          {visiveis.map((a, i) => (
             <CartaoCriativo key={a.id} a={a} posicao={i + 1} />
           ))}
         </div>
+      )}
+      {lista.length > 4 && (
+        <button onClick={() => setTodos(!todos)} className="mx-auto flex items-center gap-1 text-[12.5px] text-muted hover:text-fg">
+          {todos ? "Mostrar menos" : `Ver mais ${lista.length - 4}`} <ChevronDown size={13} className={`transition-transform ${todos ? "rotate-180" : ""}`} />
+        </button>
       )}
     </Cartao>
   );
@@ -737,7 +763,7 @@ function Campanhas({ grupos }: { grupos: GrupoResumo[] }) {
   const linhas: CampanhaResumo[] = grupos.flatMap((g) => g.campanhas);
   if (linhas.length === 0) return null;
   return (
-    <Cartao titulo="Campanhas" subtitulo="Todas as campanhas com entrega no período, por objetivo">
+    <Cartao titulo="">
       <div className="-mx-4 overflow-x-auto sm:-mx-5">
         <table className="w-full min-w-[900px] text-left text-[12.5px]">
           <thead>

@@ -15,6 +15,7 @@ import { Marca } from "../components/Marca";
 import { Sininho } from "../components/Sininho";
 import { SeloTemperatura } from "../components/Temperatura";
 import { useSaude } from "./projetos/GestorProjetos";
+import { PizzaResponsaveis } from "../components/PizzaResponsaveis";
 
 interface Props {
   ir: (r: string) => void;
@@ -156,6 +157,8 @@ export function Central({ ir, tema, alternarTema, usuario, onSair, abrirComando,
             ))}
           </div>
         </section>
+
+        <PizzaResponsaveis ir={ir} />
 
         {/* Áreas: o centro da tela */}
         <section className="grid grid-cols-1 gap-4 md:grid-cols-3">

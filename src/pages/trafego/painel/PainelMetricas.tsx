@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Calculator, Check, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calculator, Check, ChevronDown, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
 import { avaliar, formatar, valorVariavel, variacaoRel, type Contexto, type DefMetrica, type Formato, type Formula } from "../../../lib/painel";
 
 export interface ConfigPainel { cards: string[]; formulas: Formula[]; graficos: string[] }
@@ -43,6 +43,45 @@ export function CartaoMetrica({ def, ctx, editando, onRemover, onMover, destaque
   );
 }
 
+/** Métrica principal: número grande, sem caixa própria (divisórias entre elas). */
+function Destaque({ def, ctx, i }: { def: DefMetrica; ctx: Contexto; i: number }) {
+  const v = def.calc(ctx.atual);
+  const a = def.calc(ctx.anterior);
+  const vr = variacaoRel(v, a);
+  const bom = vr === null ? null : def.inverso ? vr < 0 : vr > 0;
+  return (
+    <div className={`flex min-w-0 flex-col gap-1.5 px-5 py-5 ${i % 2 === 1 ? "border-l border-line" : ""} ${i >= 2 ? "border-t border-line md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`} title={def.dica}>
+      <div className="truncate text-[12px] font-medium uppercase tracking-[0.06em] text-muted">{def.nome}</div>
+      <div className="num text-[28px] font-semibold leading-none tracking-tight">{formatar(v, def.fmt)}</div>
+      <div className="flex items-center gap-1.5 text-[11.5px]">
+        {vr === null || Math.abs(vr) < 0.005 ? (
+          <span className="text-muted">{a === null ? "sem comparação" : "igual ao período anterior"}</span>
+        ) : (
+          <>
+            <span className={`num rounded-full px-1.5 py-px font-semibold ${bom ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad"}`}>{vr > 0 ? "+" : "−"}{Math.abs(Math.round(vr * 100))}%</span>
+            <span className="num truncate text-muted">antes {formatar(a, def.fmt)}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Secundaria({ def, ctx }: { def: DefMetrica; ctx: Contexto }) {
+  const v = def.calc(ctx.atual);
+  const vr = variacaoRel(v, def.calc(ctx.anterior));
+  const bom = vr === null ? null : def.inverso ? vr < 0 : vr > 0;
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 bg-surface px-4 py-3" title={def.dica}>
+      <div className="truncate text-[11.5px] text-muted">{def.nome}</div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="num text-[15px] font-semibold">{formatar(v, def.fmt)}</span>
+        {vr !== null && Math.abs(vr) >= 0.005 && <span className={`num text-[11px] ${bom ? "text-ok" : "text-bad"}`}>{vr > 0 ? "+" : "−"}{Math.abs(Math.round(vr * 100))}%</span>}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Grade de métricas personalizável: adicionar e remover do catálogo, mudar a ordem e criar fórmulas próprias.
  * Salva pela função `salvar` (por cliente e aba).
@@ -71,6 +110,8 @@ export function PainelMetricas({
   extra?: React.ReactNode;
 }) {
   const [editando, setEditando] = useState(false);
+  const [verMais, setVerMais] = useState(() => { try { return localStorage.getItem("vertente.dash-mais") === "1"; } catch { return false; } });
+  const alternarMais = (v: boolean) => { setVerMais(v); try { localStorage.setItem("vertente.dash-mais", v ? "1" : "0"); } catch { /* sem armazenamento */ } };
   const [escolhendo, setEscolhendo] = useState(false);
   const [formula, setFormula] = useState<Formula | null>(null);
   const porId = useMemo(() => new Map(catalogo.map((d) => [d.id, d])), [catalogo]);
@@ -99,17 +140,37 @@ export function PainelMetricas({
             </>
           )}
           <button onClick={() => { setEditando(!editando); setEscolhendo(false); }} className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12.5px] ${editando ? "bg-accent font-medium text-accent-fg" : "border border-line text-muted hover:text-fg"}`}>
-            {editando ? <><Check size={14} /> Pronto</> : <><Pencil size={13} /> Personalizar</>}
+            {editando ? <><Check size={14} /> Pronto</> : <><Pencil size={13} /> <span className="hidden sm:inline">Personalizar</span></>}
           </button>
         </div>
       </div>
       {cards.length === 0 ? (
         <button onClick={() => { setEditando(true); setEscolhendo(true); }} className="rounded-2xl border border-dashed border-line px-4 py-6 text-[13px] text-muted hover:border-accent hover:text-accent">Nenhuma métrica. Clique para escolher.</button>
-      ) : (
+      ) : editando ? (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {cards.map((id, i) => (
             <CartaoMetrica key={id} def={porId.get(id)!} ctx={ctx} destaque={i < destaques} editando={editando} onRemover={() => mudar(cards.filter((x) => x !== id))} onMover={(d) => mover(i, d)} />
           ))}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+          <div className="grid grid-cols-2 md:grid-cols-4">
+            {cards.slice(0, destaques).map((id, i) => (
+              <Destaque key={id} def={porId.get(id)!} ctx={ctx} i={i} />
+            ))}
+          </div>
+          {cards.length > destaques && (
+            <>
+              {verMais && (
+                <div className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
+                  {cards.slice(destaques).map((id) => <Secundaria key={id} def={porId.get(id)!} ctx={ctx} />)}
+                </div>
+              )}
+              <button onClick={() => alternarMais(!verMais)} className="flex w-full items-center justify-center gap-1 border-t border-line py-2 text-[12px] text-muted hover:bg-raised/60 hover:text-fg">
+                {verMais ? "Menos métricas" : `Mais ${cards.length - destaques} métricas`} <ChevronDown size={13} className={`transition-transform ${verMais ? "rotate-180" : ""}`} />
+              </button>
+            </>
+          )}
         </div>
       )}
       {escolhendo && <Escolher catalogo={catalogo} ja={cards} fechar={() => setEscolhendo(false)} adicionar={(id) => mudar([...cards, id])} editarFormula={(id) => { const f = config.formulas.find((x) => x.id === id); if (f) { setEscolhendo(false); setFormula(f); } }} excluirFormula={(id) => mudar(cards.filter((x) => x !== id), config.formulas.filter((x) => x.id !== id))} ctx={ctx} />}

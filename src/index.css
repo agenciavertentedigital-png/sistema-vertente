@@ -195,18 +195,19 @@ kbd {
 .md hr { border: 0; border-top: 1px solid var(--line); }
 
 /* Abas: um só controle segmentado em todo o sistema */
-[role="tablist"] {
+[role="tablist"]:not(.abas-linha) {
   background: var(--raised) !important;
   border-color: transparent !important;
   padding: 2px !important;
   gap: 2px !important;
   border-radius: 10px;
 }
-[role="tab"] {
+.abas-linha [role="tab"] { border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }
+[role="tablist"]:not(.abas-linha) [role="tab"] {
   border-radius: 8px !important;
   font-weight: 500;
 }
-[role="tab"][aria-selected="true"] {
+[role="tablist"]:not(.abas-linha) [role="tab"][aria-selected="true"] {
   background: var(--surface) !important;
   color: var(--fg) !important;
   box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(18 22 36 / 0.06);

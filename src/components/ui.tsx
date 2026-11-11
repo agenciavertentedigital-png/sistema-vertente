@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { Pilar, Prioridade, Status } from "../lib/tipos";
@@ -146,4 +146,21 @@ export const COR_SITUACAO = {
 export function PontoSituacao({ situacao, tamanho = 10 }: { situacao: keyof typeof COR_SITUACAO | null; tamanho?: number }) {
   if (!situacao) return null;
   return <span className="inline-block shrink-0 rounded-full" style={{ width: tamanho, height: tamanho, background: COR_SITUACAO[situacao] }} />;
+}
+
+/** Textarea que cresce sozinha conforme o texto (sem barra de rolagem). */
+export function TextoAuto({ minimo = 96, className = "", ...props }: { minimo?: number } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const ajustar = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(minimo, el.scrollHeight + 2)}px`;
+  }, [minimo]);
+  useLayoutEffect(ajustar, [ajustar, props.value]);
+  useEffect(() => {
+    window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
+  }, [ajustar]);
+  return <textarea ref={ref} {...props} onInput={(e) => { ajustar(); props.onInput?.(e); }} className={`resize-none overflow-hidden ${className}`} />;
 }

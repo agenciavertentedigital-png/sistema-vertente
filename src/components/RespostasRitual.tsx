@@ -4,7 +4,7 @@ import { useDados } from "../lib/dados";
 import { repo } from "../lib/repo";
 import { STATUS_ABERTOS, atrasada, dataCurta, diasUteis, hoje, somarDias } from "../lib/tipos";
 import { useTabela } from "../lib/tabela";
-import { Iniciais } from "./ui";
+import { Iniciais, TextoAuto } from "./ui";
 
 export interface RespostaRitual {
   id: string;
@@ -58,12 +58,12 @@ function Formulario({ perguntas, atual, salvar, compacto, inicial }: { perguntas
       {perguntas.map((p) => (
         <label key={p.id} className="flex flex-col gap-1">
           <span className="text-[12.5px] font-medium">{p.rotulo}</span>
-          <textarea
-            rows={compacto ? 2 : 3}
+          <TextoAuto
+            minimo={compacto ? 64 : 120}
             value={valores[p.id] ?? ""}
             onChange={(e) => setValores((v) => ({ ...v, [p.id]: e.target.value }))}
             placeholder={p.dica}
-            className="w-full resize-y rounded-lg border border-line bg-bg px-3 py-2 text-[13px] outline-none focus:border-accent"
+            className="w-full rounded-lg border border-line bg-bg px-3 py-2.5 text-[13.5px] leading-relaxed outline-none focus:border-accent"
           />
         </label>
       ))}
@@ -279,8 +279,8 @@ export function WeeklyRespostas({ semana }: { semana: string }) {
                 {ab && (
                   <div className="anim-entrar flex flex-col gap-3 px-1 pb-3 pt-2">
                     {i.cliente_id && <NumerosSemana clienteId={i.cliente_id} semana={semana} />}
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Formulario perguntas={perguntas} atual={minha} salvar={(r) => salvar(i, minha, r)} compacto />
+                    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+                      <Formulario perguntas={perguntas} atual={minha} salvar={(r) => salvar(i, minha, r)} />
                       <div className="flex flex-col gap-3">
                         <div>
                           <h3 className="mb-2 text-[12.5px] font-semibold text-muted">Respostas do time</h3>

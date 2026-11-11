@@ -300,10 +300,10 @@ function FormReuniao({ tipo, clienteId, tarefaId }: { tipo: Tipo; clienteId: str
         <Entrada key={i} id={`foco-${i}`} aria-label={`Foco ${i + 1}`} placeholder={`${i + 1}. ${i === 0 ? "O mais importante" : "Foco"}`} value={f} onChange={(e) => setFocos((v) => v.map((x, j) => (j === i ? e.target.value : x)))} />
       ))}
       <Rotulo texto="Bloqueios (quem precisa de quê, use @Nome)">
-        <CampoMencao id="bloqueios" rows={2} valor={bloqueios} mudar={setBloqueios} />
+        <CampoMencao id="bloqueios" rows={3} valor={bloqueios} mudar={setBloqueios} />
       </Rotulo>
       <Rotulo texto="Decisões">
-        <CampoMencao id="decisoes" rows={2} valor={decisoes} mudar={setDecisoes} />
+        <CampoMencao id="decisoes" rows={3} valor={decisoes} mudar={setDecisoes} />
       </Rotulo>
       <Botao variante="primario" disabled={!pronto || salvando} onClick={salvar}>
         {salvando ? "Salvando…" : tarefaId ? "Registrar e concluir a rotina" : "Registrar"}

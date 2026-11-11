@@ -1,5 +1,5 @@
 import { ChipsAnexos, PdfsPendentes, enviarAnexos, useAnexos, type Anexo } from "./Anexos";
-import { useCallback, useEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type TextareaHTMLAttributes } from "react";
 import { CheckCircle2, Gavel, Handshake, MessageSquare, NotebookPen, SlidersHorizontal, Trophy, Users2, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { repo } from "../lib/repo";
@@ -15,6 +15,13 @@ export function CampoMencao({ valor, mudar, ...props }: { valor: string; mudar: 
   const antes = valor.slice(0, cursor);
   const m = antes.match(/@([\p{L}]*)$/u);
   const sugestoes = m ? membros.filter((x) => x.nome.toLowerCase().startsWith(m[1].toLowerCase())).slice(0, 5) : [];
+  // Cresce sozinho conforme o texto
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [valor]);
 
   function inserir(nome: string) {
     const primeiro = nome.split(" ")[0];
@@ -40,7 +47,7 @@ export function CampoMencao({ valor, mudar, ...props }: { valor: string; mudar: 
         }}
         onKeyUp={(e) => setCursor(e.currentTarget.selectionStart)}
         onClick={(e) => setCursor(e.currentTarget.selectionStart)}
-        className={`${campo} resize-y ${props.className ?? ""}`}
+        className={`${campo} resize-none overflow-hidden ${props.className ?? ""}`}
       />
       {sugestoes.length > 0 && (
         <div className="absolute left-2 top-full z-10 mt-1 flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1.5 shadow-lg">
