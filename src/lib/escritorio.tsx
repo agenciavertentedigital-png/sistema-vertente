@@ -1,26 +1,41 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import { ENTRADA, SALAS_MAPA, SALA_RELATORIO, salaNoTile, type Lado } from "./escritorioMapa";
+import { ASSENTOS, ENTRADA, SALAS_MAPA, SALA_RELATORIO, salaNoTile, type Lado } from "./escritorioMapa";
 
 // Salas para o relatório e a lista lateral (o lounge soma como Café)
 export const SALAS = SALAS_MAPA.filter((s) => s.id !== "lounge").map((s) => ({ id: s.id, nome: s.id === "cafe" ? "Copa e lounge" : s.nome, icone: s.icone, cor: s.cor }));
 export const SALA_FORA = { id: "corredor", nome: "Corredor" };
 export const salaRelatorio = (tileSala: string | null) => (tileSala ? SALA_RELATORIO[tileSala] ?? tileSala : SALA_FORA.id);
 
+/** Sala que combina com a tarefa que entrou em "Fazendo". */
+export function salaDaTarefa(pilar: string | null | undefined, titulo = ""): string {
+  if (pilar === "trafego") return "trafego";
+  if (pilar === "social") return "criacao";
+  if (pilar === "gmn" || pilar === "cs") return "operacional";
+  if (/reuni|call|alinhamento/i.test(titulo)) return "reuniao";
+  if (/venda|comercial|proposta|lead|prospec|contrato|or[çc]amento/i.test(titulo)) return "comercial";
+  return "diretoria";
+}
+/** Avisa o escritório que uma tarefa entrou em "Fazendo" (o bonequinho vai para a sala certa). */
+export const avisarFazendo = (pilar: string | null | undefined, titulo: string) =>
+  window.dispatchEvent(new CustomEvent("vertente:fazendo", { detail: { sala: salaDaTarefa(pilar, titulo), titulo } }));
+
 // ------------------------------------------------------------------
 // Presença (Supabase Realtime) + soma silenciosa do tempo por sala
 // Posições em tiles do mapa.
 // ------------------------------------------------------------------
-export interface Pessoa { id: string; nome: string; x: number; y: number; dir: Lado; sala: string; cadeira: string | null; ausente: boolean; desde: number }
+export interface Pessoa { id: string; nome: string; x: number; y: number; dir: Lado; sala: string; cadeira: string | null; ausente: boolean; desde: number; tarefa?: string | null }
 interface Ctx {
   eu: Pessoa | null;
   pessoas: Pessoa[];
   conectado: boolean;
   /** Atualiza a posição (anuncia aos outros). */
   mover: (x: number, y: number, dir: Lado, cadeira?: string | null, anunciar?: boolean) => void;
+  /** A tela do escritório registra aqui como andar até uma sala (com animação). */
+  registrarAndar: (fn: ((sala: string) => boolean) | null) => void;
 }
-const Contexto = createContext<Ctx>({ eu: null, pessoas: [], conectado: false, mover: () => undefined });
+const Contexto = createContext<Ctx>({ eu: null, pessoas: [], conectado: false, mover: () => undefined, registrarAndar: () => undefined });
 export const useEscritorio = () => useContext(Contexto);
 
 const CHAVE = "vertente.escritorio.v2";
@@ -58,7 +73,7 @@ export function ProvedorEscritorio({ membro, children }: { membro: { id: string;
     ultimaAcao.current = Date.now();
     const sala = salaRelatorio(salaNoTile(x, y));
     if (sala !== p.sala) registrar();
-    const novo: Pessoa = { ...p, x, y, dir, cadeira, sala, ausente: false, desde: sala !== p.sala ? Date.now() : p.desde };
+    const novo: Pessoa = { ...p, x, y, dir, cadeira, sala, ausente: false, desde: sala !== p.sala ? Date.now() : p.desde, tarefa: p.tarefa };
     atual.current = novo;
     setEu(novo);
     if (anunciarAgora) anunciar(novo);
@@ -101,6 +116,29 @@ export function ProvedorEscritorio({ membro, children }: { membro: { id: string;
     return () => { evs.forEach((e) => window.removeEventListener(e, acao)); window.clearInterval(t); window.removeEventListener("pagehide", sair); };
   }, [membro?.id, registrar, anunciar]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Tarefa em "Fazendo" → vai para a sala do assunto
+  const andar = useRef<((sala: string) => boolean) | null>(null);
+  const registrarAndar = useCallback((fn: ((sala: string) => boolean) | null) => { andar.current = fn; }, []);
+  const outrosRef = useRef(outros);
+  outrosRef.current = outros;
+  useEffect(() => {
+    const ao = (e: Event) => {
+      const { sala, titulo } = (e as CustomEvent<{ sala: string; titulo: string }>).detail;
+      const p = atual.current;
+      if (!p) return;
+      const comTarefa = { ...p, tarefa: titulo };
+      atual.current = comTarefa; setEu(comTarefa);
+      if (salaRelatorio(salaNoTile(p.x, p.y)) === sala && p.cadeira) { anunciar(comTarefa); return; }
+      if (andar.current?.(sala)) return;
+      const ocupadas = new Set(outrosRef.current.map((o) => o.cadeira).filter(Boolean));
+      const lugar = ASSENTOS.find((a) => a.sala === sala && !ocupadas.has(a.id));
+      if (lugar) mover(lugar.x, lugar.y, lugar.olha, lugar.id);
+      else anunciar(comTarefa);
+    };
+    window.addEventListener("vertente:fazendo", ao);
+    return () => window.removeEventListener("vertente:fazendo", ao);
+  }, [mover, anunciar]);
+
   const pessoas = eu ? [eu, ...outros] : outros;
-  return <Contexto.Provider value={{ eu, pessoas, conectado, mover }}>{children}</Contexto.Provider>;
+  return <Contexto.Provider value={{ eu, pessoas, conectado, mover, registrarAndar }}>{children}</Contexto.Provider>;
 }

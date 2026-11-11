@@ -1,6 +1,7 @@
 import { Anexos, PdfsPendentes, enviarAnexos } from "../Anexos";
 import { useCallback, useEffect, useState } from "react";
-import { Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
+import { Bot, Copy, ExternalLink, Plus, Repeat, Trash2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 import { repo } from "../../lib/repo";
 import { MarcarTemperatura } from "../Temperatura";
 import { TempoTarefa } from "./TempoTarefa";
@@ -80,6 +81,23 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
   const aberta = t.status !== "feita" && t.status !== "nao_feita";
   const tipoReg = tipoDeRegistro(t, rotina?.nome);
   const registroFeito = d.registros.find((r) => r.tarefa_id === t.id);
+  const [rodandoAgente, setRodandoAgente] = useState(false);
+  async function rodarAgente() {
+    if (!supabase) return d.avisar("Na prévia o agente não roda.");
+    setRodandoAgente(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("agente-trafego", { body: { tarefa_id: t.id } });
+      const r = data as { feitas?: number; erro?: string; resultados?: { erro?: string }[] } | null;
+      if (error || r?.erro || !r?.feitas) throw new Error(r?.erro ?? r?.resultados?.[0]?.erro ?? error?.message ?? "A revisão não foi concluída.");
+      await carregarExtras();
+      await d.recarregar();
+      d.avisar("Revisão feita pelo Agente de Tráfego.");
+    } catch (e) {
+      d.avisar(`Agente: ${(e as Error).message}`);
+    } finally {
+      setRodandoAgente(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -96,6 +114,15 @@ function Conteudo({ t, fechar }: { t: Tarefa; fechar: () => void }) {
           <div className="flex items-center gap-1.5 text-[12px] text-muted">
             <Repeat size={13} /> Rotina: {rotina.nome}. Ao concluir, a próxima é criada na data certa.
           </div>
+        )}
+        {rotina && /revis/i.test(rotina.nome) && aberta && (
+          <button
+            disabled={rodandoAgente}
+            onClick={rodarAgente}
+            className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-[#0e1a52] px-2.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#1a2c86] disabled:opacity-60"
+          >
+            <Bot size={14} /> {rodandoAgente ? "Agente revisando… (até 1 min)" : "Rodar a revisão com o Agente de Tráfego"}
+          </button>
         )}
         {t.triagem && (
           <div className="rounded-lg bg-warn-soft px-3 py-2 text-[12.5px] text-warn">

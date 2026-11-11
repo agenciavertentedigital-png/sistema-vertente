@@ -1,5 +1,9 @@
 // Desenho em pixel art (canvas 2D, 1 unidade = 1 pixel do tile de 16 px).
 import { COLS, MAPA, ROWS, SALAS_MAPA, TILE, type Lado, type Movel, type Piso } from "./escritorioMapa";
+import simboloAzul from "../assets/simbolo-azul.png";
+import simboloPrata from "../assets/simbolo-prata.png";
+import logoPrata from "../assets/logo-prata.png";
+import palavra from "../assets/escritorio-palavra.png";
 
 type C = CanvasRenderingContext2D;
 const r = (c: C, x: number, y: number, w: number, h: number, cor: string) => { c.fillStyle = cor; c.fillRect(Math.round(x), Math.round(y), w, h); };
@@ -19,6 +23,9 @@ const PISOS: Record<Piso, [string, string]> = {
   ladrilho_claro: ["#f4f1ea", "#e9e4d8"],
   madeira_escura: ["#c99a6b", "#bf9062"],
   carpete_lounge: ["#8a96e0", "#828fd8"],
+  corredor: ["#eef1f7", "#e5e9f2"],
+  calcada: ["#d9d4c7", "#cdc7b8"],
+  carpete_marinho: ["#2a3778", "#26336f"],
 };
 
 function piso(c: C, p: Piso, x: number, y: number) {
@@ -30,6 +37,9 @@ function piso(c: C, p: Piso, x: number, y: number) {
     const off = (y % 2) * 8;
     r(c, px, py + 7, TILE, 1, b); r(c, px, py + 15, TILE, 1, b);
     r(c, px + ((off + 4) % 16), py, 1, 7, b); r(c, px + ((off + 12) % 16), py + 8, 1, 7, b);
+  } else if (p === "corredor" || p === "calcada") {
+    if ((x + y) % 2) r(c, px, py, TILE, TILE, b);
+    r(c, px, py, TILE, 1, "rgba(14,26,82,0.05)"); r(c, px, py, 1, TILE, "rgba(14,26,82,0.05)");
   } else if (p === "ladrilho" || p === "ladrilho_claro") {
     if ((x + y) % 2) r(c, px, py, TILE, TILE, b);
     r(c, px, py, TILE, 1, "rgba(0,0,0,0.04)"); r(c, px, py, 1, TILE, "rgba(0,0,0,0.04)");
@@ -46,9 +56,12 @@ function parede(c: C, x: number, y: number) {
   const px = x * TILE, py = y * TILE;
   const baixo = MAPA.parede[y + 1]?.[x] === false && MAPA.piso[y + 1]?.[x] !== "grama";
   // topo da parede e face frontal (efeito de altura quando há piso embaixo)
-  r(c, px, py, TILE, TILE, "#5b6378");
-  r(c, px, py, TILE, 4, "#7a8399");
-  if (baixo) { r(c, px, py + 6, TILE, 10, "#c9cfdc"); r(c, px, py + 6, TILE, 1, "#aeb5c5"); r(c, px, py + 15, TILE, 1, "#9aa2b3"); }
+  const cima = MAPA.parede[y - 1]?.[x] === true;
+  r(c, px, py, TILE, TILE, "#16235f");
+  if (!cima) { r(c, px, py, TILE, 3, "#2f42a0"); r(c, px, py + 3, TILE, 1, "#0e1a52"); }
+  if (MAPA.parede[y]?.[x - 1] !== true) r(c, px, py, 1, TILE, "#2a3b8a");
+  if (MAPA.parede[y]?.[x + 1] !== true) r(c, px + TILE - 1, py, 1, TILE, "#0e1a52");
+  if (baixo) { r(c, px, py + 6, TILE, 10, "#e3e8f6"); r(c, px, py + 6, TILE, 1, "#c4cce4"); r(c, px, py + 13, TILE, 2, "#2747d6"); r(c, px, py + 15, TILE, 1, "#0e1a52"); }
 }
 
 // ------------------------------------------------------------------
@@ -97,6 +110,10 @@ function movel(c: C, m: Movel) {
     case "recepcao": sombra(c, x, y, w, h); r(c, x, y, w, h, "#e9edf2"); r(c, x, y, w, 4, "#ffffff"); r(c, x, y + h - 3, w, 3, "#3b6fe0"); r(c, x + w / 2 - 6, y + 5, 12, 4, "#3b6fe0"); break;
     case "divisoria": r(c, x + 2, y + 6, w - 4, 3, "#b8c0cc"); r(c, x + 2, y + 6, w - 4, 1, "#e4e9f0"); break;
     case "arvore": r(c, x + 13, y + 18, 6, 12, "#7a5230"); r(c, x + 2, y + 2, 28, 18, "#3f9b3a"); r(c, x + 5, y - 3, 22, 10, "#4fb548"); r(c, x + 9, y - 6, 12, 6, "#62c75b"); r(c, x + 7, y + 3, 6, 4, "#7ad86f"); r(c, x + 4, y + 18, 24, 3, "rgba(0,0,0,0.12)"); break;
+    case "trofeu": r(c, x + 4, y - 2, 8, 6, "#f2c23d"); r(c, x + 2, y - 1, 2, 3, "#f2c23d"); r(c, x + 12, y - 1, 2, 3, "#f2c23d"); r(c, x + 5, y - 1, 2, 2, "#fff3b0"); r(c, x + 7, y + 4, 2, 4, "#d9a21f"); r(c, x + 4, y + 8, 8, 4, "#0e1a52"); break;
+    case "logo": if (m.parede) { r(c, x + 3, y + 2, w - 6, 12, "#ffffff"); r(c, x + 3, y + 13, w - 6, 1, "#c4cce4"); } break; // a imagem entra em desenharMarcas
+    case "letreiro": r(c, x + 1, y + 2, w - 2, 12, "#0e1a52"); r(c, x + 1, y + 13, w - 2, 1, "#2747d6"); break;
+    case "neon": r(c, x + 1, y + 2, w - 2, 12, "#141a3a"); break;
     case "pinheiro": r(c, x + 14, y + 22, 4, 8, "#7a5230"); for (let i = 0; i < 4; i++) r(c, x + 4 + i * 3, y - 4 + i * 6, 24 - i * 6, 7, i % 2 ? "#2f7d43" : "#3a8f4f"); r(c, x + 6, y + 27, 20, 3, "rgba(0,0,0,0.12)"); break;
   }
 }
@@ -173,3 +190,37 @@ export function desenharFundo(c: C) {
 /** Móveis que entram na ordenação por profundidade junto com as pessoas. */
 export const MOVEIS_CENA = MAPA.moveis.filter((m) => m.t !== "tapete" && !m.parede);
 export const desenharMovel = movel;
+
+// ------------------------------------------------------------------
+// Marcas Vertente (imagens em alta resolução por cima do piso)
+// ------------------------------------------------------------------
+const carregar = (src: string) => { const i = new Image(); i.src = src; return i; };
+const IMG = typeof Image === "undefined" ? null : { azul: carregar(simboloAzul), prata: carregar(simboloPrata), logo: carregar(logoPrata), palavra: carregar(palavra) };
+const MARCAS = MAPA.moveis.filter((m) => m.t === "logo" || m.t === "letreiro" || m.t === "neon");
+const pronta = (i: HTMLImageElement) => i.complete && i.naturalWidth > 0;
+
+export function desenharMarcas(c: C, t: number) {
+  if (!IMG) return;
+  const antes = c.imageSmoothingEnabled;
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = "high";
+  for (const m of MARCAS) {
+    const x = m.x * TILE, y = m.y * TILE, w = m.w * TILE, h = m.h * TILE;
+    if (m.t === "logo" && !m.parede && pronta(IMG.logo)) {
+      const lw = w - 6, lh = lw * (IMG.logo.naturalHeight / IMG.logo.naturalWidth);
+      c.globalAlpha = 0.95; c.drawImage(IMG.logo, x + 3, y + (h - lh) / 2, lw, lh); c.globalAlpha = 1;
+    } else if (m.t === "logo" && pronta(IMG.azul)) {
+      c.drawImage(IMG.azul, x + w / 2 - 5, y + 3, 10, 10);
+    } else if (m.t === "letreiro" && pronta(IMG.prata) && pronta(IMG.palavra)) {
+      c.drawImage(IMG.prata, x + 4, y + 3.5, 9, 9);
+      const pw = w - 22, ph = pw * (IMG.palavra.naturalHeight / IMG.palavra.naturalWidth);
+      c.drawImage(IMG.palavra, x + 16, y + 8 - ph / 2, pw, ph);
+    } else if (m.t === "neon" && pronta(IMG.prata)) {
+      const brilho = 0.75 + 0.25 * Math.sin(t / 500);
+      c.save(); c.shadowColor = `rgba(90,140,255,${brilho})`; c.shadowBlur = 8;
+      c.drawImage(IMG.prata, x + w / 2 - 6, y + 2, 12, 12); c.restore();
+      c.fillStyle = `rgba(90,140,255,${0.18 * brilho})`; c.fillRect(x - 4, y + 15, w + 8, 10);
+    }
+  }
+  c.imageSmoothingEnabled = antes;
+}

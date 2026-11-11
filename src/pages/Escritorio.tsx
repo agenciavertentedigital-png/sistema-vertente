@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Building2, X } from "lucide-react";
+import { BarChart3, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { SALAS, SALA_FORA, useEscritorio, type Pessoa } from "../lib/escritorio";
 import { ASSENTOS, COLS, MAPA, ROWS, SALAS_MAPA, TILE, caminho, salaNoTile, type Lado } from "../lib/escritorioMapa";
-import { MOVEIS_CENA, boneco, desenharFundo, desenharMovel, visualDe } from "../lib/escritorioDesenho";
+import { MOVEIS_CENA, boneco, desenharFundo, desenharMarcas, desenharMovel, visualDe } from "../lib/escritorioDesenho";
+import simboloPrata from "../assets/simbolo-prata.png";
 import { supabase } from "../lib/supabase";
 import { useDados } from "../lib/dados";
 
 const LARG = COLS * TILE, ALT = ROWS * TILE;
 const nomeSala = (id: string) => SALAS.find((s) => s.id === id)?.nome ?? SALA_FORA.nome;
 const tempoTxt = (ms: number) => { const m = Math.floor(ms / 60000); return m < 1 ? "agora" : m < 60 ? `${m} min` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`; };
-const PASSO_MS = 150;
+const PASSO_MS = 90;
 
 interface Ator { x: number; y: number; dir: Lado; andando: boolean; quadro: number; alvo: { x: number; y: number } }
 
 /** Escritório virtual em pixel art: clique para andar, clique numa cadeira para sentar. */
 export function Escritorio({ admin }: { admin: boolean }) {
-  const { eu, pessoas, conectado, mover } = useEscritorio();
+  const { eu, pessoas, conectado, mover, registrarAndar } = useEscritorio();
   const [relatorio, setRelatorio] = useState(false);
-  const [zoom, setZoom] = useState<number>(() => { try { return Number(localStorage.getItem("vertente.escritorio.zoom")) || 3; } catch { return 3; } });
+  const [zoom, setZoom] = useState<number>(() => { try { return Number(localStorage.getItem("vertente.escritorio.zoom")) || 2.5; } catch { return 2.5; } });
   const mudarZoom = (z: number) => { setZoom(z); try { localStorage.setItem("vertente.escritorio.zoom", String(z)); } catch { /* */ } };
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
@@ -30,12 +31,13 @@ export function Escritorio({ admin }: { admin: boolean }) {
   const todos = useMemo<Pessoa[]>(() => {
     if (supabase) return pessoas;
     const a = (id: string) => ASSENTOS.find((s) => s.id === id)!;
-    const s1 = a("trafego-36-5"), s2 = a("operacional-40-18") ?? ASSENTOS.find((s) => s.sala === "operacional")!, s3 = ASSENTOS.find((s) => s.sala === "lounge")!;
+    void a;
+    const s1 = ASSENTOS.find((s) => s.sala === "trafego")!, s2 = ASSENTOS.find((s) => s.sala === "operacional")!, s3 = ASSENTOS.find((s) => s.sala === "lounge")!;
     const s4 = ASSENTOS.find((s) => s.sala === "reuniao")!;
     return [
       ...pessoas,
-      { id: "d1", nome: "Sílvio Junior", x: s1?.x ?? 36, y: s1?.y ?? 5, dir: "cima", cadeira: s1?.id ?? null, sala: "trafego", ausente: false, desde: Date.now() - 42 * 60000 },
-      { id: "d2", nome: "Carol", x: s2.x, y: s2.y, dir: s2.olha, cadeira: s2.id, sala: "operacional", ausente: false, desde: Date.now() - 95 * 60000 },
+      { id: "d1", nome: "Sílvio Junior", x: s1.x, y: s1.y, dir: "cima", cadeira: s1.id, sala: "trafego", ausente: false, desde: Date.now() - 42 * 60000, tarefa: "Revisão diária · Óticas Carol" },
+      { id: "d2", nome: "Carol", x: s2.x, y: s2.y, dir: s2.olha, cadeira: s2.id, sala: "operacional", ausente: false, desde: Date.now() - 95 * 60000, tarefa: "Responder avaliações no Google" },
       { id: "d3", nome: "Caroline Tereza", x: s3.x, y: s3.y, dir: s3.olha, cadeira: s3.id, sala: "cafe", ausente: true, desde: Date.now() - 12 * 60000 },
       { id: "d4", nome: "Marcone", x: s4.x, y: s4.y, dir: s4.olha, cadeira: s4.id, sala: "reuniao", ausente: false, desde: Date.now() - 20 * 60000 },
     ];
@@ -82,9 +84,14 @@ export function Escritorio({ admin }: { admin: boolean }) {
   };
   const irParaSala = (salaId: string) => {
     const ids = salaId === "cafe" ? ["cafe", "lounge"] : [salaId];
-    const livre = ASSENTOS.find((s) => ids.includes(s.sala) && !ocupadas.has(s.id));
+    const livre = ASSENTOS.find((s) => ids.includes(s.sala) && !ocupadasRef.current.has(s.id));
     if (livre) irPara(livre.x, livre.y);
+    return !!livre;
   };
+  const irParaSalaRef = useRef(irParaSala);
+  irParaSalaRef.current = irParaSala;
+  // Tarefa em "Fazendo" com o escritório aberto: anda até a sala (em vez de teletransportar)
+  useEffect(() => { registrarAndar((sala) => irParaSalaRef.current(sala)); return () => registrarAndar(null); }, [registrarAndar]);
 
   // Teclado
   useEffect(() => {
@@ -167,6 +174,7 @@ export function Escritorio({ admin }: { admin: boolean }) {
       c.imageSmoothingEnabled = false;
       c.clearRect(cam.x, cam.y, vw, vh);
       c.drawImage(fundo, 0, 0);
+      desenharMarcas(c, t);
       // destaque do tile sob o mouse
       if (mouse.current) {
         const { x, y } = mouse.current;
@@ -190,9 +198,10 @@ export function Escritorio({ admin }: { admin: boolean }) {
         const tx = ((s.x + 1.3) * TILE - cam.x) * esc, ty = ((s.y + 1.45) * TILE - cam.y) * esc;
         const fs = Math.min(14, Math.max(10, Math.round(5 * esc)));
         c.font = `600 ${fs}px Inter, system-ui, sans-serif`;
-        const txt = `${s.icone} ${s.nome}`, w = c.measureText(txt).width + 16, hh = fs + 10;
-        c.fillStyle = "rgba(255,255,255,0.85)"; pill(c, tx, ty - hh / 2, w, hh);
-        c.fillStyle = "#3b4256"; c.fillText(txt, tx + 7, ty);
+        const txt = `${s.icone} ${s.nome}`, w = c.measureText(txt).width + 20, hh = fs + 10;
+        c.fillStyle = "rgba(255,255,255,0.92)"; pill(c, tx, ty - hh / 2, w, hh);
+        c.fillStyle = s.cor; c.beginPath(); c.arc(tx + 8, ty, 3, 0, Math.PI * 2); c.fill();
+        c.fillStyle = "#0e1a52"; c.fillText(txt, tx + 14, ty);
       }
       for (const p of gente) {
         const a = atores.current.get(p.id)!;
@@ -201,7 +210,7 @@ export function Escritorio({ admin }: { admin: boolean }) {
         const fn = Math.min(14, Math.max(11, Math.round(4.5 * esc)));
         c.font = `600 ${fn}px Inter, system-ui, sans-serif`;
         const w = c.measureText(nome).width + 26, h = fn + 10;
-        c.fillStyle = "rgba(24,26,34,0.88)"; pill(c, sx - w / 2, sy - h, w, h);
+        c.fillStyle = p.id === me?.id ? "rgba(39,71,214,0.95)" : "rgba(14,26,82,0.9)"; pill(c, sx - w / 2, sy - h, w, h);
         c.fillStyle = p.ausente ? "#f2b33d" : "#22c55e"; c.beginPath(); c.arc(sx - w / 2 + 10, sy - h / 2, 4, 0, Math.PI * 2); c.fill();
         c.fillStyle = "#fff"; c.fillText(nome, sx - w / 2 + 18, sy - h / 2 + 0.5);
       }
@@ -222,17 +231,19 @@ export function Escritorio({ admin }: { admin: boolean }) {
 
   return (
     <div className="mx-auto flex max-w-[1500px] flex-col gap-4">
-      <header className="flex flex-wrap items-end gap-3">
+      <header className="relative flex flex-wrap items-center gap-4 overflow-hidden rounded-2xl bg-[linear-gradient(120deg,#0e1a52_0%,#1a2c86_55%,#2747d6_100%)] px-5 py-4 text-white">
+        <img src={simboloPrata} alt="" className="pointer-events-none absolute -right-6 -top-8 h-40 w-40 opacity-[0.08]" />
+        <img src={simboloPrata} alt="" className="h-11 w-11 shrink-0" />
         <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-[22px] font-semibold"><Building2 size={20} className="text-accent" /> Escritório virtual</h1>
-          <p className="text-[13px] text-muted">Clique no chão para andar e numa cadeira para sentar. Setas ou W A S D também andam. Sente na sala do que está fazendo agora.</p>
+          <h1 className="text-[20px] font-semibold tracking-tight">Escritório Vertente</h1>
+          <p className="text-[12.5px] text-white/70">Clique no chão para andar e numa cadeira para sentar · setas ou W A S D · ao pôr uma tarefa em “Fazendo” você vai sozinho para a sala dela.</p>
         </div>
-        <span className="flex items-center gap-1.5 text-[12px] text-muted"><span className={`h-2 w-2 rounded-full ${conectado || !supabase ? "bg-ok" : "bg-warn"}`} />{conectado || !supabase ? `${todos.filter((p) => !p.ausente).length} online` : "Conectando…"}</span>
-        {admin && <button onClick={() => setRelatorio(true)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-[13px] font-medium hover:border-line-forte"><BarChart3 size={14} /> Relatório de tempo</button>}
+        <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[12px]"><span className={`h-2 w-2 rounded-full ${conectado || !supabase ? "bg-[#4ade80]" : "bg-[#f2b33d]"}`} />{conectado || !supabase ? `${todos.filter((p) => !p.ausente).length} online` : "Conectando…"}</span>
+        {admin && <button onClick={() => setRelatorio(true)} className="relative inline-flex h-9 items-center gap-1.5 rounded-xl bg-white px-3 text-[13px] font-semibold text-[#0e1a52] hover:bg-white/90"><BarChart3 size={14} /> Relatório de tempo</button>}
       </header>
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_250px]">
-        <div ref={caixa} className="relative overflow-hidden rounded-2xl border border-line bg-[#8fd18a] shadow-sm">
+        <div ref={caixa} className="relative overflow-hidden rounded-2xl border border-line bg-[#8fd18a] shadow-sm ring-1 ring-[#0e1a52]/10">
           <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded-xl border border-black/10 bg-white/90 text-[13px] font-semibold text-[#3b4256] shadow-sm backdrop-blur">
             <button onClick={() => mudarZoom(Math.min(5, (zoom || 2) + 0.5))} className="h-8 w-8 hover:bg-black/5" aria-label="Aproximar">+</button>
             <button onClick={() => mudarZoom(Math.max(1.5, (zoom || 2) - 0.5))} className="h-8 w-8 border-l border-black/10 hover:bg-black/5" aria-label="Afastar">−</button>
@@ -250,6 +261,7 @@ export function Escritorio({ admin }: { admin: boolean }) {
               <div className="text-[11.5px] font-medium uppercase tracking-[0.08em] text-muted">Você está em</div>
               <div className="mt-0.5 text-[16px] font-semibold">{salaAtual ? `${salaAtual.icone} ${salaAtual.nome}` : SALA_FORA.nome}</div>
               <div className="text-[12px] text-muted">{eu.cadeira ? "Sentado" : "Em pé"} · há {tempoTxt(agora - eu.desde)}</div>
+              {eu.tarefa && <div className="mt-2 rounded-lg bg-accent-soft px-2 py-1.5 text-[12px] text-accent">▶ {eu.tarefa}</div>}
             </div>
           )}
           <div className="rounded-2xl border border-line bg-surface p-2">
@@ -268,8 +280,11 @@ export function Escritorio({ admin }: { admin: boolean }) {
             {todos.map((p) => (
               <div key={p.id} className="flex items-center gap-2 py-1 text-[13px]">
                 <span className={`h-2 w-2 rounded-full ${p.ausente ? "bg-[#f2b33d]" : "bg-ok"}`} />
-                <span className="min-w-0 flex-1 truncate">{p.nome}{p.id === eu?.id ? " (você)" : ""}</span>
-                <span className="shrink-0 text-[11.5px] text-muted">{p.ausente ? "ausente" : nomeSala(p.sala)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{p.nome}{p.id === eu?.id ? " (você)" : ""}</span>
+                  {p.tarefa && !p.ausente && <span className="block truncate text-[11px] text-muted">▶ {p.tarefa}</span>}
+                </span>
+                <span className="shrink-0 self-start text-[11.5px] text-muted">{p.ausente ? "ausente" : nomeSala(p.sala)}</span>
               </div>
             ))}
           </div>

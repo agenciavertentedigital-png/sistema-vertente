@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { avisarFazendo } from "./escritorio";
 import {
   hoje,
   somarDias,
@@ -429,4 +430,20 @@ const repoMemoria = (): Repo => {
   };
 };
 
-export const repo: Repo = supabase ? repoSupabase() : repoMemoria();
+const base: Repo = supabase ? repoSupabase() : repoMemoria();
+/** Igual ao repositório base, mas avisa o escritório virtual quando uma tarefa entra em "Fazendo". */
+export const repo: Repo = {
+  ...base,
+  async salvarTarefa(id, campos) {
+    const r = await base.salvarTarefa(id, campos);
+    if (campos.status === "fazendo") {
+      let pilar = campos.pilar as string | undefined, titulo = (campos.titulo as string | undefined) ?? "";
+      if ((!pilar || !titulo) && supabase) {
+        const { data } = await supabase.from("tarefas").select("pilar, titulo").eq("id", r).maybeSingle();
+        pilar = pilar ?? (data as { pilar?: string } | null)?.pilar; titulo = titulo || ((data as { titulo?: string } | null)?.titulo ?? "");
+      }
+      avisarFazendo(pilar, titulo);
+    }
+    return r;
+  },
+};
