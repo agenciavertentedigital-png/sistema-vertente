@@ -6,6 +6,8 @@ import { useRota } from "./lib/rota";
 import { MODULOS } from "./data/modulos";
 import { DashboardVertente } from "./pages/Central";
 import { PortalCliente } from "./pages/PortalCliente";
+import { Escritorio } from "./pages/Escritorio";
+import { ProvedorEscritorio } from "./lib/escritorio";
 import { Planejador } from "./pages/Planejador";
 import { CentralVertente } from "./pages/CentralVertente";
 import { PaginaModulo } from "./pages/PaginaModulo";
@@ -120,6 +122,7 @@ export default function App() {
   let pagina = <CentralVertente ir={navegar} tema={tema} alternarTema={alternarTema} usuario={usuario} onSair={sessao.tipo === "logado" ? sair : undefined} abrirComando={abrirComando} />;
   if (rota === "dashboard") pagina = <DashboardVertente ir={navegar} />;
   if (rota === "planejador") pagina = <Planejador />;
+  else if (rota === "escritorio") pagina = <Escritorio admin={sessao.tipo === "logado" ? sessao.membro.papel === "admin" : true} />;
   else if (rota === "base") pagina = <><AbasCadastro rota={rota} ir={navegar} /><BaseClientes /></>;
   else if (rota.startsWith("cliente-")) pagina = <TelaCliente key={rota} clienteId={rota.slice(8)} ir={navegar} />;
   else if (rota === "clientes" || rota.startsWith("clientes-")) pagina = <GestaoClientes rota={rota} ir={navegar} />;
@@ -151,6 +154,7 @@ export default function App() {
 
   return (
     <ProvedorDados eu={sessao.tipo === "logado" ? sessao.membro.id : null}>
+    <ProvedorEscritorio membro={sessao.tipo === "logado" ? { id: sessao.membro.id, nome: sessao.membro.nome } : { id: "demo", nome: "Rener Anício" }}>
     <div className="flex h-full">
       <aside className={`menu-lateral hidden shrink-0 transition-[width] duration-200 ${naCentral ? "" : "lg:block"} ${recolhido ? "w-[68px]" : "w-[252px]"}`}>
         <Menu
@@ -220,13 +224,14 @@ export default function App() {
       {novaSenha && <NovaSenha fechar={() => setNovaSenha(false)} />}
       <Comando aberto={comando} fechar={() => setComando(false)} ir={navegar} alternarTema={alternarTema} />
     </div>
+    </ProvedorEscritorio>
     </ProvedorDados>
   );
 }
 
 /** Rotas que têm página própria (o resto cai na Central Vertente). */
 function rotaConhecida(r: string) {
-  return /^(dashboard|planejador|base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
+  return /^(dashboard|planejador|escritorio|base|cliente-|clientes|trafego|reuniao|gmn|social|financeiro|projetos|crm|diagnosticos|assistente|integracoes|anotacoes|cadastro|contratos)/.test(r);
 }
 
 /** Abas que unem Fichas, Contratos e Base num tópico só. */

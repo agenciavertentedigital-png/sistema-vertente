@@ -1,6 +1,7 @@
 // Organização dos menus: usada no menu lateral, na Central Vertente e no Dashboard Vertente.
 import type { LucideIcon } from "lucide-react";
 import {
+  Building2,
   CalendarCheck,
   CalendarRange,
   CalendarDays,
@@ -95,6 +96,11 @@ export const SECOES: Secao[] = [
     id: "gestao",
     nome: "Gestão",
     topicos: [
+      {
+        id: "escritorio", nome: "Escritório virtual", icone: Building2, rota: "escritorio", prefixos: ["escritorio"], cor: "#0f766e",
+        descricao: "Quem está online e em qual sala",
+        atalhos: [],
+      },
       {
         id: "financeiro", nome: "Financeiro", icone: Wallet, rota: "financeiro", prefixos: ["financeiro"], cor: "#b45309",
         descricao: "Mês, recebimentos e histórico",
