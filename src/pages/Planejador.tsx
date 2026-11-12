@@ -170,8 +170,8 @@ export function Planejador() {
         const porPilar = new Map<string, number>();
         for (const t of feitas) porPilar.set(t.pilar, (porPilar.get(t.pilar) ?? 0) + (t.tempo_min || t.estimativa_min || 0));
         const totalPilar = [...porPilar.values()].reduce((s, v) => s + v, 0);
-        const NOME_P: Record<string, string> = { trafego: "Tráfego", social: "Social", gmn: "GMN", cs: "CS", interno: "Interno" };
-        const COR_P: Record<string, string> = { trafego: "#3b6fe0", social: "#c2508a", gmn: "#2ba58b", cs: "#e07a3b", interno: "#8a63d2" };
+        const NOME_P: Record<string, string> = { trafego: "Tráfego", social: "Social", gmn: "GMN", cs: "CS", crm: "CRM", comercial: "Comercial", interno: "Interno" };
+        const COR_P: Record<string, string> = { trafego: "#3b6fe0", social: "#c2508a", gmn: "#2ba58b", cs: "#e07a3b", crm: "#1f97a6", comercial: "#c2493d", interno: "#8a63d2" };
         const cel = "flex flex-col gap-0.5 px-4 py-3";
         return (
           <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface md:grid-cols-5">

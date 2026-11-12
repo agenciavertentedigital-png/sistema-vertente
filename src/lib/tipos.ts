@@ -1,6 +1,6 @@
 export type Status = "a_fazer" | "fazendo" | "aguardando" | "feita" | "nao_feita";
 export type Prioridade = "urgente" | "alta" | "normal" | "baixa";
-export type Pilar = "trafego" | "social" | "gmn" | "cs" | "interno";
+export type Pilar = "trafego" | "social" | "gmn" | "cs" | "crm" | "comercial" | "interno";
 export type Canal = "meta" | "google";
 export type Frequencia = "diaria" | "semanal" | "quinzenal" | "mensal";
 
@@ -26,9 +26,11 @@ export const PILAR: Record<Pilar, string> = {
   social: "Social Media",
   gmn: "Google Meu Negócio",
   cs: "Customer Success",
+  crm: "CRM",
+  comercial: "Comercial",
   interno: "Interno",
 };
-export const PILARES: Pilar[] = ["trafego", "social", "gmn", "cs", "interno"];
+export const PILARES: Pilar[] = ["trafego", "social", "gmn", "cs", "crm", "comercial", "interno"];
 
 export const CANAL: Record<Canal, string> = { meta: "Meta", google: "Google" };
 

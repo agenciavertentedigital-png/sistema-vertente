@@ -18,9 +18,9 @@ const MAX_RODADAS = 10;
 // Tabelas que o assistente pode ler (sem tokens de link nem dados de login)
 const TABELAS: Record<string, string> = {
   clientes: "Clientes e ficha cadastral (pasta_drive = link da pasta do cliente no Google Drive). status: ativo|pausado|encerrado. origem: vertente|parceria_marcone (clientes da agência parceira do Marcone).",
-  cliente_servicos: "Serviços contratados por cliente e valor mensal. servico_codigo: trafego_meta, trafego_google, gmn, social_media, consultoria.",
+  cliente_servicos: "Serviços contratados por cliente e valor mensal. servico_codigo: trafego_meta, trafego_google, gmn, social_media, consultoria, crm.",
   membros: "Time da agência (nome, papel admin|gestor|cs|visualizador, ativo).",
-  tarefas: "Tarefas. status: a_fazer|fazendo|aguardando|feita|nao_feita. pilar: trafego|social|gmn|cs|interno. prioridade: urgente|alta|normal|baixa. prazo (data). responsavel_id -> membros. origem: manual|rotina|clickup.",
+  tarefas: "Tarefas. status: a_fazer|fazendo|aguardando|feita|nao_feita. pilar: trafego|social|gmn|cs|crm|comercial|interno (crm = implantação e suporte do CRM Vertente; comercial = vendas e prospecção da agência). prioridade: urgente|alta|normal|baixa. prazo (data). responsavel_id -> membros. origem: manual|rotina|clickup.",
   tarefa_checklist: "Itens de checklist das tarefas.",
   tarefa_comentarios: "Comentários das tarefas.",
   rotinas: "Modelos de rotina recorrente (revisão diária, otimização semanal…).",
@@ -110,7 +110,7 @@ const FERRAMENTAS = [
         prazo: { type: "string", description: "AAAA-MM-DD" },
         responsavel_id: { type: "string", description: "id em membros" },
         prioridade: { type: "string", enum: ["urgente", "alta", "normal", "baixa"] },
-        pilar: { type: "string", enum: ["trafego", "social", "gmn", "cs", "interno"] },
+        pilar: { type: "string", enum: ["trafego", "social", "gmn", "cs", "crm", "comercial", "interno"] },
         canal: { type: "string", enum: ["meta", "google"] },
         checklist: { type: "array", items: { type: "string" } },
       },

@@ -95,7 +95,8 @@ export function TelaCliente({ clienteId, ir }: { clienteId: string; ir: (r: stri
   const abertas = doCliente.filter((t) => STATUS_ABERTOS.includes(t.status));
   const atrasadas = abertas.filter((t) => atrasada(t)).length;
   const visiveis = (verConcluidas ? doCliente : abertas).slice().sort(comparador(ordem));
-  const pilaresUsados = PILARES.filter((p) => p !== "interno" || visiveis.some((t) => t.pilar === "interno"));
+  // Pilares que nem todo cliente usa (CRM, Comercial, Interno) só aparecem quando há tarefas neles
+  const pilaresUsados = PILARES.filter((p) => !["crm", "comercial", "interno"].includes(p) || visiveis.some((t) => t.pilar === p));
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-5">

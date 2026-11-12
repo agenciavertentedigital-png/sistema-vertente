@@ -104,6 +104,8 @@ export const COR_PILAR: Record<Pilar, string> = {
   social: "#b35bb0",
   gmn: "#2f9a5d",
   cs: "#d0822a",
+  crm: "#1f97a6",
+  comercial: "#c2493d",
   interno: "#7a8a93",
 };
 

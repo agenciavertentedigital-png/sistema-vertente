@@ -12,7 +12,8 @@ export const salaRelatorio = (tileSala: string | null) => (tileSala ? SALA_RELAT
 export function salaDaTarefa(pilar: string | null | undefined, titulo = ""): string {
   if (pilar === "trafego") return "trafego";
   if (pilar === "social") return "criacao";
-  if (pilar === "gmn" || pilar === "cs") return "operacional";
+  if (pilar === "gmn" || pilar === "cs" || pilar === "crm") return "operacional";
+  if (pilar === "comercial") return "comercial";
   if (/reuni|call|alinhamento/i.test(titulo)) return "reuniao";
   if (/venda|comercial|proposta|lead|prospec|contrato|or[çc]amento/i.test(titulo)) return "comercial";
   return "diretoria";
