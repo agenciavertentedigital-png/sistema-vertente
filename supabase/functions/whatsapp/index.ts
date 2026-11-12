@@ -4,6 +4,8 @@
 // Um administrador logado chama com { acao: "configurar" } para apontar o webhook da Evolution para cá e ver o status da conexão.
 // Segredos no Vault: evolution_url, evolution_apikey, evolution_instancia | zapi_instancia, zapi_token, zapi_client_token;
 // whatsapp_webhook_chave, whatsapp_grupo (id do grupo do time).
+// Mensagens enviadas pelo próprio número da agência nos grupos de clientes ficam guardadas com papel "agencia"
+// (servem para saber se o cliente já foi respondido); no grupo do time elas são ignoradas.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.4";
 
 type Json = Record<string, unknown>;
@@ -61,23 +63,23 @@ async function nomeDoGrupo(admin: SupabaseClient, grupo: string, informado: stri
   return j?.subject ?? null;
 }
 
-interface Recebida { id: string | null; grupo: string; grupoNome: string | null; autorTel: string; autorNome: string | null; texto: string }
+interface Recebida { id: string | null; grupo: string; grupoNome: string | null; autorTel: string; autorNome: string | null; texto: string; deMim: boolean }
 
-/** Lê o webhook da Evolution (messages.upsert) ou da Z-API (ReceivedCallback); só mensagens de grupo, nunca as do próprio número. */
+/** Lê o webhook da Evolution (messages.upsert) ou da Z-API (ReceivedCallback); só mensagens de grupo. */
 function lerWebhook(corpo: Json): Recebida | null {
   if (typeof corpo.event === "string") {
     if (!/messages[._]upsert/i.test(corpo.event)) return null;
     const d = (Array.isArray(corpo.data) ? corpo.data[0] : corpo.data) as Json | undefined;
     const key = (d?.key ?? {}) as Json;
     const jid = String(key.remoteJid ?? "");
-    if (!jid.endsWith("@g.us") || key.fromMe) return null;
+    if (!jid.endsWith("@g.us")) return null;
     const m = (d?.message ?? {}) as Json;
     const texto = String(m.conversation ?? (m.extendedTextMessage as Json | undefined)?.text ?? (m.imageMessage as Json | undefined)?.caption ?? (m.videoMessage as Json | undefined)?.caption ?? "").trim()
       || (m.audioMessage ? "[áudio]" : m.imageMessage ? "[imagem]" : m.documentMessage ? `[documento] ${(m.documentMessage as Json).fileName ?? ""}`.trim() : m.videoMessage ? "[vídeo]" : "");
     const participante = String(key.participantAlt ?? key.participant ?? d?.participant ?? "");
-    return { id: key.id ? String(key.id) : null, grupo: jid, grupoNome: null, autorTel: soDigitos(participante.split("@")[0]), autorNome: (d?.pushName as string) ?? null, texto };
+    return { id: key.id ? String(key.id) : null, grupo: jid, grupoNome: null, autorTel: soDigitos(participante.split("@")[0]), autorNome: (d?.pushName as string) ?? null, texto, deMim: Boolean(key.fromMe) };
   }
-  if (corpo.fromMe || !corpo.isGroup || corpo.type !== "ReceivedCallback") return null;
+  if (!corpo.isGroup || corpo.type !== "ReceivedCallback") return null;
   return {
     id: corpo.messageId ? String(corpo.messageId) : null,
     grupo: String(corpo.phone ?? ""),
@@ -85,17 +87,25 @@ function lerWebhook(corpo: Json): Recebida | null {
     autorTel: soDigitos(corpo.participantPhone),
     autorNome: (corpo.senderName as string) ?? null,
     texto: String((corpo.text as { message?: string } | undefined)?.message ?? "").trim(),
+    deMim: Boolean(corpo.fromMe),
   };
 }
 
 async function processar(admin: SupabaseClient, msg: Recebida) {
   const { grupo, autorTel, autorNome, texto } = msg;
   if (!texto) return;
+  const grupoConfigurado = await segredo(admin, "whatsapp_grupo");
+  if (msg.deMim && grupoConfigurado === grupo) return; // respostas e avisos do próprio sistema no grupo do time
   const grupoNome = await nomeDoGrupo(admin, grupo, msg.grupoNome);
   // Todo grupo novo entra na lista para ser ligado a um cliente em Integrações
   await admin.from("whatsapp_grupos").upsert({ grupo, ...(grupoNome ? { nome: grupoNome } : {}), atualizado_em: new Date().toISOString() }, { onConflict: "grupo", ignoreDuplicates: false });
 
-  const grupoConfigurado = await segredo(admin, "whatsapp_grupo");
+  if (msg.deMim) {
+    // Mensagem enviada pelo número da agência num grupo de cliente: guarda para saber que o cliente foi respondido
+    await admin.from("whatsapp_mensagens").insert({ msg_id: msg.id, grupo, grupo_nome: grupoNome, autor_telefone: autorTel, autor_nome: "Vertente (número da agência)", papel: "agencia", texto: texto.slice(0, 4000) });
+    return;
+  }
+
   if (!grupoConfigurado || grupoConfigurado !== grupo) {
     // Grupos de clientes, parceria e suporte: guarda a conversa (base do resumo diário e dos pedidos sugeridos); não responde
     await admin.from("whatsapp_mensagens").insert({ msg_id: msg.id, grupo, grupo_nome: grupoNome, autor_telefone: autorTel, autor_nome: autorNome, papel: "grupo", texto: texto.slice(0, 4000) });
