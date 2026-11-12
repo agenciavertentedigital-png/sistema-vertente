@@ -156,10 +156,15 @@ export const MODULOS: Modulo[] = [
     grupo: "operacional",
     fase: null,
     icone: MessagesSquare,
-    resumo: "CRM Vertente Digital aberto dentro do sistema (login na própria tela do CRM).",
+    resumo: "CRM Vertente Digital aberto dentro do sistema (login na própria tela do CRM). Primeiro uso: funil comercial da própria Vertente.",
     telas: [],
-    integracoes: [],
-    entregas: [],
+    integracoes: [{ nome: "API do CRM (DKW)", papel: "Funil comercial da Vertente: etapas, propostas e vendas" }],
+    entregas: [
+      "Funil comercial da Vertente lido pelo sistema",
+      "Leads das LPs, propostas e Diagnóstico Digital entrando no CRM com a origem",
+      "Venda ganha dispara contrato (Autentique) e cobrança (Asaas)",
+      "Depois: resultado real e saúde de uso para clientes que usam o CRM",
+    ],
   },
   {
     id: "financeiro",
@@ -174,8 +179,15 @@ export const MODULOS: Modulo[] = [
       { nome: "Despesas", descricao: "Lançamentos por importação de planilha." },
       { nome: "Custo de atender", descricao: "Custo rateado e margem por cliente e por pacote." },
     ],
-    integracoes: [{ nome: "Asaas", papel: "Cobranças e recebimentos" }],
-    entregas: ["MRR e ticket médio", "Inadimplência", "Margem por cliente e por pacote"],
+    integracoes: [{ nome: "Asaas", papel: "Clientes, assinaturas, cobranças e recebimentos (webhooks)" }],
+    entregas: [
+      "Assinatura criada no Asaas quando o contrato é assinado",
+      "Status de pagamento em tempo real e alerta de atraso",
+      "MRR e ticket médio",
+      "Inadimplência",
+      "Margem por cliente e por pacote",
+      "Base do fechamento financeiro mensal",
+    ],
   },
   {
     id: "projetos",
@@ -221,10 +233,15 @@ export const MODULOS: Modulo[] = [
       { nome: "Autentique", papel: "Assinatura eletrônica" },
       { nome: "Z-API", papel: "Envio do contrato pelo WhatsApp" },
     ],
-    entregas: ["Contrato gerado do modelo", "Envio e acompanhamento da assinatura", "Lançamento no financeiro"],
+    entregas: [
+      "Contrato gerado do modelo com os dados do cadastro",
+      "Envio e acompanhamento da assinatura (enviado, visto, assinado)",
+      "PDF assinado guardado no cadastro do cliente",
+      "Contrato assinado libera a cobrança no Asaas",
+    ],
   },
   // Áreas no radar, sem fase definida
-  { id: "comercial", nome: "Comercial", grupo: "futuro", fase: null, icone: Handshake, resumo: "Metas com ritmo diário, prospecção e reuniões.", telas: [], integracoes: [], entregas: [] },
+  { id: "comercial", nome: "Comercial", grupo: "futuro", fase: null, icone: Handshake, resumo: "Metas com ritmo diário, prospecção e reuniões.", telas: [], integracoes: [{ nome: "API do CRM (DKW)", papel: "Etapas, propostas e vendas da Vertente" }], entregas: ["Projeção comercial e metas do mês com dados do CRM"] },
   
   { id: "agentes", nome: "Agentes IA", grupo: "futuro", fase: null, icone: Bot, resumo: "Agentes que executam rotinas e pedem autorização.", telas: [], integracoes: [], entregas: [] },
 ];
