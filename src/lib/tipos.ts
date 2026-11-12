@@ -53,6 +53,7 @@ export interface Membro {
   id: string;
   nome: string;
   acesso: boolean;
+  foto_url?: string | null;
 }
 
 export interface Tarefa {

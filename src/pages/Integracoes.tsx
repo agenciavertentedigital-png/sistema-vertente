@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { BarChart3, Bot, CheckCircle2, Link2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Search, Smartphone, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { chamarFuncao } from "../lib/tabela";
+import { useRef } from "react";
+import { Iniciais } from "../components/ui";
+import { useDadosOpcional } from "../lib/dados";
+import { enviarFotoMembro } from "../lib/fotos";
 
 type Status = Record<string, boolean>;
 interface Grupo { grupo: string; nome: string | null; cliente_id: string | null; tipo: string; atualizado_em: string }
 interface ClienteMin { id: string; nome: string }
-interface MembroTel { id: string; nome: string; telefone: string | null }
+interface MembroTel { id: string; nome: string; telefone: string | null; foto_url?: string | null }
 
 const DEMO_STATUS: Status = { dataforseo_login: true, dataforseo_senha: true, meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false };
 
@@ -70,7 +74,7 @@ export function Integracoes() {
       supabase.rpc("integracoes_status"),
       supabase.rpc("whatsapp_config"),
       supabase.from("whatsapp_grupos").select("grupo, nome, cliente_id, tipo, atualizado_em").order("atualizado_em", { ascending: false }),
-      supabase.from("membros").select("id, nome, telefone").eq("ativo", true).order("nome"),
+      supabase.from("membros").select("id, nome, telefone, foto_url").eq("ativo", true).order("nome"),
       supabase.from("clientes").select("id, nome").eq("status", "ativo").order("nome"),
     ]);
     if (s.error) {
@@ -261,8 +265,8 @@ export function Integracoes() {
           </li>
         </ol>
         <div className="mt-5">
-          <b className="flex items-center gap-2 text-[13px]"><Smartphone size={15} /> 4. WhatsApp de cada pessoa do time</b>
-          <p className="text-[12px] text-muted">O assistente só responde quem tem o número cadastrado aqui (com DDD).</p>
+          <b className="flex items-center gap-2 text-[13px]"><Smartphone size={15} /> 4. Foto e WhatsApp de cada pessoa do time</b>
+          <p className="text-[12px] text-muted">Clique na foto para enviar ou trocar. O assistente só responde quem tem o número cadastrado aqui (com DDD).</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {time.map((m) => <Telefone key={m.id} m={m} onSalvar={(t) => salvarTelefone(m.id, t)} />)}
           </div>
@@ -301,11 +305,50 @@ function Telefone({ m, onSalvar }: { m: MembroTel; onSalvar: (t: string) => void
   const [t, setT] = useState(m.telefone ?? "");
   return (
     <div className="rounded-lg border border-line p-2.5">
-      <div className="text-[13px] font-medium">{m.nome}</div>
+      <div className="flex items-center gap-2">
+        <FotoMembro m={m} />
+        <div className="text-[13px] font-medium">{m.nome}</div>
+      </div>
       <div className="mt-1 flex gap-2">
         <input value={t} onChange={(e) => setT(e.target.value)} placeholder="(31) 99999-9999" className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2 py-1.5 text-[13px]" />
         <button onClick={() => onSalvar(t)} disabled={t === (m.telefone ?? "")} className="rounded-lg border border-line px-2 text-[12px] hover:bg-raised disabled:opacity-40"><Save size={13} /></button>
       </div>
     </div>
+  );
+}
+
+/** Foto da pessoa no cartão do time: clique para enviar ou trocar (a própria pessoa ou um administrador). */
+function FotoMembro({ m }: { m: MembroTel }) {
+  const d = useDadosOpcional();
+  const arquivo = useRef<HTMLInputElement>(null);
+  const [foto, setFoto] = useState(m.foto_url ?? null);
+  const [enviando, setEnviando] = useState(false);
+  return (
+    <>
+      <button onClick={() => arquivo.current?.click()} disabled={enviando} title="Enviar ou trocar a foto" aria-label={`Foto de ${m.nome}`} className={`rounded-full ${enviando ? "animate-pulse" : ""}`}>
+        <Iniciais nome={m.nome} foto={foto} tamanho="m" />
+      </button>
+      <input
+        ref={arquivo}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f) return;
+          setEnviando(true);
+          try {
+            setFoto(await enviarFotoMembro(m.id, f, d?.eu === m.id));
+            await d?.recarregar();
+            d?.avisar(`Foto de ${m.nome.split(" ")[0]} atualizada`);
+          } catch (err) {
+            d?.avisar((err as Error).message);
+          } finally {
+            setEnviando(false);
+          }
+        }}
+      />
+    </>
   );
 }

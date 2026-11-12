@@ -85,7 +85,7 @@ const repoSupabase = (): Repo => {
       };
       const [cl, me, ab, fe, ro, cr, rg, no] = await Promise.all([
         sb.from("clientes").select("id, nome, origem, marca").eq("status", "ativo").order("nome"),
-        sb.from("membros").select("id, nome, acesso").eq("ativo", true).order("nome"),
+        sb.from("membros").select("id, nome, acesso, foto_url").eq("ativo", true).order("nome"),
         tarefas((c) => sb.from("tarefas").select(c).in("status", ["a_fazer", "fazendo", "aguardando"])),
         tarefas((c) => sb.from("tarefas").select(c).in("status", ["feita", "nao_feita"]).gte("concluida_em", corte)),
         sb.from("rotinas").select("id, nome, pilar, frequencia_padrao, prioridade, checklist, mensagem, ativa").order("nome"),

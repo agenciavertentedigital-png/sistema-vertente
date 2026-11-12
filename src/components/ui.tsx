@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type SelectHTMLAttributes, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { Pilar, Prioridade, Status } from "../lib/tipos";
+import { useDadosOpcional } from "../lib/dados";
 
 export const campo =
   "w-full min-w-0 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-fg outline-none placeholder:text-muted/70 hover:border-line-forte focus:border-accent focus:ring-[3px] focus:ring-accent/15";
@@ -109,8 +110,21 @@ export const COR_PILAR: Record<Pilar, string> = {
   interno: "#7a8a93",
 };
 
-export function Iniciais({ nome }: { nome?: string }) {
-  if (!nome) return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-dashed border-line text-[10px] text-muted">?</span>;
+const TAMANHO_AVATAR = { p: "h-6 w-6 text-[10px]", m: "h-8 w-8 text-[12px]", g: "h-14 w-14 text-[18px]" } as const;
+
+/**
+ * Avatar de uma pessoa do time: a foto (membros.foto_url) quando houver, senão as iniciais.
+ * Sem `foto`, procura a foto do membro pelo nome nos dados já carregados.
+ */
+export function Iniciais({ nome, foto, tamanho = "p" }: { nome?: string; foto?: string | null; tamanho?: keyof typeof TAMANHO_AVATAR }) {
+  const d = useDadosOpcional();
+  const [falhou, setFalhou] = useState(false);
+  const classe = TAMANHO_AVATAR[tamanho];
+  if (!nome) return <span className={`grid ${classe} shrink-0 place-items-center rounded-full border border-dashed border-line text-muted`}>?</span>;
+  const url = foto !== undefined ? foto : d?.membros.find((m) => m.nome === nome)?.foto_url;
+  if (url && !falhou) {
+    return <img src={url} alt={nome} title={nome} onError={() => setFalhou(true)} className={`${classe} shrink-0 rounded-full object-cover ring-1 ring-line`} />;
+  }
   const ini = nome
     .split(" ")
     .slice(0, 2)
@@ -118,7 +132,7 @@ export function Iniciais({ nome }: { nome?: string }) {
     .join("")
     .toUpperCase();
   return (
-    <span title={nome} className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent-soft text-[10px] font-semibold text-accent">
+    <span title={nome} className={`grid ${classe} shrink-0 place-items-center rounded-full bg-accent-soft font-semibold text-accent`}>
       {ini}
     </span>
   );

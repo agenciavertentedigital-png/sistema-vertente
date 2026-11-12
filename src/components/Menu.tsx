@@ -4,6 +4,54 @@ import { LayoutGrid, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plug, Search, 
 import { Sininho } from "./Sininho";
 import { ASSISTENTE, DASHBOARD, SECOES, ativo } from "../data/navegacao";
 import { Marca } from "./Marca";
+import { useRef, useState } from "react";
+import { Iniciais } from "./ui";
+import { useDadosOpcional } from "../lib/dados";
+import { enviarFotoMembro } from "../lib/fotos";
+
+/** Foto (ou iniciais) de quem está logado; um clique abre o seletor para trocar a foto. */
+function MinhaFoto({ nome }: { nome: string }) {
+  const d = useDadosOpcional();
+  const arquivo = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const eu = d?.eu ? d.membro(d.eu) : undefined;
+  if (!d?.eu) return <Iniciais nome={nome} tamanho="m" foto={null} />;
+  return (
+    <>
+      <button
+        onClick={() => arquivo.current?.click()}
+        disabled={enviando}
+        className={`group relative shrink-0 rounded-full ${enviando ? "animate-pulse" : ""}`}
+        title="Trocar minha foto"
+        aria-label="Trocar minha foto"
+      >
+        <Iniciais nome={eu?.nome ?? nome} foto={eu?.foto_url ?? null} tamanho="m" />
+        <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-full bg-black/45 text-[9px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Trocar</span>
+      </button>
+      <input
+        ref={arquivo}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (!f || !d.eu) return;
+          setEnviando(true);
+          try {
+            await enviarFotoMembro(d.eu, f, true);
+            await d.recarregar();
+            d.avisar("Foto atualizada");
+          } catch (err) {
+            d.avisar((err as Error).message);
+          } finally {
+            setEnviando(false);
+          }
+        }}
+      />
+    </>
+  );
+}
 
 interface Props {
   rota: string;
@@ -105,10 +153,15 @@ export function Menu({ rota, ir, tema, alternarTema, usuario, onSair, recolhido 
       ))}
 
       <div className={`mt-auto flex border-t border-line pt-3 ${recolhido ? "flex-col items-center gap-1" : "items-center justify-between px-1.5"}`}>
-        {!recolhido && (
-          <div className="min-w-0 text-[12px] leading-tight">
-            <div className="truncate font-medium">{usuario.nome}</div>
-            <div className="text-muted">{usuario.papel}</div>
+        {recolhido ? (
+          <MinhaFoto nome={usuario.nome} />
+        ) : (
+          <div className="flex min-w-0 items-center gap-2">
+            <MinhaFoto nome={usuario.nome} />
+            <div className="min-w-0 text-[12px] leading-tight">
+              <div className="truncate font-medium">{usuario.nome}</div>
+              <div className="text-muted">{usuario.papel}</div>
+            </div>
           </div>
         )}
         <div className={`flex ${recolhido ? "flex-col" : ""}`}>

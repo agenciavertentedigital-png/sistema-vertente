@@ -66,6 +66,11 @@ export function ProvedorDados({ eu, children }: { eu: string | null; children: R
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }
 
+/** Igual ao useDados, mas devolve null fora do ProvedorDados (para componentes usados em qualquer tela). */
+export function useDadosOpcional(): Contexto | null {
+  return useContext(Ctx);
+}
+
 export function useDados(): Contexto {
   const c = useContext(Ctx);
   if (!c) throw new Error("useDados fora do ProvedorDados");
