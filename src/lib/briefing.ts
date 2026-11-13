@@ -94,6 +94,8 @@ export interface Nota {
   compartilhado?: boolean;
   codigo?: string | null;
   com_senha?: boolean;
+  /** Posição na ordem manual (menor = mais em cima) */
+  ordem?: number | null;
   autor_id: string | null;
   criado_em: string;
   atualizado_em: string;
@@ -112,7 +114,7 @@ function notasDemo(): Nota[] {
 }
 
 export function useNotas() {
-  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, conteudo, etiqueta, fixada, pasta_id, compartilhado, codigo, com_senha, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
+  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, conteudo, etiqueta, fixada, pasta_id, compartilhado, codigo, com_senha, ordem, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
 }
 
 // ------------------------------------------------------------------

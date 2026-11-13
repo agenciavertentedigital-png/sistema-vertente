@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Globe, GripVertical, Lock, Pencil, Pin, PinOff, Plus, Search, Share2, StickyNote, Trash2 } from "lucide-react";
+import { ArrowDownUp, Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Globe, GripVertical, Lock, Pencil, Pin, PinOff, Plus, Search, Share2, StickyNote, Trash2 } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { ETIQUETAS, PASTAS_SUGERIDAS, useNotas, usePastas, type Etiqueta, type Nota, type Pasta } from "../lib/briefing";
 import { TextoComMencoes } from "./LinhaDoTempo";
@@ -22,6 +22,21 @@ type Sel = { escopo: string; pasta: string | "todas" | "sem" };
  * Anotações em pastas e subpastas. Com clienteId mostra só o cliente;
  * sem clienteId mostra a agência e todos os clientes, cada um com as suas pastas.
  */
+type Ordem = "novas" | "antigas" | "editadas" | "manual";
+const ORDENS: Record<Ordem, string> = { novas: "Mais novas primeiro", antigas: "Mais antigas primeiro", editadas: "Editadas por último", manual: "Ordem manual (arrastar)" };
+function comparar(o: Ordem, a: Nota, b: Nota) {
+  if (o === "antigas") return a.criado_em.localeCompare(b.criado_em);
+  if (o === "editadas") return b.atualizado_em.localeCompare(a.atualizado_em);
+  if (o === "manual") {
+    // Sem posição definida (anotações novas) entram no topo, das mais novas para as mais antigas
+    if (a.ordem == null && b.ordem == null) return b.criado_em.localeCompare(a.criado_em);
+    if (a.ordem == null) return -1;
+    if (b.ordem == null) return 1;
+    return a.ordem - b.ordem;
+  }
+  return b.criado_em.localeCompare(a.criado_em);
+}
+
 export function Anotacoes({ clienteId }: { clienteId?: string }) {
   const d = useDados();
   const tn = useNotas();
@@ -76,14 +91,34 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
   const pastaAtual = sel.pasta !== "todas" && sel.pasta !== "sem" ? tp.linhas.find((p) => p.id === sel.pasta) ?? null : null;
   const caminhoAtual = useMemo(() => { const r: Pasta[] = []; let p = pastaAtual; while (p) { r.unshift(p); p = tp.linhas.find((x) => x.id === p!.pai_id) ?? null; } return r; }, [pastaAtual, tp.linhas]);
 
+  // Ordem da lista (fica lembrada neste navegador). Fixadas continuam no topo.
+  const [ordem, setOrdemEstado] = useState<Ordem>(() => { try { const v = localStorage.getItem("notas-ordem"); return (v && v in ORDENS ? v : "novas") as Ordem; } catch { return "novas"; } });
+  const setOrdem = (o: Ordem) => { setOrdemEstado(o); try { localStorage.setItem("notas-ordem", o); } catch { /* sem armazenamento */ } };
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
     const ids = pastaAtual ? new Set(descendentes(pastaAtual.id)) : null;
     return notasDe(sel.escopo)
       .filter((n) => (sel.pasta === "todas" ? true : sel.pasta === "sem" ? !n.pasta_id : n.pasta_id && ids!.has(n.pasta_id)))
       .filter((n) => !q || `${n.titulo ?? ""} ${n.texto}`.toLowerCase().includes(q))
-      .sort((a, b) => Number(b.fixada) - Number(a.fixada) || b.atualizado_em.localeCompare(a.atualizado_em));
-  }, [tn.linhas, tp.linhas, sel, busca]); // eslint-disable-line react-hooks/exhaustive-deps
+      .sort((a, b) => Number(b.fixada) - Number(a.fixada) || comparar(ordem, a, b));
+  }, [tn.linhas, tp.linhas, sel, busca, ordem]);
+
+  /** Ordem manual: solta a anotação arrastada antes de outra da lista. */
+  async function reordenar(arrastadaId: string, antesDeId: string) {
+    setArrastando(null);
+    setAlvo(null);
+    if (arrastadaId === antesDeId) return;
+    const atual = lista.filter((n) => n.id !== arrastadaId);
+    const i = atual.findIndex((n) => n.id === antesDeId);
+    if (i < 0) return;
+    const nova = [...atual.slice(0, i), lista.find((n) => n.id === arrastadaId)!, ...atual.slice(i)];
+    try {
+      // Regrava a posição só de quem mudou (posições de 10 em 10)
+      await Promise.all(nova.map((n, k) => ((n.ordem ?? null) === (k + 1) * 10 ? null : tn.salvar(n.id, { ordem: (k + 1) * 10 }))));
+    } catch (e) {
+      d.avisar((e as Error).message);
+    }
+  } // eslint-disable-line react-hooks/exhaustive-deps
 
   const subpastas = sel.pasta === "sem" ? [] : filhas(sel.escopo, pastaAtual?.id ?? null);
   const alternar = (k: string) => setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -193,6 +228,12 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
           <label className="flex h-9 w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 text-[13px] focus-within:border-accent sm:w-[220px]">
             <Search size={14} className="text-muted" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" className="min-w-0 flex-1 bg-transparent outline-none" />
           </label>
+          <label className="flex h-9 items-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-[13px]" title="Ordem da lista">
+            <ArrowDownUp size={14} className="text-muted" />
+            <select value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)} className="bg-transparent outline-none">
+              {(Object.keys(ORDENS) as Ordem[]).map((o) => <option key={o} value={o}>{ORDENS[o]}</option>)}
+            </select>
+          </label>
           {sel.pasta !== "sem" && <Botao onClick={() => setNomeando({ pai: pastaAtual?.id ?? null, nome: "" })}><FolderPlus size={14} /> {pastaAtual ? "Subpasta" : "Pasta"}</Botao>}
           <Botao variante="primario" onClick={() => abrirNota(null)}><Plus size={14} /> Anotação</Botao>
         </div>
@@ -226,7 +267,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
 
         {arrastando && (
           <div className="flex items-center gap-2 rounded-xl border border-dashed border-accent/50 bg-accent-soft/50 px-3 py-2 text-[12.5px] text-accent">
-            <FolderOpen size={14} /> Solte numa pasta à esquerda (ou num cliente) para mover. Soltar no nome do cliente deixa sem pasta.
+            <FolderOpen size={14} /> {ordem === "manual" ? "Solte sobre outra anotação para colocar antes dela, ou numa pasta à esquerda para mover." : "Solte numa pasta à esquerda (ou num cliente) para mover. Para arrumar a ordem na mão, escolha a ordem Manual."}
           </div>
         )}
         {lista.length === 0 ? (
@@ -237,7 +278,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-            {lista.map((n) => <LinhaNota key={n.id} n={n} pasta={tp.linhas.find((p) => p.id === n.pasta_id)?.nome} mostrarPasta={sel.pasta === "todas" || (pastaAtual ? n.pasta_id !== pastaAtual.id : false)} abrir={() => abrirNota(n)} fixar={() => tn.salvar(n.id, { fixada: !n.fixada })} arrastar={{ inicio: () => setArrastando(n.id), fim: () => { setArrastando(null); setAlvo(null); }, ativo: arrastando === n.id }} />)}
+            {lista.map((n) => <LinhaNota key={n.id} n={n} pasta={tp.linhas.find((p) => p.id === n.pasta_id)?.nome} mostrarPasta={sel.pasta === "todas" || (pastaAtual ? n.pasta_id !== pastaAtual.id : false)} abrir={() => abrirNota(n)} fixar={() => tn.salvar(n.id, { fixada: !n.fixada })} arrastar={{ inicio: () => setArrastando(n.id), fim: () => { setArrastando(null); setAlvo(null); }, ativo: arrastando === n.id }} soltar={ordem === "manual" && arrastando && arrastando !== n.id ? { ...soltarEm(sel.escopo, null, `n-${n.id}`), onDrop: (e: React.DragEvent) => { e.preventDefault(); const id = e.dataTransfer.getData("text/x-nota") || arrastando; if (id) reordenar(id, n.id); } } : undefined} alvo={alvo === `n-${n.id}`} />)}
           </div>
         )}
       </section>
@@ -273,7 +314,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
   );
 }
 
-function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar, arrastar }: { n: Nota; pasta?: string; mostrarPasta: boolean; abrir: () => void; fixar: () => void; arrastar: { inicio: () => void; fim: () => void; ativo: boolean } }) {
+function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar, arrastar, soltar, alvo }: { n: Nota; pasta?: string; mostrarPasta: boolean; abrir: () => void; fixar: () => void; arrastar: { inicio: () => void; fim: () => void; ativo: boolean }; soltar?: Record<string, unknown>; alvo?: boolean }) {
   const d = useDados();
   const e = ETIQUETAS[n.etiqueta] ?? ETIQUETAS.geral;
   const autor = d.membros.find((m) => m.id === n.autor_id)?.nome.split(" ")[0];
@@ -285,8 +326,9 @@ function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar, arrastar }: { n: Nota
       draggable
       onDragStart={(ev) => { ev.dataTransfer.setData("text/x-nota", n.id); ev.dataTransfer.effectAllowed = "move"; arrastar.inicio(); }}
       onDragEnd={arrastar.fim}
+      {...soltar}
       title="Clique para abrir · arraste para mover de pasta"
-      className={`group flex cursor-pointer items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-raised/50 ${arrastar.ativo ? "opacity-40" : ""}`}
+      className={`group flex cursor-pointer items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-raised/50 ${arrastar.ativo ? "opacity-40" : ""} ${alvo ? "shadow-[inset_0_3px_0_var(--accent)]" : ""}`}
     >
       <GripVertical size={14} className="mt-0.5 -ml-2 shrink-0 cursor-grab text-muted opacity-0 group-hover:opacity-100" />
       <FileText size={16} className="mt-0.5 shrink-0" style={{ color: e.cor }} />
