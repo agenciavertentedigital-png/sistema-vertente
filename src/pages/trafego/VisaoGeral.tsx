@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { GraficoSeries, Sparkline } from "./painel/Graficos";
 import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, Wallet } from "lucide-react";
 import { useDados } from "../../lib/dados";
 import { hoje, somarDias } from "../../lib/tipos";
@@ -140,6 +141,23 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
   const conversas = noPeriodo.reduce((s, x) => s + x.conversas, 0);
   const leads = noPeriodo.reduce((s, x) => s + x.leads, 0);
   const comAlerta = resumos.filter((r) => r.alertas.length).length;
+  // Carteira dia a dia e período anterior (para os cartões e o gráfico)
+  const iniAnt = somarDias(ini, -periodo);
+  const fimAnt = somarDias(ini, -1);
+  const contas = new Set(resumos.map((r) => r.conta.id));
+  const doAnterior = trafego.dias.filter((x) => x.data >= iniAnt && x.data <= fimAnt && contas.has(x.conta_id));
+  const conversasAnt = doAnterior.reduce((s2, x) => s2 + x.conversas, 0);
+  const leadsAnt = doAnterior.reduce((s2, x) => s2 + x.leads, 0);
+  const contatos = conversas + leads;
+  const custo = contatos ? total / contatos : null;
+  const custoAnt = conversasAnt + leadsAnt ? totalAnt / (conversasAnt + leadsAnt) : null;
+  const datas: string[] = [];
+  for (let x = ini; x <= fim; x = somarDias(x, 1)) datas.push(x);
+  const porDia = datas.map((dt) => {
+    const l = noPeriodo.filter((x) => x.data === dt);
+    return { gasto: l.reduce((a, x) => a + x.gasto, 0), conversas: l.reduce((a, x) => a + x.conversas, 0), leads: l.reduce((a, x) => a + x.leads, 0) };
+  });
+  const ranking = [...resumos].filter((r) => r.gasto > 0).sort((a, b) => b.gasto - a.gasto);
   const ultimo = trafego.contas.map((c) => c.ultimo_sync).filter(Boolean).sort().pop() ?? null;
   const nuncaSincronizou = trafego.contas.length > 0 && !ultimo;
   const ultimoDia = trafego.dias.map((x) => x.data).sort().pop();
@@ -197,11 +215,60 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Cartao rotulo={`Investimento (${periodo} dias)`} valor={moeda(total)} extra={<Variacao v={variacao(total, totalAnt)} />} />
-        <Cartao rotulo="Conversas iniciadas" valor={inteiro(conversas)} />
-        <Cartao rotulo="Leads" valor={inteiro(leads)} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <CartaoTendencia rotulo={`Investimento · ${periodo} dias`} valor={moeda(total)} v={variacao(total, totalAnt)} serie={porDia.map((x) => x.gasto)} destaque />
+        <CartaoTendencia rotulo="Conversas iniciadas" valor={inteiro(conversas)} v={variacao(conversas, conversasAnt)} serie={porDia.map((x) => x.conversas)} />
+        <CartaoTendencia rotulo="Leads" valor={inteiro(leads)} v={variacao(leads, leadsAnt)} serie={porDia.map((x) => x.leads)} />
+        <CartaoTendencia rotulo="Custo por contato" valor={custo !== null ? moeda(custo) : "—"} v={custo !== null && custoAnt !== null ? variacao(custo, custoAnt) : null} inverso serie={porDia.map((x) => (x.conversas + x.leads ? x.gasto / (x.conversas + x.leads) : null))} />
         <Cartao rotulo="Contas com alerta" valor={String(comAlerta)} alerta={comAlerta > 0} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <section className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+          <div>
+            <h3 className="text-[14px] font-semibold">Carteira dia a dia</h3>
+            <p className="text-[12px] text-muted">Investimento de todas as contas (barras) e contatos gerados (linha)</p>
+          </div>
+          <GraficoSeries
+            rotulos={datas.map((x) => `${x.slice(8, 10)}/${x.slice(5, 7)}`)}
+            tipo="combo"
+            fmt="brl"
+            altura={240}
+            series={[
+              { nome: "Investimento", cor: "#2747d6", fmt: "brl", valores: porDia.map((x) => x.gasto) },
+              { nome: "Conversas + leads", cor: "#16a34a", fmt: "int", linha: true, valores: porDia.map((x) => x.conversas + x.leads) },
+            ]}
+          />
+        </section>
+        <section className="flex min-w-0 flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
+          <div>
+            <h3 className="text-[14px] font-semibold">Onde está o investimento</h3>
+            <p className="text-[12px] text-muted">Participação de cada cliente no período</p>
+          </div>
+          <ul className="flex flex-col gap-2.5">
+            {ranking.slice(0, 8).map((r) => {
+              const parte = total ? r.gasto / total : 0;
+              const ruim = r.alertas.some((a) => a.nivel === "ruim");
+              return (
+                <li key={r.conta.id}>
+                  <button onClick={() => ir(`trafego-cliente-${r.conta.cliente_id}`)} className="group flex w-full flex-col gap-1 text-left">
+                    <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
+                      <span className="flex min-w-0 items-center gap-1.5 truncate font-medium group-hover:text-accent">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ruim ? "bg-bad" : r.alertas.length ? "bg-warn" : "bg-ok"}`} />
+                        {d.cliente(r.conta.cliente_id)?.nome ?? r.conta.nome}
+                      </span>
+                      <span className="num shrink-0 text-muted"><b className="text-fg">{moeda(r.gasto)}</b> · {Math.round(parte * 100)}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-raised">
+                      <div className="h-full rounded-full" style={{ width: `${Math.max(2, parte * 100)}%`, background: "linear-gradient(90deg, #2747d6, #6d83ee)" }} />
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+            {ranking.length > 8 && <li className="text-[12px] text-muted">+ {ranking.length - 8} contas na tabela abaixo</li>}
+          </ul>
+        </section>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
@@ -287,6 +354,20 @@ export function VisaoGeral({ trafego, ir }: { trafego: ReturnType<typeof useTraf
         Clique numa conta para ver as campanhas.
       </p>
     </>
+  );
+}
+
+function CartaoTendencia({ rotulo, valor, v, serie, inverso, destaque }: { rotulo: string; valor: string; v: number | null; serie: (number | null)[]; inverso?: boolean; destaque?: boolean }) {
+  return (
+    <div className="relative flex min-w-0 flex-col gap-1 overflow-hidden rounded-xl border border-line bg-surface px-4 pb-2 pt-3">
+      {destaque && <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-accent" />}
+      <div className="truncate text-[11px] font-semibold uppercase tracking-[0.07em] text-muted">{rotulo}</div>
+      <div className="flex items-baseline gap-2">
+        <span className="num text-[22px] font-bold leading-none">{valor}</span>
+        <Variacao v={v} inverso={inverso} />
+      </div>
+      <Sparkline valores={serie} cor="auto" inverso={inverso} altura={30} />
+    </div>
   );
 }
 

@@ -1,17 +1,35 @@
 import { BASE, CATALOGO, formatar, variacaoRel, type Contexto, type DefMetrica } from "../../../lib/painel";
-import { GraficoSeries, type DefGrafico } from "./Graficos";
-import { useDiarioPlataformas } from "./config";
+import { GraficoSeries, Rosca, type DefGrafico } from "./Graficos";
+import type { DiaPlataformas } from "./config";
 
 const dia = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const META = "#2747d6";
 const GOOGLE = "#e2701c";
 
 /** Gráficos da visão Geral (Meta + Google) a partir da série diária guardada. */
-export function useGraficosGeral(clienteId: string, ini: string, fim: string, ctx: Contexto): DefGrafico[] {
-  const dias = useDiarioPlataformas(clienteId, ini, fim);
+export function useGraficosGeral(dias: DiaPlataformas[], ctx: Contexto): DefGrafico[] {
   const rot = dias.map((d) => dia(d.data));
   const div = (a: number, b: number) => (b ? a / b : null);
   return [
+    {
+      id: "evolucao",
+      nome: "Evolução do período",
+      descricao: "Investimento por dia (barras) e contatos gerados (linha)",
+      largo: true,
+      render: () => (
+        <GraficoSeries
+          rotulos={rot}
+          tipo="combo"
+          fmt="brl"
+          altura={260}
+          series={[
+            { nome: "Investimento Meta", cor: META, fmt: "brl", valores: dias.map((d) => d.meta.gasto) },
+            { nome: "Investimento Google", cor: GOOGLE, fmt: "brl", valores: dias.map((d) => d.google.gasto) },
+            { nome: "Contatos", cor: "#16a34a", fmt: "int", linha: true, valores: dias.map((d) => d.meta.contatos + d.google.contatos) },
+          ]}
+        />
+      ),
+    },
     { id: "comparativo", nome: "Meta x Google", descricao: "As mesmas métricas lado a lado, com o total", largo: true, render: () => <Comparativo ctx={ctx} /> },
     {
       id: "invest_dia",
@@ -23,7 +41,7 @@ export function useGraficosGeral(clienteId: string, ini: string, fim: string, ct
       id: "contatos_dia",
       nome: "Contatos por dia",
       descricao: "Conversas e leads da Meta + conversões do Google",
-      render: () => <GraficoSeries rotulos={rot} tipo="empilhado" series={[{ nome: "Meta", cor: META, valores: dias.map((d) => d.meta.contatos) }, { nome: "Google", cor: GOOGLE, valores: dias.map((d) => d.google.contatos) }]} />,
+      render: () => <GraficoSeries rotulos={rot} tipo="area" series={[{ nome: "Meta", cor: META, valores: dias.map((d) => d.meta.contatos) }, { nome: "Google", cor: GOOGLE, valores: dias.map((d) => d.google.contatos) }]} />,
     },
     {
       id: "custo_dia",
@@ -33,6 +51,7 @@ export function useGraficosGeral(clienteId: string, ini: string, fim: string, ct
         <GraficoSeries
           rotulos={rot}
           fmt="brl"
+          tipo="linha"
           series={[
             { nome: "Geral", cor: "#16a34a", valores: dias.map((d) => div(d.meta.gasto + d.google.gasto, d.meta.contatos + d.google.contatos)) },
             { nome: "Meta", cor: META, valores: dias.map((d) => div(d.meta.gasto, d.meta.contatos)) },
@@ -51,12 +70,12 @@ export function useGraficosGeral(clienteId: string, ini: string, fim: string, ct
       id: "ctr_dia",
       nome: "CTR por dia",
       descricao: "Cliques ÷ impressões em cada plataforma",
-      render: () => <GraficoSeries rotulos={rot} fmt="pct" series={[{ nome: "Meta", cor: META, valores: dias.map((d) => div(d.meta.cliques, d.meta.impressoes)) }, { nome: "Google", cor: GOOGLE, valores: dias.map((d) => div(d.google.cliques, d.google.impressoes)) }]} />,
+      render: () => <GraficoSeries rotulos={rot} tipo="linha" fmt="pct" series={[{ nome: "Meta", cor: META, valores: dias.map((d) => div(d.meta.cliques, d.meta.impressoes)) }, { nome: "Google", cor: GOOGLE, valores: dias.map((d) => div(d.google.cliques, d.google.impressoes)) }]} />,
     },
   ];
 }
 
-export const GRAFICOS_GERAL_PADRAO = ["comparativo", "invest_dia", "contatos_dia", "custo_dia"];
+export const GRAFICOS_GERAL_PADRAO = ["evolucao", "comparativo", "custo_dia", "contatos_dia"];
 
 function Comparativo({ ctx }: { ctx: Contexto }) {
   const linhas: { nome: string; meta: DefMetrica | null; google: DefMetrica | null; total: DefMetrica | null }[] = [
@@ -69,7 +88,8 @@ function Comparativo({ ctx }: { ctx: Contexto }) {
     { nome: "Custo por contato", meta: d("meta_custo_contato"), google: d("google_cpa"), total: d("custo_contato") },
   ];
   const gasto = BASE.investimento.v(ctx.atual) ?? 0;
-  const pm = gasto ? (ctx.atual.meta?.gasto ?? 0) / gasto : 0;
+  const contMeta = d("meta_contatos")?.calc(ctx.atual) ?? 0;
+  const contGoogle = d("google_conversoes")?.calc(ctx.atual) ?? 0;
   const cel = (def: DefMetrica | null, forte?: boolean) => {
     if (!def) return <td />;
     const v = def.calc(ctx.atual);
@@ -85,12 +105,15 @@ function Comparativo({ ctx }: { ctx: Contexto }) {
   return (
     <div className="flex flex-col gap-3">
       {gasto > 0 && (
-        <div>
-          <div className="flex h-3 overflow-hidden rounded-full">
-            <div style={{ width: `${pm * 100}%`, background: META }} />
-            <div style={{ width: `${(1 - pm) * 100}%`, background: GOOGLE }} />
+        <div className="grid gap-4 border-b border-line pb-4 sm:grid-cols-2">
+          <div>
+            <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.07em] text-muted">Onde foi o investimento</div>
+            <Rosca tamanho={128} valorCentro={formatar(gasto, "brl").replace(/,\d\d$/, "")} rotuloCentro="investido" partes={[{ nome: "Meta Ads", valor: ctx.atual.meta?.gasto ?? 0, cor: META }, { nome: "Google Ads", valor: ctx.atual.google?.gasto ?? 0, cor: GOOGLE }]} />
           </div>
-          <div className="mt-1 flex justify-between text-[11.5px] text-muted"><span>Meta {formatar(pm, "pct")}</span><span>Google {formatar(1 - pm, "pct")}</span></div>
+          <div>
+            <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.07em] text-muted">De onde vieram os contatos</div>
+            <Rosca tamanho={128} valorCentro={formatar(contMeta + contGoogle, "int")} rotuloCentro="contatos" partes={[{ nome: "Meta Ads", valor: contMeta, cor: META }, { nome: "Google Ads", valor: contGoogle, cor: GOOGLE }]} />
+          </div>
         </div>
       )}
       <div className="overflow-x-auto">

@@ -19,9 +19,11 @@ import { GoogleAdsCliente, useRelatorioGoogle } from "./GoogleAdsCliente";
 import { CATALOGO, FUNIL_PADRAO, PADRAO, defFormula, metricasDoFunil, valorEtapa, variaveis, type ConfigFunil, type Contexto } from "../../lib/painel";
 import { PainelMetricas, type ConfigPainel } from "./painel/PainelMetricas";
 import { PainelGraficos } from "./painel/Graficos";
-import { useConfigDashboard } from "./painel/config";
+import { useConfigDashboard, useDiarioPlataformas } from "./painel/config";
 import { FunilVendas, somarLancamentos, useLancamentosFunil } from "./painel/FunilVendas";
 import { GRAFICOS_GERAL_PADRAO, useGraficosGeral } from "./painel/AbaGeral";
+import { tendenciaDe } from "./painel/tendencias";
+import { GraficoSeries } from "./painel/Graficos";
 import { AnaliseFunil } from "./painel/AnaliseFunil";
 import { AbaInstagram, useRelatorioIG } from "./painel/AbaInstagram";
 import { supabase } from "../../lib/supabase";
@@ -172,10 +174,12 @@ export function DashboardCliente({ clienteId, ir }: { clienteId: string; ir: (r:
   const catalogoTodo = [...CATALOGO, ...metricasDoFunil(funilCfg), ...todasFormulas.map(defFormula)];
   const catalogo = (_f?: unknown) => catalogoTodo;
   const vars = variaveis(funilCfg);
-  const graficosGeral = useGraficosGeral(clienteId, per.ini, per.fim, ctx);
+  const diario = useDiarioPlataformas(clienteId, per.ini, per.fim);
+  const graficosGeral = useGraficosGeral(diario, ctx);
+  const tendencia = useMemo(() => tendenciaDe(diario), [diario]);
 
   const painel = (titulo: string, c: ReturnType<typeof useConfigDashboard<CfgAba>>, extra?: React.ReactNode) => (
-    <PainelMetricas titulo={titulo} ctx={ctx} catalogo={catalogo(c.config.formulas)} config={c.config} salvar={c.salvar} restaurar={c.restaurar} personalizado={c.personalizado} variaveis={vars} extra={extra} />
+    <PainelMetricas titulo={titulo} ctx={ctx} catalogo={catalogo(c.config.formulas)} config={c.config} salvar={c.salvar} restaurar={c.restaurar} personalizado={c.personalizado} variaveis={vars} extra={extra} tendencia={tendencia} />
   );
 
   const montarResumo = () => {
@@ -436,28 +440,31 @@ export interface Etapa {
 export function Funil({ etapas, cor = "var(--accent)" }: { etapas: Etapa[]; cor?: string }) {
   const visiveis = etapas.filter((e, i) => i === 0 || e.valor > 0);
   if (visiveis.length === 0 || visiveis[0].valor === 0) return <p className="text-[12.5px] text-muted">Sem entrega no período.</p>;
-  const passo = visiveis.length > 1 ? 48 / (visiveis.length - 1) : 0;
+  // Largura pela raiz da proporção: as etapas pequenas continuam visíveis sem esconder a queda
+  const topo = visiveis[0].valor;
+  const larg = (v: number) => Math.max(14, Math.sqrt(v / topo) * 100);
   return (
-    <ol className="flex flex-col gap-1.5">
+    <ol className="flex flex-col">
       {visiveis.map((e, i) => {
-        const largura = Math.max(100 - passo * i, 56);
         const taxa = i > 0 ? divisao(e.valor, visiveis[i - 1].valor) : null;
+        const opac = 1 - (i / Math.max(1, visiveis.length - 1)) * 0.55;
         return (
-          <li key={e.nome} className="flex flex-col items-center">
+          <li key={e.nome} className="flex flex-col">
             {taxa !== null && (
-              <span className="num mb-0.5 text-[11px] text-muted">
-                ↓ {pct(taxa, taxa < 0.01 ? 2 : 1)}
-              </span>
+              <div className="flex items-center gap-2 py-1 pl-3">
+                <span className="h-3 w-px bg-line-forte" />
+                <span className={`num rounded-full px-1.5 py-px text-[10.5px] font-semibold ${taxa >= 0.1 ? "bg-ok-soft text-ok" : taxa >= 0.02 ? "bg-warn-soft text-warn" : "bg-raised text-muted"}`}>{pct(taxa, taxa < 0.01 ? 2 : 1)} passam</span>
+              </div>
             )}
-            <div
-              className="flex min-h-[40px] items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-[12.5px]"
-              style={{ width: `${largura}%`, background: `color-mix(in srgb, ${cor} ${88 - i * 13}%, transparent)`, color: i < 3 ? "#fff" : "var(--fg)" }}
-            >
-              <span className="min-w-0 font-medium leading-tight">{e.nome}</span>
-              <span className="num shrink-0 text-right leading-tight">
-                <span className="font-semibold">{int(e.valor)}</span>
-                {e.custo != null && isFinite(e.custo) && <span className="block text-[10.5px] opacity-85">{brl(e.custo)} cada</span>}
-              </span>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+              <div className="relative h-10 overflow-hidden rounded-xl bg-raised">
+                <div className="absolute inset-y-0 left-0 rounded-xl" style={{ width: `${larg(e.valor)}%`, background: `linear-gradient(90deg, ${cor}, color-mix(in srgb, ${cor} 70%, transparent))`, opacity: opac }} />
+                <span className="relative flex h-full items-center px-3 text-[12.5px] font-medium" style={{ color: larg(e.valor) > 45 ? "#fff" : "var(--fg)" }}>{e.nome}</span>
+              </div>
+              <div className="num min-w-[86px] text-right leading-tight">
+                <div className="text-[14px] font-bold">{int(e.valor)}</div>
+                {e.custo != null && isFinite(e.custo) && <div className="text-[10.5px] text-muted">{brl(e.custo)} cada</div>}
+              </div>
             </div>
           </li>
         );
@@ -534,57 +541,16 @@ function etapasDoGrupo(g: GrupoResumo): Etapa[] {
 // Gráfico diário
 // ------------------------------------------------------------------
 export function GraficoDiario({ dias, rotulo = "Contatos" }: { dias: { data: string; gasto: number; contatos: number }[]; rotulo?: string }) {
-  if (dias.length === 0) return <p className="text-[12.5px] text-muted">Sem dados no período.</p>;
-  const L = 640;
-  const A = 200;
-  const M = { t: 12, r: 34, b: 26, l: 44 };
-  const w = L - M.l - M.r;
-  const hgt = A - M.t - M.b;
-  const maxG = Math.max(...dias.map((x) => x.gasto), 1);
-  const maxC = Math.max(...dias.map((x) => x.contatos), 1);
-  const bw = w / dias.length;
-  const xC = (i: number) => M.l + bw * i + bw / 2;
-  const yG = (v: number) => M.t + hgt - (v / maxG) * hgt;
-  const yC = (v: number) => M.t + hgt - (v / maxC) * hgt;
-  const passoRotulo = Math.ceil(dias.length / 8);
   return (
-    <div className="flex flex-col gap-2">
-      <svg viewBox={`0 0 ${L} ${A}`} className="h-auto w-full" role="img" aria-label="Investimento e contatos por dia">
-        {[0, 0.5, 1].map((p) => (
-          <g key={p}>
-            <line x1={M.l} x2={L - M.r} y1={M.t + hgt * (1 - p)} y2={M.t + hgt * (1 - p)} stroke="var(--line)" strokeDasharray={p ? "3 3" : undefined} />
-            <text x={M.l - 6} y={M.t + hgt * (1 - p) + 3} textAnchor="end" fontSize="10" fill="var(--muted)">
-              {Math.round(maxG * p)}
-            </text>
-            <text x={L - M.r + 6} y={M.t + hgt * (1 - p) + 3} fontSize="10" fill="var(--ok)">
-              {Math.round(maxC * p)}
-            </text>
-          </g>
-        ))}
-        {dias.map((x, i) => (
-          <g key={x.data}>
-            <rect x={M.l + bw * i + bw * 0.18} y={yG(x.gasto)} width={bw * 0.64} height={Math.max(0, M.t + hgt - yG(x.gasto))} rx={2} fill="var(--accent)" opacity={0.75}>
-              <title>{`${dataBR(x.data)}: ${brl(x.gasto)} · ${x.contatos} contatos`}</title>
-            </rect>
-            {i % passoRotulo === 0 && (
-              <text x={xC(i)} y={A - 8} textAnchor="middle" fontSize="10" fill="var(--muted)">
-                {dataBR(x.data).slice(0, 5)}
-              </text>
-            )}
-          </g>
-        ))}
-        <polyline points={dias.map((x, i) => `${xC(i)},${yC(x.contatos)}`).join(" ")} fill="none" stroke="var(--ok)" strokeWidth={2.2} strokeLinejoin="round" />
-        {dias.map((x, i) => (
-          <circle key={x.data} cx={xC(i)} cy={yC(x.contatos)} r={2.8} fill="var(--ok)">
-            <title>{`${dataBR(x.data)}: ${x.contatos} contatos`}</title>
-          </circle>
-        ))}
-      </svg>
-      <div className="flex gap-4 text-[12px] text-muted">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-accent opacity-75" /> Investimento (R$)</span>
-        <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-ok" /> {rotulo}</span>
-      </div>
-    </div>
+    <GraficoSeries
+      rotulos={dias.map((x) => dataBR(x.data).slice(0, 5))}
+      tipo="combo"
+      fmt="brl"
+      series={[
+        { nome: "Investimento", cor: "var(--accent)", fmt: "brl", valores: dias.map((x) => x.gasto) },
+        { nome: rotulo, cor: "#16a34a", fmt: "int", linha: true, valores: dias.map((x) => x.contatos) },
+      ]}
+    />
   );
 }
 

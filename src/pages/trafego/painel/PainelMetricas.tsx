@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Calculator, Check, ChevronDown, Pencil, Plus, RotateCcw, Search, X } from "lucide-react";
+import { Sparkline } from "./Graficos";
 import { avaliar, formatar, valorVariavel, variacaoRel, type Contexto, type DefMetrica, type Formato, type Formula } from "../../../lib/painel";
 
 export interface ConfigPainel { cards: string[]; formulas: Formula[]; graficos: string[] }
@@ -44,15 +45,18 @@ export function CartaoMetrica({ def, ctx, editando, onRemover, onMover, destaque
 }
 
 /** Métrica principal: número grande, sem caixa própria (divisórias entre elas). */
-function Destaque({ def, ctx, i }: { def: DefMetrica; ctx: Contexto; i: number }) {
+type Tendencia = (id: string) => (number | null)[] | null;
+
+function Destaque({ def, ctx, i, serie }: { def: DefMetrica; ctx: Contexto; i: number; serie?: (number | null)[] | null }) {
   const v = def.calc(ctx.atual);
   const a = def.calc(ctx.anterior);
   const vr = variacaoRel(v, a);
   const bom = vr === null ? null : def.inverso ? vr < 0 : vr > 0;
   return (
-    <div className={`flex min-w-0 flex-col gap-1.5 px-5 py-5 ${i % 2 === 1 ? "border-l border-line" : ""} ${i >= 2 ? "border-t border-line md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`} title={def.dica}>
-      <div className="truncate text-[12px] font-medium uppercase tracking-[0.06em] text-muted">{def.nome}</div>
-      <div className="num text-[28px] font-semibold leading-none tracking-tight">{formatar(v, def.fmt)}</div>
+    <div className={`relative flex min-w-0 flex-col gap-1.5 px-5 pb-3 pt-5 ${i % 2 === 1 ? "border-l border-line" : ""} ${i >= 2 ? "border-t border-line md:border-t-0" : ""} ${i === 2 ? "md:border-l" : ""}`} title={def.dica}>
+      {i === 0 && <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-accent" />}
+      <div className="truncate text-[11.5px] font-semibold uppercase tracking-[0.07em] text-muted">{def.nome}</div>
+      <div className="num text-[30px] font-bold leading-none tracking-tight">{formatar(v, def.fmt)}</div>
       <div className="flex items-center gap-1.5 text-[11.5px]">
         {vr === null || Math.abs(vr) < 0.005 ? (
           <span className="text-muted">{a === null ? "sem comparação" : "igual ao período anterior"}</span>
@@ -63,11 +67,12 @@ function Destaque({ def, ctx, i }: { def: DefMetrica; ctx: Contexto; i: number }
           </>
         )}
       </div>
+      <div className="-mx-1 mt-1">{serie ? <Sparkline valores={serie} cor="auto" inverso={def.inverso} altura={36} /> : <div className="h-[36px]" />}</div>
     </div>
   );
 }
 
-function Secundaria({ def, ctx }: { def: DefMetrica; ctx: Contexto }) {
+function Secundaria({ def, ctx, serie }: { def: DefMetrica; ctx: Contexto; serie?: (number | null)[] | null }) {
   const v = def.calc(ctx.atual);
   const vr = variacaoRel(v, def.calc(ctx.anterior));
   const bom = vr === null ? null : def.inverso ? vr < 0 : vr > 0;
@@ -78,6 +83,7 @@ function Secundaria({ def, ctx }: { def: DefMetrica; ctx: Contexto }) {
         <span className="num text-[15px] font-semibold">{formatar(v, def.fmt)}</span>
         {vr !== null && Math.abs(vr) >= 0.005 && <span className={`num text-[11px] ${bom ? "text-ok" : "text-bad"}`}>{vr > 0 ? "+" : "−"}{Math.abs(Math.round(vr * 100))}%</span>}
       </div>
+      {serie && <div className="mt-1"><Sparkline valores={serie} cor="auto" inverso={def.inverso} altura={22} /></div>}
     </div>
   );
 }
@@ -97,6 +103,7 @@ export function PainelMetricas({
   variaveis,
   destaques = 4,
   extra,
+  tendencia,
 }: {
   titulo: string;
   ctx: Contexto;
@@ -108,6 +115,8 @@ export function PainelMetricas({
   variaveis: { id: string; nome: string }[];
   destaques?: number;
   extra?: React.ReactNode;
+  /** Série diária de cada métrica, para o minigráfico dos cartões */
+  tendencia?: Tendencia;
 }) {
   const [editando, setEditando] = useState(false);
   const [verMais, setVerMais] = useState(() => { try { return localStorage.getItem("vertente.dash-mais") === "1"; } catch { return false; } });
@@ -156,14 +165,14 @@ export function PainelMetricas({
         <div className="overflow-hidden rounded-2xl border border-line bg-surface">
           <div className="grid grid-cols-2 md:grid-cols-4">
             {cards.slice(0, destaques).map((id, i) => (
-              <Destaque key={id} def={porId.get(id)!} ctx={ctx} i={i} />
+              <Destaque key={id} def={porId.get(id)!} ctx={ctx} i={i} serie={tendencia?.(id)} />
             ))}
           </div>
           {cards.length > destaques && (
             <>
               {verMais && (
                 <div className="grid grid-cols-2 gap-px border-t border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
-                  {cards.slice(destaques).map((id) => <Secundaria key={id} def={porId.get(id)!} ctx={ctx} />)}
+                  {cards.slice(destaques).map((id) => <Secundaria key={id} def={porId.get(id)!} ctx={ctx} serie={tendencia?.(id)} />)}
                 </div>
               )}
               <button onClick={() => alternarMais(!verMais)} className="flex w-full items-center justify-center gap-1 border-t border-line py-2 text-[12px] text-muted hover:bg-raised/60 hover:text-fg">
