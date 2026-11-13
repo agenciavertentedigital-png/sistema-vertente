@@ -85,9 +85,15 @@ export interface Nota {
   cliente_id: string | null;
   titulo: string | null;
   texto: string;
+  /** HTML do editor de documentos (nulo nas anotações antigas, que só têm texto) */
+  conteudo?: string | null;
   etiqueta: Etiqueta;
   fixada: boolean;
   pasta_id?: string | null;
+  /** Link público ligado (/d/codigo) */
+  compartilhado?: boolean;
+  codigo?: string | null;
+  com_senha?: boolean;
   autor_id: string | null;
   criado_em: string;
   atualizado_em: string;
@@ -106,7 +112,7 @@ function notasDemo(): Nota[] {
 }
 
 export function useNotas() {
-  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, etiqueta, fixada, pasta_id, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
+  return useTabela<Nota>("notas", "id, cliente_id, titulo, texto, conteudo, etiqueta, fixada, pasta_id, compartilhado, codigo, com_senha, autor_id, criado_em, atualizado_em", notasDemo, { ordem: { coluna: "atualizado_em", asc: false } });
 }
 
 // ------------------------------------------------------------------

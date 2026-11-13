@@ -16,6 +16,10 @@
     {
       "source": "/diagnostico",
       "destination": "/"
+    },
+    {
+      "source": "/d/:codigo",
+      "destination": "/"
     }
   ],
   "headers": [

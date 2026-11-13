@@ -41,6 +41,7 @@ import { Integracoes } from "./pages/Integracoes";
 import { CentralAnotacoes } from "./pages/CentralAnotacoes";
 import { BriefingPublico } from "./pages/cadastro/BriefingPublico";
 import { DiagnosticoPublico } from "./pages/diagnostico/DiagnosticoPublico";
+import { DocPublico } from "./pages/DocPublico";
 import { Diagnosticos } from "./pages/diagnostico/Diagnosticos";
 
 const PAPEIS: Record<string, string> = { admin: "Administrador", gestor: "Gestor", cs: "CS", visualizador: "Visualizador" };
@@ -109,6 +110,8 @@ export default function App() {
   if (rota.startsWith("painel-")) return <PortalCliente slug={rota.slice(7)} />;
   // Diagnóstico Digital: página pública para anúncios (/diagnostico), sem login
   if (rota === "diagnostico") return <DiagnosticoPublico />;
+  // Documento compartilhado por link (/d/código), sem login
+  if (rota.startsWith("doc-")) return <DocPublico codigo={rota.slice(4)} />;
 
   if (sessao.tipo === "carregando") {
     return <div className="grid h-full place-items-center text-muted">Carregando…</div>;

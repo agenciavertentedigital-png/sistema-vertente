@@ -12,6 +12,9 @@ const usaCaminho = () => import.meta.env.MODE !== "preview" && /^https?:$/.test(
 function lerRota(): string {
   const caminho = window.location.pathname.replace(/^\/+|\/+$/g, "");
   if (CAMINHOS.has(caminho) && !window.location.hash) return caminho;
+  // Documento compartilhado: /d/<código>
+  const doc = caminho.match(/^d\/([A-Za-z0-9_-]{6,40})$/);
+  if (doc) return `doc-${doc[1]}`;
   // Parâmetros depois de "?" na âncora (ex.: #integracoes?google=ok) não mudam a rota
   const h = window.location.hash.replace(/^#/, "").split("?")[0];
   return /^[a-z0-9_-]+$/i.test(h) ? h : "inicio";

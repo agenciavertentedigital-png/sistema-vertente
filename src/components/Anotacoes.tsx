@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
-import { Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Pencil, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Globe, Lock, Pencil, Pin, PinOff, Plus, Search, Share2, StickyNote, Trash2 } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { ETIQUETAS, PASTAS_SUGERIDAS, useNotas, usePastas, type Etiqueta, type Nota, type Pasta } from "../lib/briefing";
-import { CampoMencao, TextoComMencoes } from "./LinhaDoTempo";
+import { TextoComMencoes } from "./LinhaDoTempo";
+import { EditorDoc } from "./doc/EditorDoc";
+import { CompartilharDoc } from "./doc/CompartilharDoc";
+import { htmlDoDocumento } from "../lib/doc";
 import { Botao, Painel, campo } from "./ui";
 
 const quando = (iso: string) => {
@@ -206,18 +209,27 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
         )}
       </section>
 
-      <Painel aberto={Boolean(aberta) || nova} fechar={() => { setAberta(null); setNova(false); }} titulo={nova ? "Nova anotação" : "Anotação"} largura={640}>
+      <Painel aberto={Boolean(aberta) || nova} fechar={() => { setAberta(null); setNova(false); }} titulo={nova ? "Novo documento" : "Documento"} largura={920}>
         {(aberta || nova) && (
           <EditarNota
             key={aberta?.id ?? "nova"}
             n={aberta}
             pastas={pastasDe(sel.escopo)}
             pastaInicial={aberta ? aberta.pasta_id ?? null : pastaAtual?.id ?? null}
-            salvar={async (campos) => {
-              if (aberta) await tn.salvar(aberta.id, campos);
-              else await tn.salvar(null, { ...campos, cliente_id: cliente_id(sel.escopo), autor_id: d.eu, fixada: false } as Partial<Nota>);
-              setAberta(null); setNova(false);
+            salvar={async (campos, manterAberto) => {
+              if (aberta) {
+                await tn.salvar(aberta.id, campos);
+                if (manterAberto) setAberta({ ...aberta, ...campos } as Nota);
+                else setAberta(null);
+              } else {
+                const novo = { ...campos, cliente_id: cliente_id(sel.escopo), autor_id: d.eu, fixada: false } as Partial<Nota>;
+                const id = await tn.salvar(null, novo);
+                setNova(false);
+                setAberta(manterAberto ? ({ ...novo, id, criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() } as Nota) : null);
+              }
+              d.avisar("Documento salvo");
             }}
+            recarregar={() => tn.recarregar()}
             excluir={aberta ? async () => { await tn.excluir(aberta.id); setAberta(null); } : undefined}
           />
         )}
@@ -236,7 +248,7 @@ function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar }: { n: Nota; pasta?: 
     <div onClick={abrir} className="group flex cursor-pointer items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-raised/50">
       <FileText size={16} className="mt-0.5 shrink-0" style={{ color: e.cor }} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2"><span className="truncate text-[14px] font-medium">{titulo}</span>{n.fixada && <Pin size={12} className="shrink-0 fill-current text-accent" />}</div>
+        <div className="flex items-center gap-2"><span className="truncate text-[14px] font-medium">{titulo}</span>{n.fixada && <Pin size={12} className="shrink-0 fill-current text-accent" />}{n.compartilhado && <span title={n.com_senha ? "Compartilhado por link, com senha" : "Compartilhado por link"} className="flex shrink-0 items-center gap-0.5 rounded-full bg-ok-soft px-1.5 text-[10.5px] font-medium text-ok">{n.com_senha ? <Lock size={10} /> : <Globe size={10} />} link</span>}</div>
         {corpo.trim() && <p className="line-clamp-2 text-[12.5px] text-muted"><TextoComMencoes texto={corpo} /></p>}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11.5px] text-muted">
           {mostrarPasta && pasta && <span className="flex items-center gap-1"><Folder size={11} className="text-[#d4a72c]" />{pasta}</span>}
@@ -251,38 +263,75 @@ function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar }: { n: Nota; pasta?: 
   );
 }
 
-function EditarNota({ n, pastas, pastaInicial, salvar, excluir }: { n: Nota | null; pastas: Pasta[]; pastaInicial: string | null; salvar: (c: Partial<Nota>) => Promise<void>; excluir?: () => Promise<void> }) {
+function EditarNota({ n, pastas, pastaInicial, salvar, excluir, recarregar }: { n: Nota | null; pastas: Pasta[]; pastaInicial: string | null; salvar: (c: Partial<Nota>, manterAberto?: boolean) => Promise<void>; excluir?: () => Promise<void>; recarregar: () => void }) {
   const [titulo, setTitulo] = useState(n?.titulo ?? "");
+  const [conteudo, setConteudo] = useState(() => htmlDoDocumento(n?.conteudo, n?.texto));
   const [texto, setTexto] = useState(n?.texto ?? "");
   const [etiqueta, setEtiqueta] = useState<Etiqueta>(n?.etiqueta ?? "geral");
   const [pasta, setPasta] = useState<string>(pastaInicial ?? "");
   const [confirmar, setConfirmar] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [mudou, setMudou] = useState(false);
+  const [compartilhar, setCompartilhar] = useState(false);
+  const iniciou = useRef(false);
   const nomeCompleto = (p: Pasta): string => { const pai = pastas.find((x) => x.id === p.pai_id); return pai ? `${nomeCompleto(pai)} / ${p.nome}` : p.nome; };
   const opcoes = pastas.map((p) => ({ id: p.id, nome: nomeCompleto(p) })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const vazio = !texto.trim() && !titulo.trim();
+  async function gravar(manterAberto: boolean) {
+    if (vazio || salvando) return;
+    setSalvando(true);
+    try {
+      await salvar({ titulo: titulo.trim() || null, texto: texto.trim() || titulo.trim(), conteudo, etiqueta, pasta_id: pasta || null }, manterAberto);
+      setMudou(false);
+    } finally {
+      setSalvando(false);
+    }
+  }
   return (
     <div className="flex flex-col gap-3">
-      <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" className="w-full bg-transparent text-[18px] font-semibold outline-none placeholder:text-muted" autoFocus={!n} />
+      <input value={titulo} onChange={(e) => { setTitulo(e.target.value); setMudou(true); }} placeholder="Título do documento" className="w-full bg-transparent font-display text-[24px] font-bold tracking-tight outline-none placeholder:text-muted/70" autoFocus={!n} />
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
         <label className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1">
           <Folder size={13} className="text-[#d4a72c]" />
-          <select value={pasta} onChange={(e) => setPasta(e.target.value)} className="bg-transparent outline-none">
+          <select value={pasta} onChange={(e) => { setPasta(e.target.value); setMudou(true); }} className="bg-transparent outline-none">
             <option value="">Sem pasta</option>
             {opcoes.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select>
         </label>
         {(Object.keys(ETIQUETAS) as Etiqueta[]).map((e) => (
-          <button key={e} onClick={() => setEtiqueta(e)} className={`rounded-full px-2 py-0.5 text-[11.5px] ${etiqueta === e ? "text-white" : "bg-raised text-muted hover:text-fg"}`} style={etiqueta === e ? { background: ETIQUETAS[e].cor } : undefined}>{ETIQUETAS[e].nome}</button>
+          <button key={e} onClick={() => { setEtiqueta(e); setMudou(true); }} className={`rounded-full px-2 py-0.5 text-[11.5px] ${etiqueta === e ? "text-white" : "bg-raised text-muted hover:text-fg"}`} style={etiqueta === e ? { background: ETIQUETAS[e].cor } : undefined}>{ETIQUETAS[e].nome}</button>
         ))}
+        {n && (
+          <button onClick={() => setCompartilhar((v) => !v)} className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium ${n.compartilhado ? "border-ok/40 bg-ok-soft text-ok" : "border-line hover:bg-raised"}`}>
+            {n.compartilhado ? <Globe size={13} /> : <Share2 size={13} />} {n.compartilhado ? "Compartilhado" : "Compartilhar"}
+          </button>
+        )}
       </div>
-      <CampoMencao valor={texto} mudar={setTexto} rows={14} placeholder="Escreva aqui. Use @ para marcar alguém." className="!text-[14px] leading-relaxed" />
-      <div className="flex items-center justify-between gap-2 pt-1">
+      {n && compartilhar && (
+        <div className="rounded-2xl border border-line bg-surface p-3">
+          <CompartilharDoc notaId={n.id} inicial={{ compartilhado: Boolean(n.compartilhado), codigo: n.codigo ?? null, com_senha: Boolean(n.com_senha) }} mudou={recarregar} />
+        </div>
+      )}
+      <EditorDoc
+        conteudo={conteudo}
+        autoFoco={Boolean(n)}
+        salvar={() => gravar(true)}
+        mudar={(html, t) => {
+          setConteudo(html);
+          setTexto(t);
+          if (iniciou.current) setMudou(true);
+          iniciou.current = true;
+        }}
+      />
+      <div className="sticky bottom-0 -mx-1 flex items-center justify-between gap-2 bg-surface/95 px-1 py-2 backdrop-blur">
         {excluir ? (
           <Botao variante="fantasma" onClick={() => (confirmar ? excluir() : setConfirmar(true))} className="text-bad"><Trash2 size={14} /> {confirmar ? "Clique de novo para excluir" : "Excluir"}</Botao>
         ) : <span />}
-        <div className="flex gap-2">
-          {n && <Botao onClick={() => salvar({ fixada: !n.fixada })}>{n.fixada ? <><PinOff size={14} /> Desafixar</> : <><Pin size={14} /> Fixar</>}</Botao>}
-          <Botao variante="primario" disabled={!texto.trim() || salvando} onClick={async () => { setSalvando(true); try { await salvar({ titulo: titulo.trim() || null, texto: texto.trim(), etiqueta, pasta_id: pasta || null }); } finally { setSalvando(false); } }}>{salvando ? "Salvando…" : "Salvar"}</Botao>
+        <div className="flex items-center gap-2">
+          {mudou && <span className="hidden text-[12px] text-muted sm:inline">Alterações não salvas · Ctrl+S salva</span>}
+          {n && <Botao onClick={() => salvar({ fixada: !n.fixada }, true)}>{n.fixada ? <><PinOff size={14} /> Desafixar</> : <><Pin size={14} /> Fixar</>}</Botao>}
+          <Botao onClick={() => gravar(true)} disabled={vazio || salvando}>Salvar</Botao>
+          <Botao variante="primario" disabled={vazio || salvando} onClick={() => gravar(false)}>{salvando ? "Salvando…" : "Salvar e fechar"}</Botao>
         </div>
       </div>
     </div>
