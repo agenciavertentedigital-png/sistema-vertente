@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Globe, Lock, Pencil, Pin, PinOff, Plus, Search, Share2, StickyNote, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Building, ChevronRight, FileText, Folder, FolderOpen, FolderPlus, Globe, GripVertical, Lock, Pencil, Pin, PinOff, Plus, Search, Share2, StickyNote, Trash2 } from "lucide-react";
 import { useDados } from "../lib/dados";
 import { ETIQUETAS, PASTAS_SUGERIDAS, useNotas, usePastas, type Etiqueta, type Nota, type Pasta } from "../lib/briefing";
 import { TextoComMencoes } from "./LinhaDoTempo";
@@ -32,6 +32,34 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
   const [abertos, setAbertos] = useState<Set<string>>(() => new Set([clienteId ?? AGENCIA]));
   const [aberta, setAberta] = useState<Nota | null>(null);
   const [nova, setNova] = useState(false);
+  // Chave do editor aberto: fica a mesma quando o documento novo ganha id no primeiro salvamento automático
+  const [chaveEditor, setChaveEditor] = useState("");
+  const abrirNota = (n: Nota | null) => { setChaveEditor(n?.id ?? `nova-${Date.now()}`); if (n) setAberta(n); else setNova(true); };
+  // Arrastar anotação para outra pasta
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [alvo, setAlvo] = useState<string | null>(null);
+  async function mover(notaId: string, esc: string, pastaId: string | null) {
+    const nota = tn.linhas.find((x) => x.id === notaId);
+    setArrastando(null);
+    setAlvo(null);
+    if (!nota) return;
+    const novoCliente = esc === AGENCIA ? null : esc;
+    if ((nota.pasta_id ?? null) === pastaId && (nota.cliente_id ?? null) === novoCliente) return;
+    try {
+      await tn.salvar(notaId, { pasta_id: pastaId, cliente_id: novoCliente });
+      const destino = pastaId ? tp.linhas.find((p) => p.id === pastaId)?.nome : "Sem pasta";
+      d.avisar(`"${nota.titulo || nota.texto.slice(0, 40)}" movida para ${destino}${(nota.cliente_id ?? null) !== novoCliente ? ` (${nomeEscopo(esc)})` : ""}`);
+    } catch (e) {
+      d.avisar((e as Error).message);
+    }
+  }
+  /** Props para um lugar que recebe a anotação arrastada. */
+  const soltarEm = (esc: string, pastaId: string | null, chave: string) => ({
+    onDragOver: (e: React.DragEvent) => { if (!arrastando) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (alvo !== chave) setAlvo(chave); },
+    onDragLeave: () => setAlvo((a) => (a === chave ? null : a)),
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); const id = e.dataTransfer.getData("text/x-nota") || arrastando; if (id) mover(id, esc, pastaId); },
+  });
+  const destaque = (chave: string) => (alvo === chave ? " ring-2 ring-accent bg-accent-soft" : "");
   const [nomeando, setNomeando] = useState<{ pai: string | null; id?: string; nome: string } | null>(null);
 
   const doEscopo = (esc: string) => (n: { cliente_id: string | null }) => (esc === AGENCIA ? !n.cliente_id : n.cliente_id === esc);
@@ -90,7 +118,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
         const ativo = sel.escopo === esc && sel.pasta === p.id;
         return (
           <div key={p.id}>
-            <div className={`group flex items-center gap-1 rounded-lg pr-1 text-[13px] ${ativo ? "bg-accent-soft text-accent" : "hover:bg-raised"}`} style={{ paddingLeft: 6 + nivel * 14 }}>
+            <div {...soltarEm(esc, p.id, `p-${p.id}`)} className={`group flex items-center gap-1 rounded-lg pr-1 text-[13px] ${ativo ? "bg-accent-soft text-accent" : "hover:bg-raised"}${destaque(`p-${p.id}`)}`} style={{ paddingLeft: 6 + nivel * 14 }}>
               <button onClick={() => alternar(p.id)} className={`grid h-6 w-4 place-items-center text-muted ${temFilhas ? "" : "invisible"}`} aria-label="Abrir pasta"><ChevronRight size={12} className={abertos.has(p.id) ? "rotate-90" : ""} /></button>
               <button onClick={() => { setSel({ escopo: esc, pasta: p.id }); if (temFilhas) setAbertos((s) => new Set([...s, p.id])); }} className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left">
                 {ativo ? <FolderOpen size={14} className="shrink-0" /> : <Folder size={14} className="shrink-0 text-[#d4a72c]" />}
@@ -120,7 +148,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
           return (
             <div key={esc}>
               {!clienteId && (
-                <button onClick={() => { alternar(esc); setSel({ escopo: esc, pasta: "todas" }); }} className={`flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-[13px] font-semibold ${sel.escopo === esc && sel.pasta === "todas" ? "bg-raised" : "hover:bg-raised"}`}>
+                <button {...soltarEm(esc, null, `esc-${esc}`)} onDragEnter={() => arrastando && setAbertos((s) => new Set([...s, esc]))} onClick={() => { alternar(esc); setSel({ escopo: esc, pasta: "todas" }); }} className={`flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-[13px] font-semibold ${sel.escopo === esc && sel.pasta === "todas" ? "bg-raised" : "hover:bg-raised"}${destaque(`esc-${esc}`)}`}>
                   <ChevronRight size={12} className={`shrink-0 text-muted ${aberto ? "rotate-90" : ""}`} />
                   {esc === AGENCIA ? <Building size={14} className="shrink-0 text-accent" /> : <Folder size={14} className="shrink-0 text-accent" />}
                   <span className="min-w-0 flex-1 truncate">{nomeEscopo(esc)}</span>
@@ -133,8 +161,8 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
                     <StickyNote size={14} className="shrink-0" /> <span className="flex-1">Todas as anotações</span><span className="num text-[11px] text-muted">{total || ""}</span>
                   </button>
                   <Arvore esc={esc} pai={null} nivel={0} />
-                  {notasDe(esc).some((n) => !n.pasta_id) && (
-                    <button onClick={() => setSel({ escopo: esc, pasta: "sem" })} className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[13px] ${sel.escopo === esc && sel.pasta === "sem" ? "bg-accent-soft text-accent" : "text-muted hover:bg-raised"}`}>
+                  {(notasDe(esc).some((n) => !n.pasta_id) || arrastando) && (
+                    <button {...soltarEm(esc, null, `sem-${esc}`)} onClick={() => setSel({ escopo: esc, pasta: "sem" })} className={`flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[13px] ${sel.escopo === esc && sel.pasta === "sem" ? "bg-accent-soft text-accent" : "text-muted hover:bg-raised"}${destaque(`sem-${esc}`)}`}>
                       <FileText size={14} className="shrink-0" /> <span className="flex-1">Sem pasta</span><span className="num text-[11px]">{notasDe(esc).filter((n) => !n.pasta_id).length}</span>
                     </button>
                   )}
@@ -166,7 +194,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
             <Search size={14} className="text-muted" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" className="min-w-0 flex-1 bg-transparent outline-none" />
           </label>
           {sel.pasta !== "sem" && <Botao onClick={() => setNomeando({ pai: pastaAtual?.id ?? null, nome: "" })}><FolderPlus size={14} /> {pastaAtual ? "Subpasta" : "Pasta"}</Botao>}
-          <Botao variante="primario" onClick={() => setNova(true)}><Plus size={14} /> Anotação</Botao>
+          <Botao variante="primario" onClick={() => abrirNota(null)}><Plus size={14} /> Anotação</Botao>
         </div>
 
         {nomeando && (
@@ -188,7 +216,7 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
         {subpastas.length > 0 && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
             {subpastas.map((p) => (
-              <button key={p.id} onClick={() => { setSel({ escopo: sel.escopo, pasta: p.id }); setAbertos((s) => new Set([...s, sel.escopo, ...(pastaAtual ? [pastaAtual.id] : [])])); }} className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left hover:border-line-forte">
+              <button key={p.id} {...soltarEm(sel.escopo, p.id, `c-${p.id}`)} onClick={() => { setSel({ escopo: sel.escopo, pasta: p.id }); setAbertos((s) => new Set([...s, sel.escopo, ...(pastaAtual ? [pastaAtual.id] : [])])); }} className={`flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left hover:border-line-forte${destaque(`c-${p.id}`)}`}>
                 <Folder size={20} className="shrink-0 fill-[#f2d27a] text-[#d4a72c]" />
                 <span className="min-w-0 flex-1"><span className="block truncate text-[13.5px] font-medium">{p.nome}</span><span className="text-[11.5px] text-muted">{contar(sel.escopo, p.id)} anotações</span></span>
               </button>
@@ -196,15 +224,20 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
           </div>
         )}
 
+        {arrastando && (
+          <div className="flex items-center gap-2 rounded-xl border border-dashed border-accent/50 bg-accent-soft/50 px-3 py-2 text-[12.5px] text-accent">
+            <FolderOpen size={14} /> Solte numa pasta à esquerda (ou num cliente) para mover. Soltar no nome do cliente deixa sem pasta.
+          </div>
+        )}
         {lista.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line p-10 text-center text-[13px] text-muted">
             <StickyNote size={22} />
             {busca ? "Nada encontrado." : "Nenhuma anotação aqui ainda."}
-            <Botao onClick={() => setNova(true)}><Plus size={14} /> Nova anotação</Botao>
+            <Botao onClick={() => abrirNota(null)}><Plus size={14} /> Nova anotação</Botao>
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-            {lista.map((n) => <LinhaNota key={n.id} n={n} pasta={tp.linhas.find((p) => p.id === n.pasta_id)?.nome} mostrarPasta={sel.pasta === "todas" || (pastaAtual ? n.pasta_id !== pastaAtual.id : false)} abrir={() => setAberta(n)} fixar={() => tn.salvar(n.id, { fixada: !n.fixada })} />)}
+            {lista.map((n) => <LinhaNota key={n.id} n={n} pasta={tp.linhas.find((p) => p.id === n.pasta_id)?.nome} mostrarPasta={sel.pasta === "todas" || (pastaAtual ? n.pasta_id !== pastaAtual.id : false)} abrir={() => abrirNota(n)} fixar={() => tn.salvar(n.id, { fixada: !n.fixada })} arrastar={{ inicio: () => setArrastando(n.id), fim: () => { setArrastando(null); setAlvo(null); }, ativo: arrastando === n.id }} />)}
           </div>
         )}
       </section>
@@ -212,22 +245,24 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
       <Painel aberto={Boolean(aberta) || nova} fechar={() => { setAberta(null); setNova(false); }} titulo={nova ? "Novo documento" : "Documento"} largura={920}>
         {(aberta || nova) && (
           <EditarNota
-            key={aberta?.id ?? "nova"}
+            key={chaveEditor}
             n={aberta}
             pastas={pastasDe(sel.escopo)}
             pastaInicial={aberta ? aberta.pasta_id ?? null : pastaAtual?.id ?? null}
-            salvar={async (campos, manterAberto) => {
+            salvar={async (campos, manterAberto, silencioso) => {
+              const fechar = () => { setAberta(null); setNova(false); };
+              const vazio = Object.keys(campos).length === 0;
               if (aberta) {
-                await tn.salvar(aberta.id, campos);
-                if (manterAberto) setAberta({ ...aberta, ...campos } as Nota);
-                else setAberta(null);
-              } else {
+                if (!vazio) await tn.salvar(aberta.id, campos);
+                if (manterAberto) setAberta((a) => (a && a.id === aberta.id ? ({ ...a, ...campos } as Nota) : a));
+                else fechar();
+              } else if (!vazio) {
                 const novo = { ...campos, cliente_id: cliente_id(sel.escopo), autor_id: d.eu, fixada: false } as Partial<Nota>;
                 const id = await tn.salvar(null, novo);
                 setNova(false);
                 setAberta(manterAberto ? ({ ...novo, id, criado_em: new Date().toISOString(), atualizado_em: new Date().toISOString() } as Nota) : null);
-              }
-              d.avisar("Documento salvo");
+              } else fechar();
+              if (!silencioso) d.avisar("Documento salvo");
             }}
             recarregar={() => tn.recarregar()}
             excluir={aberta ? async () => { await tn.excluir(aberta.id); setAberta(null); } : undefined}
@@ -238,14 +273,22 @@ export function Anotacoes({ clienteId }: { clienteId?: string }) {
   );
 }
 
-function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar }: { n: Nota; pasta?: string; mostrarPasta: boolean; abrir: () => void; fixar: () => void }) {
+function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar, arrastar }: { n: Nota; pasta?: string; mostrarPasta: boolean; abrir: () => void; fixar: () => void; arrastar: { inicio: () => void; fim: () => void; ativo: boolean } }) {
   const d = useDados();
   const e = ETIQUETAS[n.etiqueta] ?? ETIQUETAS.geral;
   const autor = d.membros.find((m) => m.id === n.autor_id)?.nome.split(" ")[0];
   const titulo = n.titulo || n.texto.split("\n")[0].slice(0, 90);
   const corpo = n.titulo ? n.texto : n.texto.split("\n").slice(1).join(" ");
   return (
-    <div onClick={abrir} className="group flex cursor-pointer items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-raised/50">
+    <div
+      onClick={abrir}
+      draggable
+      onDragStart={(ev) => { ev.dataTransfer.setData("text/x-nota", n.id); ev.dataTransfer.effectAllowed = "move"; arrastar.inicio(); }}
+      onDragEnd={arrastar.fim}
+      title="Clique para abrir · arraste para mover de pasta"
+      className={`group flex cursor-pointer items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-raised/50 ${arrastar.ativo ? "opacity-40" : ""}`}
+    >
+      <GripVertical size={14} className="mt-0.5 -ml-2 shrink-0 cursor-grab text-muted opacity-0 group-hover:opacity-100" />
       <FileText size={16} className="mt-0.5 shrink-0" style={{ color: e.cor }} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2"><span className="truncate text-[14px] font-medium">{titulo}</span>{n.fixada && <Pin size={12} className="shrink-0 fill-current text-accent" />}{n.compartilhado && <span title={n.com_senha ? "Compartilhado por link, com senha" : "Compartilhado por link"} className="flex shrink-0 items-center gap-0.5 rounded-full bg-ok-soft px-1.5 text-[10.5px] font-medium text-ok">{n.com_senha ? <Lock size={10} /> : <Globe size={10} />} link</span>}</div>
@@ -263,43 +306,75 @@ function LinhaNota({ n, pasta, mostrarPasta, abrir, fixar }: { n: Nota; pasta?: 
   );
 }
 
-function EditarNota({ n, pastas, pastaInicial, salvar, excluir, recarregar }: { n: Nota | null; pastas: Pasta[]; pastaInicial: string | null; salvar: (c: Partial<Nota>, manterAberto?: boolean) => Promise<void>; excluir?: () => Promise<void>; recarregar: () => void }) {
+type Salvar = (c: Partial<Nota>, manterAberto?: boolean, silencioso?: boolean) => Promise<void>;
+const ESPERA_AUTOSAVE = 1200; // ms depois da última tecla
+
+function EditarNota({ n, pastas, pastaInicial, salvar, excluir, recarregar }: { n: Nota | null; pastas: Pasta[]; pastaInicial: string | null; salvar: Salvar; excluir?: () => Promise<void>; recarregar: () => void }) {
   const [titulo, setTitulo] = useState(n?.titulo ?? "");
   const [conteudo, setConteudo] = useState(() => htmlDoDocumento(n?.conteudo, n?.texto));
   const [texto, setTexto] = useState(n?.texto ?? "");
   const [etiqueta, setEtiqueta] = useState<Etiqueta>(n?.etiqueta ?? "geral");
   const [pasta, setPasta] = useState<string>(pastaInicial ?? "");
   const [confirmar, setConfirmar] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [mudou, setMudou] = useState(false);
+  const [status, setStatus] = useState<"" | "pendente" | "salvando" | "salvo" | "erro">("");
+  const [salvoAs, setSalvoAs] = useState<Date | null>(null);
   const [compartilhar, setCompartilhar] = useState(false);
   const iniciou = useRef(false);
   const nomeCompleto = (p: Pasta): string => { const pai = pastas.find((x) => x.id === p.pai_id); return pai ? `${nomeCompleto(pai)} / ${p.nome}` : p.nome; };
   const opcoes = pastas.map((p) => ({ id: p.id, nome: nomeCompleto(p) })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const vazio = !texto.trim() && !titulo.trim();
-  async function gravar(manterAberto: boolean) {
-    if (vazio || salvando) return;
-    setSalvando(true);
-    try {
-      await salvar({ titulo: titulo.trim() || null, texto: texto.trim() || titulo.trim(), conteudo, etiqueta, pasta_id: pasta || null }, manterAberto);
-      setMudou(false);
-    } finally {
-      setSalvando(false);
-    }
+
+  // Salvamento automático: sempre com os valores mais recentes, uma gravação por vez
+  const atual = useRef({ titulo, conteudo, texto, etiqueta, pasta });
+  atual.current = { titulo, conteudo, texto, etiqueta, pasta };
+  const salvarRef = useRef(salvar);
+  salvarRef.current = salvar;
+  const sujo = useRef(false);
+  const gravando = useRef<Promise<void> | null>(null);
+  const timer = useRef<number | null>(null);
+  const encerrado = useRef(false);
+
+  async function gravar(manterAberto: boolean, silencioso: boolean) {
+    if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
+    if (gravando.current) await gravando.current; // espera a gravação anterior (a nova anotação já ganhou id)
+    const v = atual.current;
+    if (!v.texto.trim() && !v.titulo.trim()) return;
+    if (!sujo.current && manterAberto) return;
+    sujo.current = false;
+    setStatus("salvando");
+    const tarefa = salvarRef.current({ titulo: v.titulo.trim() || null, texto: v.texto.trim() || v.titulo.trim(), conteudo: v.conteudo, etiqueta: v.etiqueta, pasta_id: v.pasta || null }, manterAberto, silencioso)
+      .then(() => { setStatus(sujo.current ? "pendente" : "salvo"); setSalvoAs(new Date()); })
+      .catch(() => { sujo.current = true; setStatus("erro"); })
+      .finally(() => { gravando.current = null; });
+    gravando.current = tarefa;
+    await tarefa;
   }
+  function marcar() {
+    sujo.current = true;
+    setStatus("pendente");
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => gravar(true, true), ESPERA_AUTOSAVE);
+  }
+  // Ao fechar o painel com algo ainda não salvo, grava antes de sair
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+    if (sujo.current && !encerrado.current) gravar(false, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hora = salvoAs?.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return (
     <div className="flex flex-col gap-3">
-      <input value={titulo} onChange={(e) => { setTitulo(e.target.value); setMudou(true); }} placeholder="Título do documento" className="w-full bg-transparent font-display text-[24px] font-bold tracking-tight outline-none placeholder:text-muted/70" autoFocus={!n} />
+      <input value={titulo} onChange={(e) => { setTitulo(e.target.value); marcar(); }} placeholder="Título do documento" className="w-full bg-transparent font-display text-[24px] font-bold tracking-tight outline-none placeholder:text-muted/70" autoFocus={!n} />
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
         <label className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1">
           <Folder size={13} className="text-[#d4a72c]" />
-          <select value={pasta} onChange={(e) => { setPasta(e.target.value); setMudou(true); }} className="bg-transparent outline-none">
+          <select value={pasta} onChange={(e) => { setPasta(e.target.value); marcar(); }} className="bg-transparent outline-none">
             <option value="">Sem pasta</option>
             {opcoes.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
           </select>
         </label>
         {(Object.keys(ETIQUETAS) as Etiqueta[]).map((e) => (
-          <button key={e} onClick={() => { setEtiqueta(e); setMudou(true); }} className={`rounded-full px-2 py-0.5 text-[11.5px] ${etiqueta === e ? "text-white" : "bg-raised text-muted hover:text-fg"}`} style={etiqueta === e ? { background: ETIQUETAS[e].cor } : undefined}>{ETIQUETAS[e].nome}</button>
+          <button key={e} onClick={() => { setEtiqueta(e); marcar(); }} className={`rounded-full px-2 py-0.5 text-[11.5px] ${etiqueta === e ? "text-white" : "bg-raised text-muted hover:text-fg"}`} style={etiqueta === e ? { background: ETIQUETAS[e].cor } : undefined}>{ETIQUETAS[e].nome}</button>
         ))}
         {n && (
           <button onClick={() => setCompartilhar((v) => !v)} className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-medium ${n.compartilhado ? "border-ok/40 bg-ok-soft text-ok" : "border-line hover:bg-raised"}`}>
@@ -315,23 +390,26 @@ function EditarNota({ n, pastas, pastaInicial, salvar, excluir, recarregar }: { 
       <EditorDoc
         conteudo={conteudo}
         autoFoco={Boolean(n)}
-        salvar={() => gravar(true)}
+        salvar={() => { sujo.current = true; gravar(true, false); }}
         mudar={(html, t) => {
           setConteudo(html);
           setTexto(t);
-          if (iniciou.current) setMudou(true);
+          atual.current = { ...atual.current, conteudo: html, texto: t };
+          if (iniciou.current) marcar();
           iniciou.current = true;
         }}
       />
       <div className="sticky bottom-0 -mx-1 flex items-center justify-between gap-2 bg-surface/95 px-1 py-2 backdrop-blur">
         {excluir ? (
-          <Botao variante="fantasma" onClick={() => (confirmar ? excluir() : setConfirmar(true))} className="text-bad"><Trash2 size={14} /> {confirmar ? "Clique de novo para excluir" : "Excluir"}</Botao>
+          <Botao variante="fantasma" onClick={() => { if (!confirmar) return setConfirmar(true); encerrado.current = true; sujo.current = false; if (timer.current) window.clearTimeout(timer.current); excluir(); }} className="text-bad"><Trash2 size={14} /> {confirmar ? "Clique de novo para excluir" : "Excluir"}</Botao>
         ) : <span />}
         <div className="flex items-center gap-2">
-          {mudou && <span className="hidden text-[12px] text-muted sm:inline">Alterações não salvas · Ctrl+S salva</span>}
-          {n && <Botao onClick={() => salvar({ fixada: !n.fixada }, true)}>{n.fixada ? <><PinOff size={14} /> Desafixar</> : <><Pin size={14} /> Fixar</>}</Botao>}
-          <Botao onClick={() => gravar(true)} disabled={vazio || salvando}>Salvar</Botao>
-          <Botao variante="primario" disabled={vazio || salvando} onClick={() => gravar(false)}>{salvando ? "Salvando…" : "Salvar e fechar"}</Botao>
+          <span className={`flex items-center gap-1.5 text-[12px] ${status === "erro" ? "text-bad" : "text-muted"}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${status === "salvando" || status === "pendente" ? "animate-pulse bg-warn" : status === "erro" ? "bg-bad" : status === "salvo" ? "bg-ok" : "bg-transparent"}`} />
+            {status === "pendente" ? "Editando…" : status === "salvando" ? "Salvando…" : status === "erro" ? "Não salvou. Confira a conexão; tento de novo na próxima alteração." : status === "salvo" ? `Salvo automaticamente às ${hora}` : vazio ? "Comece a escrever: o documento salva sozinho" : "Salva sozinho enquanto você escreve"}
+          </span>
+          {n && <Botao onClick={() => salvar({ fixada: !n.fixada }, true, true)}>{n.fixada ? <><PinOff size={14} /> Desafixar</> : <><Pin size={14} /> Fixar</>}</Botao>}
+          <Botao variante="primario" disabled={status === "salvando"} onClick={async () => { encerrado.current = true; if (sujo.current && !vazio) await gravar(false, true); else await salvar({}, false, true); }}>Concluir</Botao>
         </div>
       </div>
     </div>
