@@ -1,16 +1,21 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, ExternalLink, FileText, Loader2, Printer, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, FileText, Loader2, Printer, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 import { chamarFuncao } from "../../lib/tabela";
 import { supabase } from "../../lib/supabase";
 import { useDados } from "../../lib/dados";
 import { hoje } from "../../lib/tipos";
 import type { AnaliseGmn, PerfilGmn } from "../../lib/gmn";
 import {
-  COR_FAIXA, NOME_FAIXA, avaliarCompleta, faixaItem, faixaNota, interpretacao, notaCompleta,
+  COR_FAIXA, NOME_FAIXA, faixaItem, faixaNota, interpretacao,
   relatorioAvaliacoes, relatorioMetricas, relatorioMidia, relatorioPostagens,
   type ColetaCompleta, type ItemCompleto,
 } from "../../lib/analiseCompleta";
 import type { useGmn } from "./GoogleMeuNegocio";
+import { CRITERIOS_FICHA, GRUPOS_FICHA, avaliarFicha, buscarConcorrentes, coletaDeOficial, insightsConcorrencia, notaFicha, statusPct, type ColetaFicha, type Concorrente, type ItemAnalise } from "../../lib/fichaGoogle";
+import { Concorrencia } from "./Concorrencia";
+import { Distribuicao } from "./AnaliseFicha";
+import { useLogos } from "../../lib/logos";
+import logoPrata from "../../assets/logo-prata.png";
 
 type Gmn = ReturnType<typeof useGmn>;
 export const ehOficial = (a?: AnaliseGmn) => (a?.dados as { versao?: number } | undefined)?.versao === 3;
@@ -20,21 +25,54 @@ const pct = (v: number, casas = 1) => `${n(v * 100, casas)}%`;
 const dataBR = (iso: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—");
 const nomeMes = (k: string) => new Date(`${k}-15T12:00:00Z`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit", timeZone: "UTC" }).replace(". de ", "/").replace(".", "");
 
-/** Roda a análise completa pela API oficial e salva no histórico da ficha. */
+type DadosOficial = { coleta: ColetaCompleta; concorrentes?: Concorrente[]; posicao_categoria?: number | null; palavra_concorrencia?: string | null };
+const ehPublica = (a?: AnaliseGmn) => a?.dados?.versao === 2 && Boolean(a.dados.coleta);
+
+/**
+ * Nota Vertente: a nota oficial única das fichas. Usa os mesmos critérios da análise da ficha e, quando há análise
+ * pela API oficial (ficha gerenciada), completa com os dados do dono (vídeos, fundação, horário especial, mídias).
+ */
+export function vertenteDe(hist: AnaliseGmn[], base?: AnaliseGmn) {
+  const alvo = base ?? hist.find((a) => ehOficial(a) || ehPublica(a));
+  if (!alvo) return null;
+  const publica = hist.find(ehPublica);
+  const respostas = publica?.dados.respostas ?? {};
+  let coleta: ColetaFicha;
+  if (ehOficial(alvo)) {
+    const d = alvo.dados as unknown as DadosOficial;
+    const conc = d.concorrentes?.length ? d : publica?.dados.coleta ? { concorrentes: publica.dados.coleta.concorrentes, posicao_categoria: publica.dados.coleta.posicao_categoria, palavra_concorrencia: publica.dados.coleta.palavra_concorrencia } : d;
+    coleta = coletaDeOficial(d.coleta, { concorrentes: conc.concorrentes ?? [], posicao: conc.posicao_categoria ?? null, palavra: conc.palavra_concorrencia ?? null });
+  } else coleta = alvo.dados.coleta!;
+  const itens = avaliarFicha(coleta, respostas);
+  return { analise: alvo, coleta, itens, nota: notaFicha(itens), oficial: ehOficial(alvo) ? (alvo.dados as unknown as DadosOficial).coleta : null };
+}
+
+/** Roda a análise completa pela API oficial (com concorrentes) e salva no histórico com a Nota Vertente. */
 export async function rodarAnaliseOficial(gmn: Gmn, perfil: PerfilGmn) {
   const c = await chamarFuncao<ColetaCompleta & { encontrado: boolean }>("gbp", { acao: "gbp_analise", place_id: perfil.place_id });
   if (!c.encontrado) throw new Error("Esta ficha não está na conta da agência no Google. Use a análise pública (Analisar ficha agora).");
-  const itens = avaliarCompleta(c);
-  const nota = notaCompleta(itens);
+  const conc = await buscarConcorrentes(perfil.place_id!, c.ficha.categoria || perfil.palavras?.[0] || undefined).catch(() => null);
+  const respostas = gmn.historico(perfil.id).find(ehPublica)?.dados.respostas ?? {};
+  const coleta = coletaDeOficial(c, { concorrentes: conc?.concorrentes ?? [], posicao: conc?.posicao ?? null, palavra: conc?.palavra ?? null });
+  const itens = avaliarFicha(coleta, respostas);
+  const nota = notaFicha(itens);
   await gmn.analises.salvar(null, {
     perfil_id: perfil.id,
     data: hoje(),
     nota,
-    criterios: itens.map((i) => ({ id: i.id, nivel: i.pct >= 75 ? 2 : i.pct >= 40 ? 1 : 0, obs: i.texto, pct: i.pct })),
-    dados: { versao: 3, coleta: c, nota_media: c.avaliacoes_media, avaliacoes: c.avaliacoes_total, categoria: c.ficha.categoria } as never,
+    criterios: itens.map((i) => ({ id: i.id, nivel: i.pct === null ? 0 : i.pct >= 80 ? 2 : i.pct >= 40 ? 1 : 0, obs: i.texto, pct: i.pct, manual: i.manual })),
+    dados: { versao: 3, coleta: c, concorrentes: conc?.concorrentes ?? [], posicao_categoria: conc?.posicao ?? null, palavra_concorrencia: conc?.palavra ?? null, nota_media: c.avaliacoes_media, avaliacoes: c.avaliacoes_total, categoria: c.ficha.categoria } as never,
     origem: "google",
   } as Partial<AnaliseGmn>);
   return nota;
+}
+
+/** Itens da Nota Vertente no formato da lista expansível. */
+function itensLista(itens: ItemAnalise[]): ItemCompleto[] {
+  return itens
+    .filter((i) => i.pct !== null)
+    .map((i) => { const cr = CRITERIOS_FICHA.find((x) => x.id === i.id)!; return { id: i.id, nome: cr.nome, porque: cr.porque, pct: i.pct!, texto: i.texto }; })
+    .sort((a, b) => a.pct - b.pct);
 }
 
 // ------------------------------------------------------------------
@@ -90,9 +128,11 @@ export function AnaliseOficial({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn: Gm
   const d = useDados();
   const [rodando, setRodando] = useState(false);
   const [tudo, setTudo] = useState(false);
-  const ultima = gmn.historico(perfil.id).find(ehOficial);
+  const hist = gmn.historico(perfil.id);
+  const ultima = hist.find(ehOficial);
   const c = ultima ? coletaDe(ultima) : null;
-  const itens = useMemo(() => (c ? avaliarCompleta(c) : []), [c]);
+  const v = useMemo(() => (ultima ? vertenteDe(hist, ultima) : null), [ultima, hist]);
+  const itens = useMemo(() => (v ? itensLista(v.itens) : []), [v]);
   if (!perfil.place_id || !supabase) return null;
 
   async function rodar() {
@@ -117,7 +157,7 @@ export function AnaliseOficial({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn: Gm
         <h2 className="text-[16px] font-semibold">Análise completa (dados oficiais do dono)</h2>
         {ultima && <span className="text-[12px] text-muted">Atualizada em {dataBR(ultima.criado_em ?? ultima.data)}</span>}
         <div className="ml-auto flex flex-wrap gap-2">
-          {ultima && <button onClick={() => ir(`gmn-relatorio-${perfil.id}`)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:border-accent hover:text-accent"><FileText size={14} /> Relatório avançado</button>}
+          {ultima && <button onClick={() => ir(`gmn-relatorio-${perfil.id}`)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:border-accent hover:text-accent"><FileText size={14} /> Relatório em PDF</button>}
           <button onClick={rodar} disabled={rodando} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-fg disabled:opacity-50">
             {rodando ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} {rodando ? "Analisando…" : ultima ? "Analisar de novo" : "Fazer análise completa"}
           </button>
@@ -130,10 +170,10 @@ export function AnaliseOficial({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn: Gm
           <div className="flex flex-col gap-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col items-center rounded-2xl border border-line bg-surface p-4">
-                <div className="text-[15px] font-semibold">Pontuação geral</div>
-                <div className="text-[12px] text-muted">Desempenho do negócio</div>
-                <Velocimetro nota={ultima.nota} />
-                <b className="num -mt-1 text-[34px]">{ultima.nota}</b>
+                <div className="text-[15px] font-semibold">Nota Vertente</div>
+                <div className="text-[12px] text-muted">A mesma régua da análise da ficha</div>
+                <Velocimetro nota={v?.nota ?? ultima.nota} />
+                <b className="num -mt-1 text-[34px]">{v?.nota ?? ultima.nota}</b>
               </div>
               <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4">
                 <div className="text-center text-[15px] font-semibold">Pontuação detalhada</div>
@@ -206,22 +246,33 @@ function Barras({ itens, cor = "rgb(var(--accent-c))" }: { itens: { rotulo: stri
 
 export function RelatorioAvancado({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn: Gmn; ir: (r: string) => void }) {
   const d = useDados();
-  const ultima = gmn.historico(perfil.id).find(ehOficial);
-  if (!ultima) return <div className="p-6 text-[13px] text-muted">Faça a análise completa na tela da ficha primeiro.</div>;
-  const c = coletaDe(ultima);
-  const itens = avaliarCompleta(c);
-  const nota = ultima.nota;
+  const lg = useLogos();
+  const hist = gmn.historico(perfil.id);
+  const v = vertenteDe(hist);
+  if (!v) return <div className="p-6 text-[13px] text-muted">Faça a análise da ficha primeiro (Analisar ficha agora ou Análise completa).</div>;
+  const { coleta: cf, itens, nota, analise: ultima } = v;
+  const c = v.oficial;
+  const porId = new Map(itens.map((i) => [i.id, i]));
   const inter = interpretacao(nota);
-  const av = relatorioAvaliacoes(c);
-  const me = relatorioMetricas(c);
-  const po = relatorioPostagens(c);
-  const mi = relatorioMidia(c);
-  const cont = { fraco: itens.filter((i) => faixaItem(i.pct) === "fraco").length, razoavel: itens.filter((i) => faixaItem(i.pct) === "razoavel").length, bom: itens.filter((i) => faixaItem(i.pct) === "bom").length };
-  const cliente = perfil.cliente_id ? d.cliente(perfil.cliente_id)?.nome : null;
+  const av = c ? relatorioAvaliacoes(c) : null;
+  const me = c ? relatorioMetricas(c) : null;
+  const po = c ? relatorioPostagens(c) : null;
+  const mi = c ? relatorioMidia(c) : null;
+  const cont = { bom: 0, razoavel: 0, fraco: 0, verificar: 0 };
+  for (const i of itens) cont[statusPct(i.pct).chave]++;
+  const cliente = perfil.cliente_id ? d.cliente(perfil.cliente_id) : null;
+  const logoCliente = (perfil.cliente_id && lg.logos[perfil.cliente_id]) || (cf.info.logo && /^https?:/.test(cf.info.logo) ? cf.info.logo : null);
+  const anterior = hist.find((a) => a.id !== ultima.id && a.data.slice(0, 7) < ultima.data.slice(0, 7));
+  const delta = anterior ? nota - anterior.nota : null;
+  const prioridades = CRITERIOS_FICHA.map((cr) => ({ cr, i: porId.get(cr.id)! })).filter(({ i }) => i && i.pct !== null && i.pct < 80).sort((a, b) => b.cr.peso * (100 - (b.i.pct ?? 0)) - a.cr.peso * (100 - (a.i.pct ?? 0)));
+  const fortes = CRITERIOS_FICHA.filter((cr) => (porId.get(cr.id)?.pct ?? 0) >= 100).sort((a, b) => b.peso - a.peso).slice(0, 5);
+  const insights = insightsConcorrencia(cf).filter((i) => i.tom !== "bom").slice(0, 2);
+  const nomeFicha = cf.info.titulo ?? perfil.nome;
+  const dataRel = dataBR(ultima.criado_em ?? ultima.data);
 
   function imprimir() {
     const t = document.title;
-    document.title = `Relatório Google - ${c.ficha.nome} - ${dataBR(hoje())}`;
+    document.title = `Relatório Google - ${nomeFicha} - ${dataBR(hoje())}`;
     document.body.classList.add("imprimindo-diario");
     const fim = () => { document.body.classList.remove("imprimindo-diario"); document.title = t; };
     window.addEventListener("afterprint", fim, { once: true });
@@ -237,34 +288,123 @@ export function RelatorioAvancado({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn:
       </div>
 
       <div id="diario-impressao" className="flex flex-col gap-4">
-        <header className="rounded-2xl border border-line bg-surface p-6">
-          <div className="text-[12px] font-semibold uppercase tracking-wide text-muted">Relatório do Perfil da Empresa no Google · Vertente Digital</div>
-          <h1 className="mt-1 text-[26px] font-semibold leading-tight">{c.ficha.nome}</h1>
-          <div className="text-[13px] text-muted">{[cliente, c.ficha.categoria, c.local.cidade].filter(Boolean).join(" · ")} · gerado em {dataBR(ultima.criado_em ?? ultima.data)}</div>
-        </header>
-
-        <Sec titulo="Análise de saúde" sub="Um check-up do perfil no Google: cada item mostra o que já está bom e o que precisa melhorar.">
-          <div className="grid items-center gap-4 md:grid-cols-[260px_minmax(0,1fr)]">
-            <div className="flex flex-col items-center"><Velocimetro nota={nota} /><b className="num -mt-1 text-[34px]">{nota}</b></div>
-            <div className="flex flex-col gap-2 text-[13.5px]">
-              <div className="flex gap-2">{(["fraco", "razoavel", "bom"] as const).map((k) => <span key={k} className="rounded-full px-3 py-1 text-[12.5px] font-semibold text-white" style={{ background: COR_FAIXA[k] }}>{cont[k]} {NOME_FAIXA[k]}</span>)}</div>
-              <p>{inter.texto}</p>
-              <ul className="list-disc pl-5 text-muted">{inter.passos.map((p) => <li key={p}>{p}</li>)}</ul>
+        {/* Capa */}
+        <header className="capa-relatorio relative flex min-h-[620px] flex-col overflow-hidden rounded-3xl p-8 text-white sm:p-10" style={{ background: "radial-gradient(900px 500px at 90% -10%, rgba(91,123,255,.35), transparent 60%), radial-gradient(700px 500px at -10% 110%, rgba(39,71,214,.35), transparent 60%), #0b1442" }}>
+          <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
+          <div className="relative flex items-center justify-between gap-4">
+            <img src={logoPrata} alt="Vertente Digital" className="h-10 w-auto object-contain" />
+            <span className="rounded-full border border-white/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">Documento confidencial</span>
+          </div>
+          <div className="relative mt-auto flex flex-col gap-6 pt-16">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.22em] text-[#8fa6ff]">Diagnóstico do Perfil da Empresa no Google</div>
+              <h1 className="mt-3 max-w-[760px] text-[38px] font-semibold leading-[1.08] sm:text-[44px]">{nomeFicha}</h1>
+              <p className="mt-2 text-[14px] text-white/70">{[cliente?.nome && cliente.nome !== nomeFicha ? cliente.nome : null, cf.info.categoria, cf.info.cidade].filter(Boolean).join(" · ")}</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-6">
+              <div className="flex items-center gap-5 rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-5 backdrop-blur">
+                {logoCliente && <img src={logoCliente} alt="" className="h-16 w-16 rounded-xl bg-white object-contain p-1.5" />}
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Nota Vertente</div>
+                  <div className="flex items-baseline gap-2"><b className="num text-[64px] leading-none">{nota}</b><span className="text-[15px] text-white/60">de 100</span></div>
+                  {delta !== null && <div className={`text-[13px] font-semibold ${delta >= 0 ? "text-[#4ade80]" : "text-[#f87171]"}`}>{delta >= 0 ? "▲" : "▼"} {Math.abs(delta)} pts em relação à análise anterior ({anterior!.nota})</div>}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {([["bom", "Bons", "#4ade80"], ["razoavel", "Razoáveis", "#fbbf24"], ["fraco", "Fracos", "#f87171"]] as const).map(([k, r, cor]) => (
+                  <div key={k} className="rounded-xl border border-white/15 px-4 py-3"><b className="num block text-[26px] leading-none" style={{ color: cor }}>{cont[k]}</b><span className="text-[11px] text-white/60">{r}</span></div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {itens.map((i) => {
-              const f = faixaItem(i.pct);
-              return (
-                <div key={i.id} className="flex gap-2.5 rounded-xl border border-line p-3 text-[12.5px] [break-inside:avoid]">
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white" style={{ background: COR_FAIXA[f] }}>{f === "bom" ? "✓" : f === "razoavel" ? "!" : "×"}</span>
-                  <div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><b>{i.nome}</b><b className="num" style={{ color: COR_FAIXA[f] }}>{i.pct}</b></div><p className="text-muted">{i.texto}</p></div>
+          <div className="relative mt-10 flex flex-wrap items-end justify-between gap-3 border-t border-white/15 pt-4 text-[11.5px] text-white/60">
+            <div><b className="text-white/85">Agência Vertente Digital</b> · agenciavertente.com.br · (31) 99307-0789</div>
+            <div>Relatório gerado em {dataRel}</div>
+          </div>
+        </header>
+
+        {/* Resumo executivo */}
+        <Sec titulo="Resumo executivo" sub="O que está bom, o que mais vai fazer diferença e como a ficha está em relação aos concorrentes.">
+          <div className="grid items-center gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="flex flex-col items-center"><Velocimetro nota={nota} /><b className="num -mt-1 text-[34px]">{nota}</b></div>
+            <div className="flex flex-col gap-2 text-[13.5px]">
+              <p>{inter.texto}</p>
+              {delta !== null && <p className="text-muted">Na análise anterior ({dataBR(anterior!.criado_em ?? anterior!.data)}) a nota era {anterior!.nota}: {delta > 0 ? `subiu ${delta} pontos` : delta < 0 ? `caiu ${-delta} pontos` : "ficou igual"}.</p>}
+              {cf.posicao_categoria !== undefined && cf.concorrentes.length > 0 && <p className="text-muted">Posição no Maps em "{cf.palavra_concorrencia ?? cf.info.categoria}": <b className="text-fg">{cf.posicao_categoria ? `${cf.posicao_categoria}º lugar` : "fora do top 20"}</b>.</p>}
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-line p-4">
+              <h3 className="text-[14px] font-semibold">As 3 maiores oportunidades</h3>
+              <ol className="mt-2 flex flex-col gap-2 text-[12.5px]">
+                {prioridades.slice(0, 3).map(({ cr, i }, k) => (
+                  <li key={cr.id} className="flex gap-2"><span className="num grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent text-[10.5px] font-semibold text-accent-fg">{k + 1}</span><span><b>{cr.nome}</b> <span className="text-muted">— {i.texto}</span><span className="mt-0.5 block text-accent">→ {cr.recomendacao}</span></span></li>
+                ))}
+                {!prioridades.length && <li className="text-ok">Todos os itens em nível Bom. Manter a rotina mensal.</li>}
+              </ol>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="rounded-xl border border-line p-4">
+                <h3 className="flex items-center gap-2 text-[14px] font-semibold"><Trophy size={15} className="text-ok" /> Pontos fortes</h3>
+                <ul className="mt-2 flex flex-col gap-1 text-[12.5px]">{fortes.map((cr) => <li key={cr.id}>✓ <b>{cr.nome}</b> <span className="text-muted">— {porId.get(cr.id)?.texto}</span></li>)}</ul>
+              </div>
+              {insights.length > 0 && (
+                <div className="rounded-xl border border-line p-4">
+                  <h3 className="text-[14px] font-semibold">Frente aos concorrentes</h3>
+                  <ul className="mt-2 flex flex-col gap-1.5 text-[12.5px]">{insights.map((x) => <li key={x.titulo}><b>{x.titulo}:</b> <span className="text-muted">{x.texto}</span></li>)}</ul>
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
         </Sec>
 
+        {/* Análise item a item (Nota Vertente) */}
+        <Sec titulo="Análise da ficha" sub={`${itens.length} pontos avaliados com a régua da Vertente: o que já está bom e o que precisa melhorar, com o peso de cada um na nota.`}>
+          <div className="flex flex-wrap gap-2">{([["bom", "Bom", "var(--ok)"], ["razoavel", "Razoável", "var(--warn)"], ["fraco", "Fraco", "var(--bad)"], ["verificar", "Verificar", "var(--muted)"]] as const).filter(([k]) => cont[k] > 0).map(([k, r, cor]) => <span key={k} className="rounded-full px-3 py-1 text-[12.5px] font-semibold text-white" style={{ background: cor }}>{cont[k]} {r}</span>)}</div>
+          {GRUPOS_FICHA.map((g) => {
+            const cs = CRITERIOS_FICHA.filter((cr) => cr.grupo === g);
+            const val = cs.map((cr) => porId.get(cr.id)!).filter((i) => i && i.pct !== null);
+            const pg = val.length ? Math.round(val.reduce((s2, i) => s2 + (i.pct ?? 0), 0) / val.length) : null;
+            return (
+              <div key={g} className="flex flex-col gap-2">
+                <div className="mt-1 flex items-end justify-between border-b border-line pb-1"><h3 className="text-[15px] font-semibold">{g}</h3>{pg !== null && <b className="num text-[13px]" style={{ color: statusPct(pg).cor }}>{pg}%</b>}</div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {cs.map((cr) => {
+                    const i = porId.get(cr.id)!;
+                    const st = statusPct(i.pct);
+                    return (
+                      <div key={cr.id} className="flex gap-2.5 rounded-xl border border-line p-3 text-[12.5px] [break-inside:avoid]">
+                        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-bold text-white" style={{ background: st.cor }}>{st.chave === "bom" ? "✓" : st.chave === "razoavel" ? "!" : st.chave === "fraco" ? "×" : "?"}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between gap-2"><b>{cr.nome}</b><b className="num" style={{ color: st.cor }}>{i.pct ?? "—"}</b></div>
+                          <p className="text-muted">{i.texto}</p>
+                          {i.pct !== null && i.pct < 80 && <p className="mt-1 text-accent">→ {cr.recomendacao}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </Sec>
+
+        <Concorrencia coleta={cf} nome={perfil.nome} />
+
+        {!c && (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Distribuicao dist={cf.info.distribuicao ?? {}} />
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <h3 className="text-[14px] font-semibold">O que os clientes mais citam</h3>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {Object.entries(cf.info.temas ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([t, q]) => <span key={t} className="rounded-full bg-accent-soft px-2.5 py-1 text-[12px] text-accent">{t} <span className="num opacity-70">{q}</span></span>)}
+                {!Object.keys(cf.info.temas ?? {}).length && <span className="text-[12.5px] text-muted">O Google ainda não agrupou temas para esta ficha.</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {c && av && me && po && mi && (<>
         <Sec titulo="Avaliações" sub="Como os clientes percebem o negócio.">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <Num v={n(av.media, 1)} r="Média de estrelas" />
@@ -371,6 +511,7 @@ export function RelatorioAvancado({ perfil, gmn, ir }: { perfil: PerfilGmn; gmn:
             ))}</div>
           )}
         </Sec>
+        </>)}
       </div>
     </div>
   );

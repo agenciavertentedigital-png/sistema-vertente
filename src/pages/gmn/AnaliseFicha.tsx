@@ -18,6 +18,7 @@ import {
 } from "../../lib/fichaGoogle";
 import { Botao, Entrada, Painel, Rotulo, Selecao } from "../../components/ui";
 import { Anel } from "../../components/visual";
+import { Concorrencia } from "./Concorrencia";
 import type { useGmn } from "./GoogleMeuNegocio";
 
 type Gmn = ReturnType<typeof useGmn>;
@@ -170,7 +171,7 @@ export function NovaAnaliseFicha({ aberto, fechar, gmn, prospeccao, ir }: { aber
             )}
             <div className="flex gap-2">
               <Botao onClick={() => setEtapa("dados")}>Voltar</Botao>
-              <Botao variante="primario" onClick={analisar} className="flex-1"><CheckCircle2 size={14} /> É essa. Analisar agora (~US$ 0,03)</Botao>
+              <Botao variante="primario" onClick={analisar} className="flex-1"><CheckCircle2 size={14} /> É essa. Analisar agora (~US$ 0,10)</Botao>
             </div>
           </>
         )}
@@ -294,35 +295,7 @@ export function RelatorioFicha({ perfil, analise, gmn, ocultarRecomendacoes }: {
       })}
 
       {/* Concorrentes */}
-      {coleta.concorrentes.length > 0 && (
-        <section className="rounded-2xl border border-line bg-surface p-4 print:break-inside-avoid">
-          <h2 className="text-[16px] font-semibold">Comparativo com concorrentes</h2>
-          <p className="text-[12px] text-muted">Busca por "{coleta.info.categoria}" no Google Maps, a partir do endereço da empresa.</p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-[12.5px]">
-              <thead className="text-left text-[11.5px] text-muted">
-                <tr><th className="py-1.5">Posição</th><th>Empresa</th><th>Nota</th><th>Avaliações</th><th>Reivindicada</th></tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {[
-                  { nome: coleta.info.titulo ?? perfil.nome, posicao: coleta.posicao_categoria, nota: coleta.info.nota, avaliacoes: coleta.info.avaliacoes, reivindicado: coleta.info.reivindicado, eu: true },
-                  ...coleta.concorrentes.map((x) => ({ ...x, eu: false })),
-                ]
-                  .sort((a, b) => (a.posicao ?? 99) - (b.posicao ?? 99))
-                  .map((x) => (
-                    <tr key={x.nome} className={x.eu ? "bg-accent-soft/50 font-semibold" : ""}>
-                      <td className="num py-2 pl-1">{x.posicao ? `${x.posicao}º` : "fora do top 20"}</td>
-                      <td>{x.nome}</td>
-                      <td className="num">{x.nota != null ? `★ ${String(x.nota).replace(".", ",")}` : "—"}</td>
-                      <td className="num">{x.avaliacoes ?? "—"}</td>
-                      <td>{x.reivindicado === null ? "—" : x.reivindicado ? "sim" : "não"}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <Concorrencia coleta={coleta} nome={perfil.nome} />
 
       {/* Avaliações e postagens */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -373,7 +346,7 @@ export function RelatorioFicha({ perfil, analise, gmn, ocultarRecomendacoes }: {
   );
 }
 
-function Distribuicao({ dist }: { dist: Record<string, number> }) {
+export function Distribuicao({ dist }: { dist: Record<string, number> }) {
   const total = Object.values(dist).reduce((s, v) => s + Number(v || 0), 0);
   return (
     <div className="rounded-2xl border border-line bg-surface p-4">

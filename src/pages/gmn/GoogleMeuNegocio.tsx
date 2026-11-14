@@ -28,7 +28,7 @@ import { Botao, Entrada, Painel, Rotulo, Selecao, Vazio, campo } from "../../com
 import { Abas, Anel, Cabecalho, Kpi, Selo } from "../../components/visual";
 import { DadosOficiaisGoogle } from "./DadosOficiaisGoogle";
 import { GmnPostagens } from "./GmnPostagens";
-import { AnaliseOficial, RelatorioAvancado, ehOficial } from "./AnaliseOficial";
+import { AnaliseOficial, RelatorioAvancado, ehOficial, vertenteDe } from "./AnaliseOficial";
 import { CentralAvaliacoes, FerramentasGmn, FichasGerenciadas } from "./GbpGerenciadas";
 import { LinkFicha, NovaAnaliseFicha, RelatorioFicha, rodarColeta, salvarAnaliseFicha } from "./AnaliseFicha";
 import { CRITERIOS_FICHA } from "../../lib/fichaGoogle";
@@ -334,7 +334,10 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
   const [rodando, setRodando] = useState("");
   if (gmn.perfis.carregando) return <Vazio>Carregando…</Vazio>;
   if (!perfil) return <Vazio>Perfil não encontrado.</Vazio>;
-  const a = historico[0];
+  const a0 = historico[0];
+  const nv = vertenteDe(historico);
+  // A nota mostrada é sempre a Nota Vertente da análise mais recente (oficial ou pública)
+  const a = a0 && nv && nv.analise.id === a0.id ? { ...a0, nota: nv.nota } : a0;
   const b = historico.find((x) => !ehOficial(x));
   const niveis = new Map((b?.criterios ?? []).map((c) => [c.id, c]));
   const plano = CRITERIOS.filter((c) => (niveis.get(c.id)?.nivel ?? 0) < 2).sort((x, y) => (niveis.get(x.id)?.nivel ?? 0) - (niveis.get(y.id)?.nivel ?? 0) || y.peso - x.peso);
@@ -352,7 +355,7 @@ function TelaPerfil({ id, gmn, ir }: { id: string; gmn: ReturnType<typeof useGmn
               <input type="checkbox" checked={ocultarRecomendacoes} onChange={(e) => setOcultar(e.target.checked)} /> Ocultar recomendações (reunião)
             </label>
           )}
-          <Botao onClick={() => window.print()} disabled={!a}><Printer size={14} /> Relatório em PDF</Botao>
+          <Botao onClick={() => ir(`gmn-relatorio-${perfil.id}`)} disabled={!nv}><Printer size={14} /> Relatório em PDF</Botao>
           {(perfil.place_id || !supabase) && (
             <Botao
               variante="primario"

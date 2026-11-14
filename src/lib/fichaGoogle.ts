@@ -2,8 +2,18 @@
 // Dados: DataForSEO (perfil, avaliações, postagens, concorrentes) + Google Places (fotos em destaque, horário especial).
 import { chamarFuncao } from "./tabela";
 import type { AvaliacaoDfs, InfoDfs, PostagemDfs } from "./gmn";
+import type { ColetaCompleta } from "./analiseCompleta";
 
-export interface Concorrente { nome: string; posicao: number; nota: number | null; avaliacoes: number | null; categoria: string | null; reivindicado: boolean | null }
+export interface Concorrente {
+  nome: string; posicao: number; nota: number | null; avaliacoes: number | null; categoria: string | null; reivindicado: boolean | null;
+  place_id?: string; categorias_adicionais?: string[]; fotos?: number | null; descricao_tam?: number; atributos?: number | null; servicos?: number | null;
+  site?: boolean; distancia_km?: number | null; tarefa_avaliacoes?: string | null;
+  /** Avaliações novas (lidas das 20 mais recentes) */
+  novas_30d?: number | null; novas_90d?: number | null; ultima_avaliacao?: string | null;
+}
+
+/** Dados que só a API oficial do dono tem (quando a ficha é gerenciada pela agência). */
+export interface FatosOficiais { fundacao: boolean; videos: number; horario_especial: boolean; servicos: number; midia_dono: number; midia_clientes: number; ult_midia_dias: number | null; verificada: boolean | null }
 
 export interface ColetaFicha {
   info: InfoDfs & { logo: string | null; place_id: string; cid: string | null; endereco: string | null; cidade: string | null; maps: string | null };
@@ -11,6 +21,8 @@ export interface ColetaFicha {
   horario_especial_proximos_dias: number;
   concorrentes: Concorrente[];
   posicao_categoria: number | null;
+  palavra_concorrencia?: string | null;
+  oficial?: FatosOficiais;
   avaliacoes: AvaliacaoDfs[];
   postagens: PostagemDfs[];
   custo: number;
@@ -93,21 +105,21 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     porque: "Informar se a empresa abre em feriados evita cliente batendo na porta fechada e mostra que a ficha é cuidada.",
     recomendacao: "Cadastrar os horários especiais dos feriados do ano (Natal, Ano-Novo, Carnaval…).",
     pergunta: "A ficha tem horário especial cadastrado para os próximos feriados?",
-    avaliar: (c) => (c.horario_especial_proximos_dias > 0 ? { pct: 100, texto: "A ficha tem horário especial definido para os próximos dias." } : null),
+    avaliar: (c) => (c.oficial ? { pct: c.oficial.horario_especial ? 100 : 0, texto: c.oficial.horario_especial ? `Possui horário especial definido para ${new Date().getFullYear()}.` : `Não há horário especial (feriados) definido para ${new Date().getFullYear()}.` } : c.horario_especial_proximos_dias > 0 ? { pct: 100, texto: "A ficha tem horário especial definido para os próximos dias." } : null),
   },
   {
     id: "fundacao", grupo: "Informações", nome: "Data de fundação", peso: 1,
     porque: "Mostrar há quanto tempo a empresa existe passa confiança.",
     recomendacao: "Informar a data de abertura da empresa na ficha.",
     pergunta: "A ficha mostra a data de fundação/abertura?",
-    avaliar: () => null,
+    avaliar: (c) => (c.oficial ? { pct: c.oficial.fundacao ? 100 : 0, texto: c.oficial.fundacao ? "A ficha tem a data de fundação." : "A ficha não mostra a data de fundação." } : null),
   },
   {
     id: "servicos", grupo: "Informações", nome: "Serviços e produtos", peso: 5,
     porque: "Os serviços cadastrados fazem a empresa aparecer em mais buscas e ajudam o cliente a entender rápido o que ela faz.",
     recomendacao: "Cadastrar os principais serviços/produtos com descrição (e preço/foto quando fizer sentido).",
     pergunta: "A ficha tem serviços ou produtos cadastrados?",
-    avaliar: (c) => (c.info.servicos > 0 ? { pct: 100, texto: `${c.info.servicos} serviços cadastrados.` } : null),
+    avaliar: (c) => (c.info.servicos > 0 ? { pct: 100, texto: `${c.info.servicos} serviços cadastrados.` } : c.oficial ? { pct: 0, texto: "Nenhum serviço cadastrado." } : null),
   },
   {
     id: "atributos", grupo: "Informações", nome: "Atributos", peso: 2,
@@ -119,7 +131,7 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     id: "reivindicada", grupo: "Informações", nome: "Ficha reivindicada", peso: 4,
     porque: "Só a ficha reivindicada pode ser editada pelo dono. Sem isso, qualquer pessoa pode sugerir mudanças ou tentar reivindicar.",
     recomendacao: "Reivindicar e verificar a ficha no Google Business Profile.",
-    avaliar: (c) => (c.info.reivindicado === null ? null : { pct: c.info.reivindicado ? 100 : 0, texto: c.info.reivindicado ? "A ficha é reivindicada pelo proprietário." : "A ficha NÃO é reivindicada: qualquer pessoa pode tentar assumir." }),
+    avaliar: (c) => (c.oficial ? { pct: c.oficial.verificada === false ? 50 : 100, texto: c.oficial.verificada === false ? "A ficha está na conta da agência, mas ainda não verificada." : "A ficha é reivindicada e verificada." } : c.info.reivindicado === null ? null : { pct: c.info.reivindicado ? 100 : 0, texto: c.info.reivindicado ? "A ficha é reivindicada pelo proprietário." : "A ficha NÃO é reivindicada: qualquer pessoa pode tentar assumir." }),
   },
 
   // ---------------- Mídia ----------------
@@ -149,6 +161,7 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     porque: "As fotos do dono mostram a empresa do jeito que ela quer ser vista. Quando só aparecem fotos de clientes, a empresa perde o controle da imagem.",
     recomendacao: "Publicar fotos próprias de qualidade para que elas apareçam em destaque.",
     avaliar: (c) => {
+      if (c.oficial) { const n = c.oficial.midia_dono; return { pct: n >= 20 ? 100 : n >= 10 ? 70 : n >= 3 ? 40 : n ? 20 : 0, texto: `${n} fotos e vídeos publicados pela empresa. Recomendado: 20 ou mais.` }; }
       const { total, do_dono } = c.fotos_destaque;
       if (!total) return null;
       return { pct: do_dono >= total / 2 ? 100 : do_dono >= 2 ? 60 : do_dono ? 30 : 0, texto: `${do_dono} das ${total} fotos em destaque na ficha foram publicadas pela própria empresa.` };
@@ -159,6 +172,7 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     porque: "Fotos de clientes provam que a empresa é real e passam confiança.",
     recomendacao: "Incentivar os clientes a postarem fotos junto com a avaliação (ex.: do produto, do resultado, do ambiente).",
     avaliar: (c) => {
+      if (c.oficial) { const n = c.oficial.midia_clientes; return { pct: n >= 10 ? 100 : n >= 3 ? 70 : n ? 35 : 0, texto: `${n} foto${n === 1 ? "" : "s"} e vídeo${n === 1 ? "" : "s"} publicados por clientes. Recomendado: 10 ou mais.` }; }
       const comFoto = c.avaliacoes.filter((a) => (a.fotos ?? 0) > 0).length;
       const naoDono = c.fotos_destaque.total - c.fotos_destaque.do_dono;
       const n = comFoto + Math.max(0, naoDono);
@@ -172,6 +186,7 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     recomendacao: "Subir de 3 a 5 fotos novas por mês (no máximo a cada 60 dias).",
     pergunta: "O proprietário publicou foto ou vídeo nos últimos 60 dias?",
     avaliar: (c) => {
+      if (c.oficial?.ult_midia_dias != null) { const d = c.oficial.ult_midia_dias; return { pct: d <= 30 ? 100 : d <= 60 ? 60 : d <= 120 ? 30 : 0, texto: `A última foto ou vídeo da empresa foi publicada há ${d} dias. Recomendado: no máximo 30 dias.` }; }
       const comImg = c.postagens.filter((p) => p.imagem).map((p) => dias(p.data)).filter((d): d is number => d !== null).sort((a, b) => a - b);
       if (!comImg.length) return null;
       const d = comImg[0];
@@ -183,7 +198,7 @@ export const CRITERIOS_FICHA: CriterioFicha[] = [
     porque: "Vídeos curtos do ambiente e dos serviços atraem mais e prendem a atenção do cliente na ficha.",
     recomendacao: "Publicar ao menos 3 vídeos curtos (10–30 s) da empresa.",
     pergunta: "A ficha tem 3 ou mais vídeos?",
-    avaliar: () => null,
+    avaliar: (c) => (c.oficial ? { pct: c.oficial.videos >= 3 ? 100 : c.oficial.videos ? 50 : 0, texto: c.oficial.videos ? `${c.oficial.videos} vídeo${c.oficial.videos > 1 ? "s" : ""}. Recomendado: 3 ou mais.` : "A ficha não tem vídeos." } : null),
   },
 
   // ---------------- Avaliações ----------------
@@ -339,11 +354,140 @@ export async function coletarFicha(placeId: string, aviso: (t: string) => void):
     if (t.pronto) {
       const { tarefas: _t, ...resto } = r;
       void _t;
-      return { ...resto, avaliacoes: t.avaliacoes ?? [], postagens: t.postagens ?? [], custo: r.custo + (t.custo ?? 0), coletado_em: new Date().toISOString() };
+      aviso("Medindo o ritmo de avaliações dos concorrentes…");
+      const conc = await completarRitmo(resto.concorrentes ?? []);
+      return { ...resto, concorrentes: conc.lista, avaliacoes: t.avaliacoes ?? [], postagens: t.postagens ?? [], custo: r.custo + (t.custo ?? 0) + conc.custo, coletado_em: new Date().toISOString() };
     }
     aviso(`Lendo as avaliações e postagens… (${(i + 1) * 5}s)`);
   }
   throw new Error("As avaliações e postagens demoraram demais. Tente de novo em alguns minutos.");
+}
+
+/** Lê o ritmo de avaliações dos concorrentes (tarefas da DataForSEO). Espera até ~60 s e segue com o que tiver. */
+export async function completarRitmo(lista: Concorrente[]): Promise<{ lista: Concorrente[]; custo: number }> {
+  const tarefas = Object.fromEntries(lista.filter((x) => x.place_id && x.tarefa_avaliacoes).map((x) => [x.place_id!, x.tarefa_avaliacoes!]));
+  if (!Object.keys(tarefas).length) return { lista, custo: 0 };
+  let ritmo: Record<string, { novas_30d: number; novas_90d: number; ultima: string | null } | null> = {};
+  let custo = 0;
+  for (let i = 0; i < 12; i++) {
+    const r = await chamarFuncao<{ pronto: boolean; ritmo: typeof ritmo; custo: number }>("gbp-check", { acao: "concorrentes_ritmo", tarefas }).catch(() => null);
+    if (r) { ritmo = r.ritmo; custo = r.custo; if (r.pronto) break; }
+    await new Promise((ok) => setTimeout(ok, 5000));
+  }
+  return {
+    lista: lista.map((x) => {
+      const k = x.place_id ? ritmo[x.place_id] : null;
+      const { tarefa_avaliacoes: _t, ...resto } = x;
+      void _t;
+      return k ? { ...resto, novas_30d: k.novas_30d, novas_90d: k.novas_90d, ultima_avaliacao: k.ultima } : resto;
+    }),
+    custo,
+  };
+}
+
+/** Concorrentes para fichas da análise oficial (que não passam pela coleta pública). */
+export async function buscarConcorrentes(placeId: string, palavra?: string) {
+  const r = await chamarFuncao<{ concorrentes: Concorrente[]; posicao: number | null; palavra: string; custo: number }>("gbp-check", { acao: "concorrentes", place_id: placeId, palavra });
+  const ritmo = await completarRitmo(r.concorrentes);
+  return { concorrentes: ritmo.lista, posicao: r.posicao, palavra: r.palavra, custo: r.custo + ritmo.custo };
+}
+
+/** Converte a coleta da API oficial (ficha gerenciada) no formato da análise da ficha, para usar a mesma nota. */
+export function coletaDeOficial(c: ColetaCompleta, extra?: { concorrentes?: Concorrente[]; posicao?: number | null; palavra?: string | null }): ColetaFicha {
+  const f = c.ficha;
+  const valida = (d: string) => !d.startsWith("1970");
+  const dono = Number(c.midia_dono_total ?? c.midia_dono.length);
+  const cli = Number(c.midia_clientes_total ?? c.midia_clientes.length);
+  const videos = [...c.midia_dono, ...c.midia_clientes].filter((m) => m.formato === "VIDEO").length;
+  const ultMidia = c.midia_dono.map((m) => m.data).filter(valida).sort().pop() ?? null;
+  const ano = new Date().getFullYear();
+  const dist: Record<string, number> = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+  for (const a of c.avaliacoes) if (a.nota) dist[String(a.nota)] = (dist[String(a.nota)] ?? 0) + 1;
+  const end = f.endereco;
+  return {
+    info: {
+      titulo: f.nome, categoria: f.categoria, categorias_adicionais: f.categorias_extras ?? [], descricao: f.descricao, telefone: f.telefone, site: f.site,
+      nota: c.avaliacoes_media, avaliacoes: c.avaliacoes_total, distribuicao: dist, fotos: dono + cli, reivindicado: f.verificada ?? true, perguntas: null,
+      tem_horario: Boolean(f.horario?.periods?.length), atributos: f.atributos?.length ?? 0, servicos: f.servicos?.length ?? 0, temas: null,
+      imagem: c.midia_dono.some((m) => m.categoria === "COVER") ? "capa" : null,
+      logo: c.midia_dono.some((m) => m.categoria === "PROFILE" || m.categoria === "LOGO") ? "logo" : null,
+      place_id: c.local.place_id, cid: null,
+      endereco: end ? [...(end.addressLines ?? []), end.sublocality, end.locality, end.administrativeArea].filter(Boolean).join(", ") : null,
+      cidade: c.local.cidade, maps: f.maps ?? c.local.maps,
+    },
+    fotos_destaque: { total: dono + cli, do_dono: dono },
+    horario_especial_proximos_dias: (f.horario_especial?.specialHourPeriods ?? []).some((p) => p.startDate?.year === ano) ? 1 : 0,
+    concorrentes: extra?.concorrentes ?? [],
+    posicao_categoria: extra?.posicao ?? null,
+    palavra_concorrencia: extra?.palavra ?? null,
+    oficial: {
+      fundacao: Boolean(f.fundacao?.year), videos, horario_especial: (f.horario_especial?.specialHourPeriods ?? []).some((p) => p.startDate?.year === ano),
+      servicos: f.servicos?.length ?? 0, midia_dono: dono, midia_clientes: cli,
+      ult_midia_dias: ultMidia ? Math.floor((Date.now() - new Date(ultMidia).getTime()) / 864e5) : null, verificada: f.verificada,
+    },
+    avaliacoes: c.avaliacoes.map((a) => ({ nota: a.nota, texto: a.texto || null, autor: a.autor, data: a.data, respondida: Boolean(a.resposta), resposta_data: a.resposta_data, fotos: 0 })),
+    postagens: c.postagens.map((p) => ({ data: p.data, texto: p.texto, imagem: p.midia > 0 ? "midia" : null, link: p.url })),
+    custo: 0,
+    coletado_em: c.coletado_em,
+  };
+}
+
+// ------------------------------------------------------------------
+// Comparativo com concorrentes: o que separa a ficha dos primeiros colocados
+// ------------------------------------------------------------------
+export interface Insight { titulo: string; texto: string; tom: "bom" | "atencao" | "ruim" }
+
+export function insightsConcorrencia(c: ColetaFicha): Insight[] {
+  const lista = c.concorrentes;
+  if (!lista.length) return [];
+  const out: Insight[] = [];
+  const eu = { aval: c.info.avaliacoes ?? 0, nota: c.info.nota ?? 0, fotos: c.info.fotos ?? 0, novas: c.avaliacoes.filter((a) => (dias(a.data) ?? 999) <= 30).length };
+  const virg = (v: number) => v.toFixed(1).replace(".", ",");
+  const n0 = (v: number) => Math.round(v).toLocaleString("pt-BR");
+
+  // Avaliações: líder em volume e o ritmo necessário para alcançá-lo em 6 meses
+  const lider = [...lista].sort((a, b) => (b.avaliacoes ?? 0) - (a.avaliacoes ?? 0))[0];
+  if (lider && (lider.avaliacoes ?? 0) > eu.aval) {
+    const ritmoLider = lider.novas_30d ?? 0;
+    const precisa = Math.ceil(((lider.avaliacoes ?? 0) + ritmoLider * 6 - eu.aval) / 6);
+    out.push({ titulo: "Avaliações", tom: "ruim", texto: `${lider.nome} tem ${n0(lider.avaliacoes ?? 0)} avaliações${lider.novas_30d != null ? ` e recebeu ${lider.novas_30d} no último mês` : ""}. Você tem ${n0(eu.aval)} (${eu.novas} no último mês). Para alcançá-lo em 6 meses: cerca de ${precisa} avaliações novas por mês.` });
+  } else if (lider) {
+    out.push({ titulo: "Avaliações", tom: "bom", texto: `Você tem mais avaliações que todos os concorrentes do topo (${n0(eu.aval)} contra ${n0(lider.avaliacoes ?? 0)} do segundo). Manter o ritmo de ${eu.novas} por mês para não perder a liderança.` });
+  }
+
+  // Ritmo de avaliações (quem está crescendo mais rápido)
+  const comRitmo = lista.filter((x) => x.novas_30d != null);
+  if (comRitmo.length) {
+    const rapido = [...comRitmo].sort((a, b) => (b.novas_30d ?? 0) - (a.novas_30d ?? 0))[0];
+    if ((rapido.novas_30d ?? 0) > eu.novas) out.push({ titulo: "Ritmo de avaliações", tom: "atencao", texto: `${rapido.nome} está recebendo avaliações mais rápido: ${rapido.novas_30d} no último mês, contra ${eu.novas} da sua ficha. Quem recebe avaliações com frequência ganha força no Maps.` });
+  }
+
+  // Categorias usadas pelos concorrentes e não pela ficha
+  const minhas = new Set([c.info.categoria, ...(c.info.categorias_adicionais ?? [])].filter(Boolean).map((x) => String(x).toLowerCase()));
+  const freq = new Map<string, number>();
+  for (const x of lista) for (const cat of new Set([x.categoria, ...(x.categorias_adicionais ?? [])].filter(Boolean) as string[])) if (!minhas.has(cat.toLowerCase())) freq.set(cat, (freq.get(cat) ?? 0) + 1);
+  const faltam = [...freq.entries()].filter(([, v]) => v >= 2 || lista.length <= 2).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  if (faltam.length) out.push({ titulo: "Categorias", tom: "atencao", texto: `Categorias que os concorrentes usam e a sua ficha não: ${faltam.map(([k, v]) => `${k} (${v} de ${lista.length})`).join(", ")}. Avaliar quais combinam com os serviços e adicionar como secundárias.` });
+
+  // Fotos
+  const fotosConc = lista.map((x) => x.fotos).filter((v): v is number => typeof v === "number");
+  if (fotosConc.length) {
+    const m = fotosConc.reduce((s, v) => s + v, 0) / fotosConc.length;
+    if (eu.fotos < m * 0.8) out.push({ titulo: "Fotos", tom: "atencao", texto: `A ficha tem ${n0(eu.fotos)} fotos; a média dos concorrentes é ${n0(m)}. Fichas com mais fotos recebem mais cliques e pedidos de rota.` });
+    else out.push({ titulo: "Fotos", tom: "bom", texto: `A ficha tem ${n0(eu.fotos)} fotos, acima da média dos concorrentes (${n0(m)}).` });
+  }
+
+  // Nota
+  const notas = lista.map((x) => x.nota).filter((v): v is number => typeof v === "number");
+  if (notas.length && eu.nota) {
+    const m = notas.reduce((s, v) => s + v, 0) / notas.length;
+    out.push(eu.nota >= m ? { titulo: "Nota", tom: "bom", texto: `Nota ${virg(eu.nota)}, acima da média dos concorrentes (${virg(m)}). É um diferencial para destacar nos anúncios e postagens.` } : { titulo: "Nota", tom: "ruim", texto: `Nota ${virg(eu.nota)}, abaixo da média dos concorrentes (${virg(m)}). Prioridade: responder as negativas e aumentar as avaliações de clientes satisfeitos.` });
+  }
+
+  // Posição
+  if (c.posicao_categoria && c.posicao_categoria > 3) out.push({ titulo: "Posição no Maps", tom: "ruim", texto: `A ficha aparece em ${c.posicao_categoria}º na busca por "${c.palavra_concorrencia ?? c.info.categoria}" a partir do próprio endereço. Os 3 primeiros recebem a maior parte dos cliques.` });
+  else if (!c.posicao_categoria) out.push({ titulo: "Posição no Maps", tom: "ruim", texto: `A ficha não aparece entre os 20 primeiros na busca por "${c.palavra_concorrencia ?? c.info.categoria}" a partir do próprio endereço.` });
+  return out;
 }
 
 /** Exemplo para a prévia (sem conexão): números parecidos com uma ficha real bem cuidada. */
@@ -372,13 +516,14 @@ export function coletaDemo(nome = "Instituto de Educação Exemplo"): ColetaFich
     fotos_destaque: { total: 10, do_dono: 10 },
     horario_especial_proximos_dias: 0,
     concorrentes: [
-      { nome: "Crescer Instituto Educacional", posicao: 2, nota: 4.9, avaliacoes: 13, categoria: "Instituição educacional", reivindicado: true },
-      { nome: "Sesi", posicao: 3, nota: 4.3, avaliacoes: 16, categoria: "Instituição educacional", reivindicado: false },
-      { nome: "Instituto Educacional Avançar", posicao: 4, nota: 4.8, avaliacoes: 18, categoria: "Educação superior", reivindicado: true },
-      { nome: "Elite Instituição de Ensino", posicao: 5, nota: null, avaliacoes: null, categoria: "Escola mista", reivindicado: true },
-      { nome: "Enjoy Ipatinga", posicao: 6, nota: 4.3, avaliacoes: 127, categoria: "Escola de idiomas", reivindicado: true },
+      { nome: "Crescer Instituto Educacional", posicao: 1, nota: 4.9, avaliacoes: 213, categoria: "Instituição educacional", categorias_adicionais: ["Escola particular", "Escola de ensino fundamental", "Creche", "Escola de educação infantil"], fotos: 164, descricao_tam: 712, reivindicado: true, novas_30d: 11, distancia_km: 1.2 },
+      { nome: "Sesi", posicao: 3, nota: 4.3, avaliacoes: 96, categoria: "Instituição educacional", categorias_adicionais: ["Escola de ensino médio"], fotos: 41, descricao_tam: 0, reivindicado: false, novas_30d: 2, distancia_km: 2.8 },
+      { nome: "Instituto Educacional Avançar", posicao: 4, nota: 4.8, avaliacoes: 88, categoria: "Instituição educacional", categorias_adicionais: ["Escola particular", "Creche"], fotos: 77, descricao_tam: 420, reivindicado: true, novas_30d: 6, distancia_km: 3.1 },
+      { nome: "Elite Instituição de Ensino", posicao: 5, nota: 4.6, avaliacoes: 34, categoria: "Escola mista", categorias_adicionais: ["Escola particular", "Escola de educação infantil"], fotos: 23, descricao_tam: 180, reivindicado: true, novas_30d: 1, distancia_km: 4.4 },
+      { nome: "Enjoy Ipatinga", posicao: 6, nota: 4.3, avaliacoes: 127, categoria: "Escola de idiomas", categorias_adicionais: [], fotos: 58, descricao_tam: 310, reivindicado: true, novas_30d: 3, distancia_km: 2.0 },
     ],
-    posicao_categoria: 1,
+    palavra_concorrencia: "Instituição educacional",
+    posicao_categoria: 2,
     avaliacoes,
     postagens,
     custo: 0.0299,

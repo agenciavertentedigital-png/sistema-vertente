@@ -254,6 +254,11 @@ kbd {
   body.imprimindo-diario #diario-impressao { width: 100%; padding: 0; }
   body.imprimindo-diario #diario-impressao section, body.imprimindo-diario #diario-impressao header { break-inside: avoid; }
   @page { margin: 12mm; }
+  /* Nada pode passar da largura da folha (senão o navegador corta a lateral) */
+  #area-principal table { min-width: 0 !important; }
+  #area-principal .overflow-x-auto { overflow: visible !important; }
+  /* Capa do relatório do Google: ocupa a primeira folha inteira */
+  .capa-relatorio { break-after: page; min-height: 271mm !important; border-radius: 14px !important; }
 }
 
 /* Diagnóstico Digital (página pública /diagnostico): tema marinho fixo, independente do claro/escuro do sistema */

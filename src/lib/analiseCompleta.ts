@@ -41,7 +41,7 @@ export interface ColetaCompleta {
 export type Faixa = "fraco" | "razoavel" | "bom";
 export interface ItemCompleto { id: string; nome: string; porque: string; pct: number; texto: string }
 
-export const faixaItem = (pct: number): Faixa => (pct >= 75 ? "bom" : pct >= 40 ? "razoavel" : "fraco");
+export const faixaItem = (pct: number): Faixa => (pct >= 80 ? "bom" : pct >= 40 ? "razoavel" : "fraco");
 export const faixaNota = (n: number): Faixa => (n >= 80 ? "bom" : n >= 55 ? "razoavel" : "fraco");
 export const COR_FAIXA: Record<Faixa, string> = { fraco: "#e04b3c", razoavel: "#f2b705", bom: "#1aa361" };
 export const NOME_FAIXA: Record<Faixa, string> = { fraco: "Fraco", razoavel: "Razoável", bom: "Bom" };

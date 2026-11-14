@@ -98,6 +98,71 @@ function deslocar(lat: number, lng: number, norteKm: number, lesteKm: number) {
   return { lat: lat + norteKm / 111.32, lng: lng + lesteKm / (111.32 * Math.cos((lat * Math.PI) / 180)) };
 }
 
+
+/** Distância em km entre dois pontos. */
+function distKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const r = (x: number) => (x * Math.PI) / 180;
+  const h = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+/** Concorrentes no Maps: busca pela palavra (categoria) no ponto da empresa, lê o perfil completo dos 5 primeiros
+ *  e dispara a leitura das avaliações recentes deles (para medir o ritmo de avaliações novas). */
+async function concorrentesDe(c: Dfs, placeId: string, palavra: string, lat: number, lng: number) {
+  const r = await dfs(c, "serp/google/maps/live/advanced", [{ keyword: palavra, location_coordinate: `${lat},${lng},15z`, language_code: "pt", depth: 20 }]);
+  let custo = r.custo;
+  const lista = itens(r.tarefa).filter((x) => x.type === "maps_search");
+  const posicao = Number(lista.find((x) => x.place_id === placeId)?.rank_group ?? 0) || null;
+  const top = lista.filter((x) => x.place_id && x.place_id !== placeId).slice(0, 5);
+  const base = { location_name: "Brazil", language_code: "pt" };
+  const detalhes = await Promise.all(top.map(async (x) => {
+    const pid = String(x.place_id);
+    const [info, rev] = await Promise.all([
+      dfs(c, "business_data/google/my_business_info/live", [{ keyword: `place_id:${pid}`, ...base }]).catch(() => null),
+      dfs(c, "business_data/google/reviews/task_post", [{ place_id: pid, ...base, depth: 20, sort_by: "newest", priority: 2 }]).catch(() => null),
+    ]);
+    custo += (info?.custo ?? 0) + (rev?.custo ?? 0);
+    const i = info ? itens(info.tarefa)[0] : null;
+    const ri = i ? resumoInfo(i) : null;
+    const xl = Number(x.latitude), xg = Number(x.longitude);
+    return {
+      place_id: pid,
+      nome: (ri?.titulo ?? x.title) as string,
+      posicao: Number(x.rank_group),
+      nota: ri?.nota ?? (x.rating as Json | null)?.value ?? null,
+      avaliacoes: ri?.avaliacoes ?? (x.rating as Json | null)?.votes_count ?? null,
+      categoria: (ri?.categoria ?? x.category ?? null) as string | null,
+      categorias_adicionais: ri?.categorias_adicionais ?? [],
+      fotos: ri?.fotos ?? null,
+      descricao_tam: ri?.descricao ? String(ri.descricao).trim().length : 0,
+      reivindicado: ri?.reivindicado ?? x.is_claimed ?? null,
+      atributos: ri?.atributos ?? null,
+      servicos: ri?.servicos ?? null,
+      site: Boolean(ri?.site ?? x.url),
+      distancia_km: Number.isFinite(xl) && Number.isFinite(xg) ? Math.round(distKm({ lat, lng }, { lat: xl, lng: xg }) * 10) / 10 : null,
+      tarefa_avaliacoes: (rev?.tarefa.id as string) ?? null,
+    };
+  }));
+  return { concorrentes: detalhes, posicao, palavra, custo };
+}
+
+/** Ritmo de avaliações dos concorrentes (lê as tarefas disparadas em concorrentesDe). */
+async function ritmoConcorrentes(c: Dfs, tarefas: Record<string, string>) {
+  const saida: Record<string, { novas_30d: number; novas_90d: number; ultima: string | null; lidas: number } | null> = {};
+  let prontas = 0, custo = 0;
+  await Promise.all(Object.entries(tarefas).map(async ([pid, tid]) => {
+    if (!tid) { saida[pid] = null; prontas++; return; }
+    const r = await dfs(c, `business_data/google/reviews/task_get/${encodeURIComponent(tid)}`).catch(() => null);
+    if (!r || !pronta(r.tarefa)) { saida[pid] = null; return; }
+    prontas++;
+    custo += r.custo;
+    const datas = itens(r.tarefa).map((x) => String(x.timestamp ?? "")).filter(Boolean).map((t) => new Date(t.replace(" +00:00", "Z").replace(" ", "T")).getTime());
+    const d = (ms: number) => (Date.now() - ms) / 864e5;
+    saida[pid] = { novas_30d: datas.filter((t) => d(t) <= 30).length, novas_90d: datas.filter((t) => d(t) <= 90).length, ultima: datas.length ? new Date(Math.max(...datas)).toISOString() : null, lidas: datas.length };
+  }));
+  return { pronto: prontas === Object.keys(tarefas).length, ritmo: saida, custo };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const responder = (corpo: Json, status = 200) =>
@@ -185,24 +250,17 @@ Deno.serve(async (req) => {
       const fotos = ((det.photos as { authorAttributions?: { displayName?: string }[] }[]) ?? []).map((f) => f.authorAttributions?.[0]?.displayName ?? "");
       const doDono = fotos.filter((n) => n && (n.toLowerCase() === titulo || titulo.includes(n.toLowerCase()) || n.toLowerCase().includes(titulo))).length;
       const especiais = ((det.currentOpeningHours as { specialDays?: unknown[] } | undefined)?.specialDays ?? []).length;
-      // Concorrentes: a busca pela categoria principal no ponto da empresa
+      // Concorrentes: a busca pela palavra (ou categoria principal) no ponto da empresa, com o perfil completo de cada um
       let concorrentes: Json[] = [];
       let posicaoCategoria: number | null = null;
       let custoExtra = 0;
-      if (item.category && item.latitude && item.longitude) {
-        const r = await dfs(c, "serp/google/maps/live/advanced", [{ keyword: String(item.category), location_coordinate: `${item.latitude},${item.longitude},15z`, language_code: "pt", depth: 20 }]).catch(() => null);
+      const palavraBusca = String(corpo.palavra ?? "").trim() || String(item.category ?? "");
+      if (palavraBusca && item.latitude && item.longitude) {
+        const r = await concorrentesDe(c, placeId, palavraBusca, Number(item.latitude), Number(item.longitude)).catch(() => null);
         if (r) {
           custoExtra += r.custo;
-          const lista = itens(r.tarefa).filter((x) => x.type === "maps_search");
-          posicaoCategoria = Number(lista.find((x) => x.place_id === placeId)?.rank_group ?? 0) || null;
-          concorrentes = lista.filter((x) => x.place_id !== placeId).slice(0, 5).map((x) => ({
-            nome: x.title,
-            posicao: x.rank_group,
-            nota: (x.rating as Json | null)?.value ?? null,
-            avaliacoes: (x.rating as Json | null)?.votes_count ?? null,
-            categoria: x.category ?? null,
-            reivindicado: x.is_claimed ?? null,
-          }));
+          posicaoCategoria = r.posicao;
+          concorrentes = r.concorrentes;
         }
       }
       return responder({
@@ -212,9 +270,30 @@ Deno.serve(async (req) => {
         horario_especial_proximos_dias: especiais,
         concorrentes,
         posicao_categoria: posicaoCategoria,
+        palavra_concorrencia: palavraBusca || null,
         tarefas: { avaliacoes: rev.tarefa.id, postagens: upd.tarefa.id },
         custo: info.custo + rev.custo + upd.custo + custoExtra,
       });
+    }
+
+    if (corpo.acao === "concorrentes") {
+      // Para fichas analisadas pela API oficial: concorrentes a partir do place_id
+      const c = exigirDfs();
+      const placeId = String(corpo.place_id ?? "");
+      if (!placeId) return responder({ erro: "Ficha sem identificação do Google." }, 400);
+      const p = await places(`places/${encodeURIComponent(placeId)}`, chave, "id,location,primaryTypeDisplayName");
+      const loc = p.location as { latitude: number; longitude: number } | undefined;
+      if (!loc) return responder({ erro: "Não achei a localização da ficha." }, 404);
+      const palavra = String(corpo.palavra ?? "").trim() || ((p.primaryTypeDisplayName as { text?: string } | undefined)?.text ?? "");
+      if (!palavra) return responder({ erro: "Informe a palavra da busca." }, 400);
+      const r = await concorrentesDe(c, placeId, palavra, loc.latitude, loc.longitude);
+      return responder({ ok: true, concorrentes: r.concorrentes, posicao: r.posicao, palavra, custo: r.custo });
+    }
+
+    if (corpo.acao === "concorrentes_ritmo") {
+      const c = exigirDfs();
+      const r = await ritmoConcorrentes(c, (corpo.tarefas ?? {}) as Record<string, string>);
+      return responder({ ok: true, ...r });
     }
 
     if (corpo.acao === "completo") {
