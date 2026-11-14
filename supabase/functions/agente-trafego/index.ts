@@ -1,4 +1,5 @@
-// Agente Gestor de Tráfego (IA): faz as Revisões diárias como um membro do time.
+// Agente Gestor de Tráfego (IA): faz as Revisões diárias como um membro do time — checagem curta e objetiva
+// (alertas, pontos principais, o que anotar e até 3 ideias). A análise completa é do Gestor Otimizador.
 // A cada rodada pega até 4 revisões abertas do agente (prazo até hoje), analisa os números da Meta/Google
 // guardados no sistema, comenta o checklist com análise e ideias, registra a revisão (ok/atenção/problema)
 // e conclui a tarefa (a próxima da rotina nasce sozinha).
@@ -105,7 +106,9 @@ Deno.serve(async (req) => {
     // Ajustes recentes feitos na Meta (para não sugerir o que já foi feito)
     const { data: ajustes } = await admin.from("meta_atividades").select("quando, evento_texto, objeto_nome").eq("cliente_id", t.cliente_id).eq("automatico", false).gte("quando", `${ini7}T00:00:00-03:00`).order("quando", { ascending: false }).limit(15);
 
-    const pedido = `Você é o Agente Gestor de Tráfego da Vertente Digital (agência de tráfego pago em Minas Gerais). Faça a REVISÃO DIÁRIA do cliente "${nome}" como um gestor sênior faria, de forma objetiva, em português do Brasil.
+    const pedido = `Você é o Agente Gestor de Tráfego da Vertente Digital. Faça a REVISÃO DIÁRIA do cliente "${nome}": uma checagem rápida de saúde da conta, como um gestor sênior faria em 2 minutos. NÃO é análise completa (essa é feita pelo botão Otimizar do dashboard).
+
+ESTILO: direto e objetivo. Frases curtas, sem introdução, sem repetir números. Cada observação do checklist com no máximo ~15 palavras. Português do Brasil.
 
 Checklist da revisão (responda item a item, na mesma ordem):
 ${itens.map((i, k) => `${k + 1}. ${i.texto}`).join("\n") || "1. Saúde da conta\n2. Campanhas ativas\n3. Métricas principais\n4. Gastos e saldo\n5. Anúncios"}
@@ -119,12 +122,14 @@ ${JSON.stringify(dados).slice(0, 30000)}
 Ajustes feitos pelo time na Meta nos últimos 7 dias: ${JSON.stringify(ajustes ?? []).slice(0, 3000)}
 
 Regras:
-- Não invente números: use só os dados acima. Se faltar dado (ex.: anúncios individuais), diga o que conferir no Gerenciador.
-- Conta pré-paga com saldo para menos de ~3 dias do gasto médio = atenção. Conta bloqueada, sem veicular ontem com campanhas ativas, ou custo por contato 40%+ pior que a média de 7 dias = problema ou atenção conforme a gravidade.
-- Ideias de melhoria: práticas, específicas para estas campanhas (orçamento, público, criativo, oferta, horário, posicionamento), no máximo 4.
+- Não invente números: use só os dados acima. Se faltar dado, diga em poucas palavras o que conferir no Gerenciador.
+- Situação: "problema" = conta bloqueada/desativada, nada veiculou ontem com campanhas ativas, saldo pré-pago acaba em até 1 dia, ou custo por contato de ontem 60%+ pior que a média de 7 dias com gasto relevante. "atencao" = saldo para menos de ~3 dias, custo por contato 30%+ pior, gasto muito abaixo/acima do normal, sincronização com mais de 24h, zero contatos ontem com gasto. Senão "ok".
+- Alertas: só problemas concretos que exigem ação HOJE (não repita ideias). Cada alerta em 1 linha começando pelo problema, com o número. Se estiver tudo bem, lista vazia.
+- Anotar: até 3 fatos importantes que vale guardar no histórico do cliente (ex.: recorde de contatos, campanha nova começou a entregar, mudança relevante de custo, saldo recarregado). Lista vazia se nada relevante.
+- Ideias: no máximo 3, práticas e específicas para estas campanhas, 1 linha cada.
 
 Responda SÓ com JSON neste formato:
-{"situacao":"ok|atencao|problema","resumo":"1 a 2 frases","checklist":[{"item":"texto do item","ok":true,"obs":"o que viu, com números"}],"analise":"3 a 6 linhas","ideias":["..."],"alerta":"vazio ou o que o time precisa saber hoje"}`;
+{"situacao":"ok|atencao|problema","resumo":"1 frase com o principal","checklist":[{"item":"texto do item","ok":true,"obs":"curto, com número"}],"destaques":["até 3 pontos principais do dia"],"anotar":["..."],"ideias":["..."],"alertas":["..."]}`;
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -134,33 +139,43 @@ Responda SÓ com JSON neste formato:
     const j = (await r.json()) as Json;
     if (!r.ok) { await admin.from("tarefas").update({ status: "a_fazer" }).eq("id", t.id); throw new Error(String((j.error as Json | undefined)?.message ?? "A IA não respondeu.")); }
     const texto = ((j.output as Json[]) ?? []).filter((o) => o.type === "message").flatMap((o) => (o.content as Json[]) ?? []).map((c) => c.text).join("\n");
-    let rev: { situacao?: string; resumo?: string; checklist?: { item: string; ok: boolean; obs: string }[]; analise?: string; ideias?: string[]; alerta?: string };
-    try { rev = JSON.parse(texto.slice(texto.indexOf("{"), texto.lastIndexOf("}") + 1)); } catch { rev = { situacao: "atencao", resumo: "Não consegui estruturar a análise; texto bruto abaixo.", analise: texto.slice(0, 1500) }; }
+    let rev: { situacao?: string; resumo?: string; checklist?: { item: string; ok: boolean; obs: string }[]; destaques?: string[]; anotar?: string[]; ideias?: string[]; alertas?: string[]; alerta?: string; analise?: string };
+    try { rev = JSON.parse(texto.slice(texto.indexOf("{"), texto.lastIndexOf("}") + 1)); } catch { rev = { situacao: "atencao", resumo: "Não consegui estruturar a revisão; texto bruto abaixo.", analise: texto.slice(0, 1200) }; }
+    const lst = (x: unknown) => (Array.isArray(x) ? x.map((y) => String(y).trim()).filter(Boolean) : typeof x === "string" && x.trim() ? [x.trim()] : []);
+    const alertas = lst(rev.alertas ?? rev.alerta).slice(0, 4);
+    const destaques = lst(rev.destaques).slice(0, 3), anotar = lst(rev.anotar).slice(0, 3), ideias = lst(rev.ideias).slice(0, 3);
     const situacao = ["ok", "atencao", "problema"].includes(rev.situacao ?? "") ? rev.situacao! : "atencao";
     const sinal = situacao === "ok" ? "🟢 Tudo certo" : situacao === "atencao" ? "🟡 Ponto de atenção" : "🔴 Problema";
     const tot = dados.total;
     const comentario = [
-      `🤖 Revisão diária do Agente de Tráfego · ${hoje.split("-").reverse().join("/")}`,
+      `🤖 Revisão diária · ${hoje.split("-").reverse().join("/")}`,
       `${sinal} — ${rev.resumo ?? ""}`,
       "",
       `Ontem: ${brl(tot.ontem.gasto)} · ${tot.ontem.contatos} contatos${tot.ontem.cpr ? ` · ${brl(tot.ontem.cpr)}/contato` : ""}`,
-      `7 dias: ${brl(tot.ultimos7.gasto)} · ${tot.ultimos7.contatos} contatos${tot.ultimos7.cpr ? ` · ${brl(tot.ultimos7.cpr)}/contato` : ""} (7 anteriores: ${tot.anteriores7.contatos} contatos${tot.anteriores7.cpr ? `, ${brl(tot.anteriores7.cpr)}/contato` : ""})`,
+      `7 dias: ${brl(tot.ultimos7.gasto)} · ${tot.ultimos7.contatos} contatos${tot.ultimos7.cpr ? ` · ${brl(tot.ultimos7.cpr)}/contato` : ""} (antes: ${tot.anteriores7.contatos}${tot.anteriores7.cpr ? `, ${brl(tot.anteriores7.cpr)}` : ""})`,
+      ...(alertas.length ? ["", "🚨 Alertas:", ...alertas.map((a) => `• ${a}`)] : []),
+      ...(destaques.length ? ["", "Principais pontos:", ...destaques.map((d) => `• ${d}`)] : []),
       "",
       "Checklist:",
       ...(rev.checklist ?? []).map((c) => `${c.ok ? "✅" : "⚠️"} ${c.item}: ${c.obs}`),
-      "",
-      rev.analise ? `Análise: ${rev.analise}` : "",
-      ...(rev.ideias?.length ? ["", "Ideias de melhoria:", ...rev.ideias.map((i) => `💡 ${i}`)] : []),
-      rev.alerta ? `\n⚠️ Para o time: ${rev.alerta}` : "",
+      ...(anotar.length ? ["", "📌 Anotado:", ...anotar.map((x) => `• ${x}`)] : []),
+      ...(ideias.length ? ["", "💡 Ideias:", ...ideias.map((i) => `• ${i}`)] : []),
+      rev.analise ? `\n${rev.analise}` : "",
     ].filter((x) => x !== undefined).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 
     await admin.from("tarefa_comentarios").insert({ tarefa_id: t.id, autor_id: agenteId, texto: comentario });
     if (itens.length) await admin.from("tarefa_checklist").update({ feito: true }).eq("tarefa_id", t.id);
     await admin.from("registros").insert({
       cliente_id: t.cliente_id, tarefa_id: t.id, tipo: "revisao", canal: lista.some((c) => c.plataforma === "meta") ? "meta" : lista.length ? "google" : null,
-      situacao, acoes: ["Revisão automática do Agente de Tráfego"], nota: [rev.resumo, rev.alerta].filter(Boolean).join(" ") || null,
-      dados: { agente: true, ideias: rev.ideias ?? [] }, data: hoje, autor_id: agenteId,
+      situacao, acoes: ["Revisão automática do Agente de Tráfego"], nota: [rev.resumo, ...alertas, ...anotar.map((x) => `📌 ${x}`)].filter(Boolean).join(" · ").slice(0, 900) || null,
+      dados: { agente: true, ideias, anotar, alertas, destaques }, data: hoje, autor_id: agenteId,
     });
+    // Alertas de atenção vão para o sino e para o grupo do time (os de "problema" já saem pelo próprio registro)
+    if (situacao === "atencao" && alertas.length) {
+      const { data: time } = await admin.from("membros").select("id").eq("ativo", true).eq("acesso", true).neq("id", agenteId);
+      const linhas = ((time ?? []) as { id: string }[]).flatMap((m) => alertas.map((a) => ({ membro_id: m.id, tipo: "alerta", texto: `${nome} · ${a}`.slice(0, 300), cliente_id: t.cliente_id, tarefa_id: t.id, autor_id: agenteId })));
+      if (linhas.length) await admin.from("notificacoes").insert(linhas);
+    }
     await admin.from("tarefas").update({ status: "feita" }).eq("id", t.id);
     return { tarefa: t.id, cliente: nome, situacao };
   }

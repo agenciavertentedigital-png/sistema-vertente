@@ -9,7 +9,7 @@ import { chamarFuncao } from "../../../lib/tabela";
 interface Analise { id: string; inicio: string | null; fim: string | null; texto: string; criado_em: string }
 interface Conquista { id: string; data: string; nota: string | null }
 
-const ETAPAS = ["Lendo campanhas e resultados do período…", "Comparando com o período anterior…", "Buscando públicos, idade, gênero e posicionamentos na Meta…", "Avaliando criativos…", "Escrevendo a estratégia e as melhorias…", "Montando a Análise de Campanhas…"];
+const ETAPAS = ["Lendo campanhas e resultados do período…", "Comparando campanha a campanha com o período anterior…", "Lendo conjuntos: públicos, orçamentos e segmentação…", "Buscando idade, gênero, posicionamentos e horários na Meta…", "Cruzando mudanças recentes e o funil do cliente…", "Avaliando criativos e sinais de fadiga…", "Montando escala, redução de custos e plano de ação…", "Escrevendo a Análise de Campanhas…"];
 const br = (x: string | null) => (x ? `${x.slice(8, 10)}/${x.slice(5, 7)}` : "");
 
 const EXEMPLO: Analise = {
@@ -39,7 +39,7 @@ export function useGestorOtimizador(clienteId: string, ini: string, fim: string,
 
   useEffect(() => {
     if (!rodando) return;
-    const t = setInterval(() => setPasso((p) => Math.min(p + 1, ETAPAS.length - 1)), 7000);
+    const t = setInterval(() => setPasso((p) => Math.min(p + 1, ETAPAS.length - 1)), 12000);
     return () => clearInterval(t);
   }, [rodando]);
 
