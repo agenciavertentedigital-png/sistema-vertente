@@ -91,6 +91,7 @@ export function GoogleMeuNegocio({ rota, ir }: { rota: string; ir: (r: string) =
         ]}
         ativa={aba}
         mudar={ir}
+        modulo
       />
       {gmn.perfis.erro && <Vazio>{gmn.perfis.erro}</Vazio>}
       {aba === "gmn-fichas" ? (

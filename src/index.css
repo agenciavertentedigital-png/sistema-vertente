@@ -234,6 +234,11 @@ kbd {
 #area-principal table input[type="number"] { font-variant-numeric: tabular-nums; }
 
 /* Diário de Bordo: ao exportar, imprime só o documento, sempre no tema claro */
+/* Abas do topo que repetem os submenus da barra lateral: no computador, com o menu aberto, ficam só na barra */
+@media (min-width: 1024px) {
+  html:not([data-menu="recolhido"]) .abas-modulo { display: none !important; }
+}
+
 @media print {
   /* Qualquer página impressa: solta a área de rolagem (senão sai só 1 página) e esconde menu, barras e botões flutuantes */
   html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; }

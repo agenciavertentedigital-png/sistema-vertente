@@ -78,7 +78,7 @@ export function GestorProjetos({ rota, ir }: { rota: string; ir: (r: string) => 
         <Kpi rotulo="Pedem atenção" valor={atencao.length} tom={atencao.length ? "warn" : "ok"} detalhe="entre 50 e 74" onClick={() => setFiltro(filtro === "atencao" ? "todos" : "atencao")} ativo={filtro === "atencao"} />
         <Kpi rotulo="Saudáveis" valor={bem.length} tom="ok" detalhe="75 ou mais" onClick={() => setFiltro(filtro === "bem" ? "todos" : "bem")} ativo={filtro === "bem"} />
       </div>
-      <Abas<Aba> abas={[{ id: "projetos-acompanhamentos", nome: "Central de Acompanhamentos" }, { id: "projetos", nome: "Saúde dos clientes" }, { id: "projetos-pilares", nome: "Visão por pilar" }, { id: "projetos-cs", nome: "Fluxo de CS" }, { id: "projetos-horas", nome: "Horas e rentabilidade" }]} ativa={aba} mudar={ir} />
+      <Abas<Aba> abas={[{ id: "projetos-acompanhamentos", nome: "Central de Acompanhamentos" }, { id: "projetos", nome: "Saúde dos clientes" }, { id: "projetos-pilares", nome: "Visão por pilar" }, { id: "projetos-cs", nome: "Fluxo de CS" }, { id: "projetos-horas", nome: "Horas e rentabilidade" }]} ativa={aba} mudar={ir} modulo />
       {carregando ? (
         <Vazio>Carregando…</Vazio>
       ) : aba === "projetos" ? (

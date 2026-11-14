@@ -118,7 +118,7 @@ export function Contratos({ rota, ir }: { rota: string; ir: (r: string) => void 
         <Kpi rotulo="Rascunhos" valor={contratos.linhas.filter((c) => c.status === "rascunho").length} />
         <Kpi rotulo="Clientes ativos sem contrato assinado" valor={ativosSem.length} tom={ativosSem.length ? "bad" : "ok"} />
       </div>
-      <Abas<Aba> abas={[{ id: "contratos", nome: "Contratos" }, { id: "contratos-modelos", nome: "Modelos" }]} ativa={aba} mudar={ir} />
+      <Abas<Aba> abas={[{ id: "contratos", nome: "Contratos" }, { id: "contratos-modelos", nome: "Modelos" }]} ativa={aba} mudar={ir} modulo />
       {contratos.erro && <Vazio>{contratos.erro}</Vazio>}
       {aba === "contratos" ? (
         contratos.linhas.length === 0 ? (

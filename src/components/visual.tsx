@@ -21,9 +21,9 @@ export function Cabecalho({ titulo, descricao, acoes, icone: Icone }: { rotulo?:
   );
 }
 
-export function Abas<T extends string>({ abas, ativa, mudar }: { abas: { id: T; nome: string; contador?: number }[]; ativa: T; mudar: (id: T) => void }) {
+export function Abas<T extends string>({ abas, ativa, mudar, modulo }: { abas: { id: T; nome: string; contador?: number }[]; ativa: T; mudar: (id: T) => void; /** Abas que repetem os submenus da barra lateral (somem no computador com o menu aberto) */ modulo?: boolean }) {
   return (
-    <div className="-mx-1 overflow-x-auto px-1">
+    <div className={`-mx-1 overflow-x-auto px-1 ${modulo ? "abas-modulo" : ""}`}>
       <div role="tablist" className="flex w-max gap-0.5 rounded-xl bg-raised p-0.5">
         {abas.map((a) => (
           <button

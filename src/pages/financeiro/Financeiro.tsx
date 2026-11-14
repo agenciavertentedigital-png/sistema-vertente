@@ -160,6 +160,7 @@ export function Financeiro({ rota, ir }: { rota: string; ir: (r: string) => void
         ]}
         ativa={aba}
         mudar={ir}
+        modulo
       />
       {lanc.erro && <Vazio>{lanc.erro.includes("permission") ? "Só administradores acessam o financeiro." : lanc.erro}</Vazio>}
       {lanc.carregando || fichas.carregando ? (

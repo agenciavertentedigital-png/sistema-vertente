@@ -58,7 +58,7 @@ export function GestaoClientes({ rota, ir }: { rota: string; ir: (r: string) => 
         </div>
       </header>
 
-      <div className="-mx-1 overflow-x-auto px-1">
+      <div className="abas-modulo -mx-1 overflow-x-auto px-1">
         <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
           {ABAS.map((a) => (
             <button

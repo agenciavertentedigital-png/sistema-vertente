@@ -86,6 +86,10 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    document.documentElement.dataset.menu = recolhido ? "recolhido" : "aberto";
+  }, [recolhido]);
+
   const alternarTema = () => {
     const novo = tema === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", novo);
@@ -256,7 +260,7 @@ function AbasCadastro({ rota, ir }: { rota: string; ir: (r: string) => void }) {
     { id: "base", nome: "Base de clientes", ativo: rota === "base" },
   ];
   return (
-    <div className="mx-auto mb-5 max-w-[1240px]">
+    <div className="abas-modulo mx-auto mb-5 max-w-[1240px]">
     <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 sm:w-max">
       {abas.map((a) => (
         <button key={a.id} role="tab" aria-selected={a.ativo} onClick={() => ir(a.id)} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] ${a.ativo ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>

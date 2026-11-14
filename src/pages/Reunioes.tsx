@@ -81,7 +81,7 @@ export function Reunioes({ rota, ir }: { rota: string; ir: (r: string) => void }
           <div className="eyebrow">Ritual do time · {tipo === "daily" ? new Date(`${hj}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", timeZone: "UTC" }) : `semana de ${new Date(`${segunda(hj)}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", timeZone: "UTC" })}`}</div>
           <h1 className="text-[22px] font-semibold leading-tight">{tipo === "daily" ? "Daily" : "Weekly"}</h1>
         </div>
-        <div role="tablist" className="flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
+        <div role="tablist" className="abas-modulo flex w-max gap-1 rounded-xl border border-line bg-surface p-1">
           {(["daily", "weekly"] as const).map((v) => (
             <button key={v} role="tab" aria-selected={tipo === v} onClick={() => ir(`reuniao-${v}`)} className={`rounded-lg px-3 py-1.5 text-[13px] ${tipo === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
               {v === "daily" ? "Daily" : "Weekly"}

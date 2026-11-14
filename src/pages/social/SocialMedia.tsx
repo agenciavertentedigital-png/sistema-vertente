@@ -64,6 +64,7 @@ export function SocialMedia({ rota, ir }: { rota: string; ir: (r: string) => voi
         ]}
         ativa={aba}
         mudar={ir}
+        modulo
       />
       {posts.erro && <Vazio>{posts.erro}</Vazio>}
       {posts.carregando ? (

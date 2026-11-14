@@ -13,7 +13,7 @@ export function CentralAnotacoes({ rota, ir }: { rota: string; ir: (r: string) =
         <div>
           <h1 className="text-[22px] font-semibold leading-tight">Briefings e notas</h1>
         </div>
-        <div role="tablist" className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+        <div role="tablist" className="abas-modulo flex gap-1 rounded-xl border border-line bg-surface p-1">
           {([["notas", "Anotações", NotebookPen, "anotacoes"], ["briefings", "Briefings dos clientes", Target, "anotacoes-briefings"]] as const).map(([v, n, I, r]) => (
             <button key={v} role="tab" aria-selected={aba === v} onClick={() => ir(r)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] ${aba === v ? "bg-accent text-accent-fg" : "text-muted hover:bg-raised hover:text-fg"}`}>
               <I size={14} /> {n}
