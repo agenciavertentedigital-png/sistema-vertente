@@ -127,6 +127,7 @@ Deno.serve(async (req) => {
 
   const { data: substituir } = await admin.from("lancamentos").select("id, tipo, descricao, valor, categoria, pago_em, observacoes")
     .eq("competencia", comp)
+    .is("asaas_id", null) // o que veio do Asaas não é apagado pela planilha
     .or("observacoes.like.Importado da planilha%,and(tipo.eq.receita,categoria.eq.Mensalidade,pago_em.is.null)");
   const resumo = {
     aba,

@@ -13,6 +13,7 @@ export interface Lancamento {
   pago_em: string | null;
   forma: string | null;
   observacoes: string | null;
+  asaas_link?: string | null;
 }
 
 export interface ServicoCliente {
@@ -47,4 +48,4 @@ export function situacao(l: Pick<Lancamento, "pago_em" | "vencimento">): Situaca
   if (l.pago_em) return "pago";
   return l.vencimento < hoje() ? "atrasado" : "aberto";
 }
-export const CAMPOS_LANCAMENTO = "id, tipo, cliente_id, descricao, categoria, valor, competencia, vencimento, pago_em, forma, observacoes";
+export const CAMPOS_LANCAMENTO = "id, tipo, cliente_id, descricao, categoria, valor, competencia, vencimento, pago_em, forma, observacoes, asaas_link";

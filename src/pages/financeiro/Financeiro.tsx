@@ -291,6 +291,7 @@ function Lista({ titulo, acoes, linhas, nomeCliente, pagar, abrir, vazio }: { ti
                     <td className="py-2.5">
                       <div className="font-medium">{nomeCliente(l.cliente_id) ?? l.descricao}</div>
                       {nomeCliente(l.cliente_id) && <div className="text-[11.5px] text-muted">{l.descricao}</div>}
+                      {l.asaas_link && <a href={l.asaas_link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-[11.5px] text-accent hover:underline">Cobrança no Asaas ↗</a>}
                     </td>
                     <td className="py-2.5 text-muted">{l.categoria}</td>
                     <td className="num py-2.5 text-right font-semibold">{moedaBR(l.valor)}</td>

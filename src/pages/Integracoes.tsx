@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, CheckCircle2, Link2, Copy, FolderOpen, MapPin, MessageCircle, Plug, Save, Search, Smartphone, XCircle } from "lucide-react";
+import { BarChart3, Bot, CheckCircle2, Link2, Copy, FolderOpen, Loader2, MapPin, MessageCircle, Plug, Save, Search, Smartphone, Wallet, XCircle } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { chamarFuncao } from "../lib/tabela";
 import { useRef } from "react";
@@ -12,7 +12,7 @@ interface Grupo { grupo: string; nome: string | null; cliente_id: string | null;
 interface ClienteMin { id: string; nome: string }
 interface MembroTel { id: string; nome: string; telefone: string | null; foto_url?: string | null }
 
-const DEMO_STATUS: Status = { dataforseo_login: true, dataforseo_senha: true, meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false };
+const DEMO_STATUS: Status = { dataforseo_login: true, dataforseo_senha: true, meta_access_token: true, openai_api_key: true, anthropic_api_key: false, google_places_key: false, zapi_instancia: false, zapi_token: false, zapi_client_token: false, whatsapp_grupo: false, asaas_api_key: true };
 
 /** Situação das integrações e configuração do WhatsApp (só administradores). Os valores ficam no cofre do Supabase e nunca voltam para a tela. */
 export function Integracoes() {
@@ -28,6 +28,27 @@ export function Integracoes() {
   const [clientes, setClientes] = useState<ClienteMin[]>([]);
   const [configurando, setConfigurando] = useState(false);
   const [contasGoogle, setContasGoogle] = useState<{ id: string; nome: string; status: string }[] | null>(null);
+  const [asaas, setAsaas] = useState<{ ocupado?: string; texto?: string; lista?: string[] }>({});
+  const [desdeAsaas, setDesdeAsaas] = useState(() => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 8) + "01");
+
+  async function acaoAsaas(acao: "testar" | "configurar" | "vincular" | "importar") {
+    setAsaas({ ocupado: acao });
+    try {
+      const r = await chamarFuncao<Record<string, unknown>>("asaas", { acao, desde: desdeAsaas });
+      const moeda = (v: unknown) => Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      if (acao === "testar") setAsaas({ texto: `Conectado (${r.ambiente}). Saldo ${moeda(r.saldo)} · webhook ${r.webhook}.` });
+      if (acao === "configurar") setAsaas({ texto: `Webhook ${r.webhook} no Asaas. A partir de agora cada pagamento dá baixa sozinho no Financeiro.` });
+      if (acao === "vincular") setAsaas({ texto: `${r.ligados} de ${r.clientes_asaas} clientes do Asaas ligados às fichas.${(r.sem_ficha as string[]).length ? " Sem ficha correspondente (confira CPF/CNPJ ou nome na ficha):" : ""}`, lista: r.sem_ficha as string[] });
+      if (acao === "importar") {
+        const res = (r.resumo ?? {}) as Record<string, number>;
+        const nomes: Record<string, string> = { baixa: "baixas em mensalidades", ja_pago: "já estavam pagas", criado: "receitas novas", criado_sem_cliente: "receitas sem cliente ligado" };
+        const partes = Object.entries(res).map(([k, v]) => `${v} ${nomes[k] ?? k}`);
+        setAsaas({ texto: partes.length ? `Pagamentos desde ${String(r.desde).split("-").reverse().join("/")}: ${partes.join(", ")}.` : "Nenhum pagamento encontrado no período." });
+      }
+    } catch (e) {
+      setAsaas({ texto: (e as Error).message });
+    }
+  }
 
   // Volta da autorização do Google (#integracoes?google=ok)
   useEffect(() => {
@@ -142,6 +163,7 @@ export function Integracoes() {
     { icone: Search, nome: "DataForSEO", ok: status.dataforseo_login && status.dataforseo_senha, texto: saldo !== null ? `Análise completa e grade do Maps. Saldo: US$ ${saldo.toFixed(2)}` : "Análise completa do GBP e grade do Maps." },
     { icone: MessageCircle, nome: evoOk ? "WhatsApp (Evolution)" : "WhatsApp (Z-API)", ok: !!whatsOk, texto: "Lê os grupos dos clientes e responde no grupo do time." },
     { icone: FolderOpen, nome: "Google Drive", ok: true, texto: "Pasta de cada cliente aparece na ficha (aba Pasta no Drive)." },
+    { icone: Wallet, nome: "Asaas (Financeiro)", ok: !!status.asaas_api_key, texto: "Pagamentos dão baixa sozinhos nas receitas." },
   ];
 
   return (
@@ -272,6 +294,45 @@ export function Integracoes() {
           </div>
           <p className="mt-3 text-[12px] text-muted">No grupo, mensagens que começam com <b>//</b> são ignoradas pela IA (conversa entre pessoas).</p>
         </div>
+      </section>
+
+      <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold"><Wallet size={17} className="text-accent" /> Asaas · Financeiro</h2>
+        <p className="mt-1 text-[12.5px] text-muted">Cada cobrança paga no Asaas dá baixa sozinha na receita do cliente no Financeiro. Atrasos chegam como aviso só para os administradores.</p>
+        <div className="mt-3 grid gap-2 text-[13px] lg:grid-cols-2">
+          <Campo rotulo="Chave de API do Asaas (Integrações → Chave de API)" ok={!!status.asaas_api_key} onSalvar={(v) => salvar("asaas_api_key", v)} />
+        </div>
+        {status.asaas_api_key && (
+          <>
+            <ol className="mt-4 flex flex-col gap-2 text-[13px]">
+              {([
+                ["testar", "1. Testar conexão", "Confere a chave e mostra o saldo."],
+                ["configurar", "2. Ativar baixa automática", "Cadastra o webhook no Asaas (sem precisar mexer lá)."],
+                ["vincular", "3. Ligar clientes", "Liga cada cliente do Asaas à ficha pelo CPF/CNPJ, e-mail ou nome."],
+              ] as const).map(([a, t, d]) => (
+                <li key={a} className="flex flex-wrap items-center gap-2">
+                  <button onClick={() => acaoAsaas(a)} disabled={!!asaas.ocupado} className="inline-flex h-9 min-w-[200px] items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-raised disabled:opacity-40">
+                    {asaas.ocupado === a ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />} {t}
+                  </button>
+                  <span className="text-[12px] text-muted">{d}</span>
+                </li>
+              ))}
+              <li className="flex flex-wrap items-center gap-2">
+                <button onClick={() => acaoAsaas("importar")} disabled={!!asaas.ocupado} className="inline-flex h-9 min-w-[200px] items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-fg disabled:opacity-40">
+                  {asaas.ocupado === "importar" ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />} 4. Trazer pagamentos desde
+                </button>
+                <input type="date" value={desdeAsaas} onChange={(e) => setDesdeAsaas(e.target.value)} className="h-9 rounded-lg border border-line bg-bg px-2 text-[13px]" />
+                <span className="text-[12px] text-muted">Dá baixa no que já foi pago antes de ligar a integração.</span>
+              </li>
+            </ol>
+            {asaas.texto && (
+              <div className="mt-3 rounded-lg bg-accent/10 px-3 py-2 text-[12.5px]">
+                {asaas.texto}
+                {!!asaas.lista?.length && <div className="mt-1 text-muted">{asaas.lista.join(" · ")}</div>}
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <section className="rounded-xl bg-surface p-5" style={{ boxShadow: "var(--sombra)" }}>

@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { AlertTriangle, AtSign, Bell, UserPlus } from "lucide-react";
+import { AlertTriangle, AtSign, Bell, UserPlus, Wallet } from "lucide-react";
 import { repo } from "../lib/repo";
 import { useDados } from "../lib/dados";
 import { STATUS_ABERTOS, atrasada, hoje, type Notificacao } from "../lib/tipos";
 import { Botao, Painel, Vazio } from "./ui";
 import { TextoComMencoes } from "./LinhaDoTempo";
 
-const ICONE = { mencao: AtSign, atribuicao: UserPlus, alerta: AlertTriangle };
+const ICONE = { mencao: AtSign, atribuicao: UserPlus, alerta: AlertTriangle, financeiro: Wallet };
 
 function quando(iso: string) {
   const d = new Date(iso);
@@ -90,10 +90,10 @@ export function Sininho({ ir, compacto }: { ir: (r: string) => void; compacto?: 
                     <button
                       onClick={() => abrirNotificacao(n)}
                       className={`flex w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] leading-snug hover:border-accent ${
-                        n.lida ? "border-line bg-transparent text-muted" : n.tipo === "alerta" ? "border-bad bg-bad-soft" : "border-line bg-surface"
+                        n.lida ? "border-line bg-transparent text-muted" : n.tipo === "alerta" ? "border-bad bg-bad-soft" : n.tipo === "financeiro" ? "border-warn bg-warn-soft" : "border-line bg-surface"
                       }`}
                     >
-                      <Icone size={15} className={`mt-0.5 shrink-0 ${n.tipo === "alerta" ? "text-bad" : "text-accent"}`} />
+                      <Icone size={15} className={`mt-0.5 shrink-0 ${n.tipo === "alerta" ? "text-bad" : n.tipo === "financeiro" ? "text-warn" : "text-accent"}`} />
                       <span className="min-w-0 flex-1">
                         <TextoComMencoes texto={n.texto} />
                       </span>

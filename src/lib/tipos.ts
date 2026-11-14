@@ -238,7 +238,7 @@ export type NovoRegistro = Pick<Registro, "cliente_id" | "tipo"> &
 
 export interface Notificacao {
   id: string;
-  tipo: "mencao" | "atribuicao" | "alerta";
+  tipo: "mencao" | "atribuicao" | "alerta" | "financeiro";
   texto: string;
   cliente_id: string | null;
   tarefa_id: string | null;
