@@ -235,14 +235,25 @@ kbd {
 
 /* Diário de Bordo: ao exportar, imprime só o documento, sempre no tema claro */
 @media print {
+  /* Qualquer página impressa: solta a área de rolagem (senão sai só 1 página) e esconde menu, barras e botões flutuantes */
+  html, body, #root { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body:not(.imprimindo-diario) *:has(#area-principal), body:not(.imprimindo-diario) #area-principal { display: block !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; }
+  body:not(.imprimindo-diario) *:has(#area-principal) > :not(:has(#area-principal)):not(#area-principal) { display: none !important; }
+  body:not(.imprimindo-diario) > :not(#root) { display: none !important; }
+  #area-principal { padding: 0 !important; }
+  .anim-entrar { animation: none !important; transform: none !important; }
+  .nao-imprimir { display: none !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  section, header { box-shadow: none !important; }
+
+  /* Relatórios com área própria de impressão (#diario-impressao), mesmo dentro de painel: só ela sai no PDF */
   body.imprimindo-diario { background: #fff !important; }
-  body.imprimindo-diario * { visibility: hidden; }
-  body.imprimindo-diario #diario-impressao, body.imprimindo-diario #diario-impressao * { visibility: visible; }
-  body.imprimindo-diario #diario-impressao { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; }
-  body.imprimindo-diario .nao-imprimir { display: none !important; }
-  body.imprimindo-diario #diario-impressao section, body.imprimindo-diario #diario-impressao header { break-inside: avoid; box-shadow: none !important; }
-  body.imprimindo-diario { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  @page { margin: 14mm; }
+  body.imprimindo-diario *:has(#diario-impressao) { display: block !important; position: static !important; inset: auto !important; transform: none !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; width: auto !important; max-width: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; box-shadow: none !important; border: 0 !important; }
+  body.imprimindo-diario *:has(#diario-impressao) > :not(:has(#diario-impressao)):not(#diario-impressao) { display: none !important; }
+  body.imprimindo-diario > :not(:has(#diario-impressao)) { display: none !important; }
+  body.imprimindo-diario #diario-impressao { width: 100%; padding: 0; }
+  body.imprimindo-diario #diario-impressao section, body.imprimindo-diario #diario-impressao header { break-inside: avoid; }
+  @page { margin: 12mm; }
 }
 
 /* Diagnóstico Digital (página pública /diagnostico): tema marinho fixo, independente do claro/escuro do sistema */
